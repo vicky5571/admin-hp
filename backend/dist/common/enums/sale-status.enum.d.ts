@@ -1,0 +1,6 @@
+export declare enum SaleStatus {
+    COMPLETED = "COMPLETED",
+    VOIDED = "VOIDED",
+    PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED",
+    REFUNDED = "REFUNDED"
+}

@@ -1,0 +1,5 @@
+Terminal 1: Backend
+cd backend && npm run start:dev
+
+Terminal 2: Frontend
+cd frontend && npm run dev
