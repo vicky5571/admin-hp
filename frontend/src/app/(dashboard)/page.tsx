@@ -25,10 +25,10 @@ export default function DashboardPage() {
       fetchReturnsSummary(),
     ])
       .then(([sales, stock, profit, returns]) => {
-        setSalesData(sales.data);
-        setStockSummary(stock.summary);
-        setProfitSummary(profit.summary);
-        setReturnsTotal(returns.summary.totalReturns);
+        setSalesData(sales.data.data ?? []);
+        setStockSummary(stock.data.summary);
+        setProfitSummary(profit.data.summary);
+        setReturnsTotal(returns.data.summary.totalReturns);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

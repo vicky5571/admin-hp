@@ -20,9 +20,9 @@ export default function ReportsPage() {
       fetchReturnsSummary(),
     ])
       .then(([sales, profit, returns]) => {
-        setSalesData(sales.data);
-        setProfitData(profit);
-        setReturnsData(returns);
+        setSalesData(sales.data.data ?? []);
+        setProfitData(profit.data);
+        setReturnsData(returns.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

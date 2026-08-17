@@ -9,7 +9,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     apiFetch<any>("/reports/stock-on-hand")
-      .then((res) => setData(res.data))
+      .then((res) => setData(res.data.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

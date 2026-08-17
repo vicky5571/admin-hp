@@ -9,7 +9,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts({ limit: 50 })
-      .then((res) => setProducts(res.data))
+      .then((res) => setProducts(res.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

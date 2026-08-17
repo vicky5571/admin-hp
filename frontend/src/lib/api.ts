@@ -3,6 +3,12 @@ const API_BASE_URL =
 
 const API_PREFIX = "/api/v1";
 
+export interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  meta?: Record<string, unknown>;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -21,7 +27,7 @@ function getToken(): string | null {
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+): Promise<ApiEnvelope<T>> {
   const token = getToken();
 
   const res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
@@ -43,7 +49,7 @@ export async function apiFetch<T>(
     );
   }
 
-  return json.data as T;
+  return json as ApiEnvelope<T>;
 }
 
 // ── Auth ────────────────────────────────────────────────────────────
@@ -76,11 +82,6 @@ export interface Product {
   category?: { id: number; name: string };
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: { total: number; page: number; limit: number; pageCount: number };
-}
-
 export function fetchProducts(params?: {
   q?: string;
   page?: number;
@@ -90,9 +91,7 @@ export function fetchProducts(params?: {
   if (params?.q) query.set("q", params.q);
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
-  return apiFetch<PaginatedResponse<Product>>(
-    `/products?${query.toString()}`,
-  );
+  return apiFetch<Product[]>(`/products?${query.toString()}`);
 }
 
 // ── Sales ───────────────────────────────────────────────────────────
