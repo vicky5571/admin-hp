@@ -34,7 +34,7 @@ export default function PosPage() {
     const timer = setTimeout(async () => {
       try {
         const res = await fetchProducts({ q: search, limit: 10 });
-        setProducts(res.data);
+        setProducts(res.data ?? []);
       } catch {
         setProducts([]);
       }
@@ -123,7 +123,7 @@ export default function PosPage() {
           },
         ],
       });
-      setResult(res);
+      setResult(res.data);
       setCart([]);
       setPayAmount("");
     } catch (err) {
