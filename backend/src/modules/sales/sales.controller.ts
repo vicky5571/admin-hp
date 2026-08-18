@@ -6,8 +6,10 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RoleName } from '../../common/enums/role.enum';
@@ -58,6 +60,23 @@ export class SalesController {
   async receipt(@Param('id', ParseIntPipe) id: number) {
     const sale = await this.salesService.findOne(id);
     return this.receiptService.buildReceiptPayload(sale);
+  }
+
+  @Get(':id/receipt/pdf')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER)
+  async receiptPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const sale = await this.salesService.findOne(id);
+    const pdfBuffer = await this.receiptService.generatePdf(sale);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="receipt-${sale.invoiceNumber}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.end(pdfBuffer);
   }
 
   @Post(':id/void')

@@ -10,4 +10,5 @@ export declare class ReceiptService {
         items: import("./entities/sale-item.entity").SaleItem[];
         payments: import("./entities/payment.entity").Payment[];
     };
+    generatePdf(sale: Sale): Promise<Buffer>;
 }

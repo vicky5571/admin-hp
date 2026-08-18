@@ -46,6 +46,16 @@ let SalesController = class SalesController {
         const sale = await this.salesService.findOne(id);
         return this.receiptService.buildReceiptPayload(sale);
     }
+    async receiptPdf(id, res) {
+        const sale = await this.salesService.findOne(id);
+        const pdfBuffer = await this.receiptService.generatePdf(sale);
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="receipt-${sale.invoiceNumber}.pdf"`,
+            'Content-Length': pdfBuffer.length,
+        });
+        res.end(pdfBuffer);
+    }
     voidSale(id, user) {
         return this.salesService.voidSale(id, user);
     }
@@ -92,6 +102,15 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", Promise)
 ], SalesController.prototype, "receipt", null);
+__decorate([
+    (0, common_1.Get)(':id/receipt/pdf'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.CASHIER),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", Promise)
+], SalesController.prototype, "receiptPdf", null);
 __decorate([
     (0, common_1.Post)(':id/void'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.SUPERVISOR),

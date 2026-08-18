@@ -1,3 +1,4 @@
+import { Response } from 'express';
 import { DateRangeQueryDto, SalesSummaryQueryDto, StockMovementsQueryDto, StockOnHandQueryDto } from './dto/reports.dto';
 import { ReportsService } from './reports.service';
 export declare class ReportsController {
@@ -50,4 +51,11 @@ export declare class ReportsController {
         byDay: any[];
         byMethod: any[];
     }>;
+    salesSummaryCsv(query: SalesSummaryQueryDto, res: Response): Promise<void>;
+    salesByProductCsv(query: DateRangeQueryDto, res: Response): Promise<void>;
+    salesByCashierCsv(query: DateRangeQueryDto, res: Response): Promise<void>;
+    paymentBreakdownCsv(query: DateRangeQueryDto, res: Response): Promise<void>;
+    grossProfitCsv(query: DateRangeQueryDto, res: Response): Promise<void>;
+    stockOnHandCsv(query: StockOnHandQueryDto, res: Response): Promise<void>;
+    returnsSummaryCsv(query: DateRangeQueryDto, res: Response): Promise<void>;
 }

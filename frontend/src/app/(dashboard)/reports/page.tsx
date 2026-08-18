@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  downloadReportCsv,
   fetchSalesSummary,
   fetchGrossProfit,
   fetchReturnsSummary,
@@ -34,7 +35,82 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() =>
+              downloadReportCsv(
+                "/reports/sales-summary/csv?period=daily",
+                "sales-summary.csv",
+              )
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Sales Summary CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv(
+                "/reports/sales-by-product/csv",
+                "sales-by-product.csv",
+              )
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Sales by Product CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv(
+                "/reports/sales-by-cashier/csv",
+                "sales-by-cashier.csv",
+              )
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Sales by Cashier CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv(
+                "/reports/payment-breakdown/csv",
+                "payment-breakdown.csv",
+              )
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Payment Breakdown CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv("/reports/gross-profit/csv", "gross-profit.csv")
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Gross Profit CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv("/reports/stock-on-hand/csv", "stock-on-hand.csv")
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Stock on Hand CSV
+          </button>
+          <button
+            onClick={() =>
+              downloadReportCsv(
+                "/reports/returns-summary/csv",
+                "returns-summary.csv",
+              )
+            }
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+          >
+            Returns Summary CSV
+          </button>
+        </div>
+      </div>
 
       {/* Gross Profit Summary */}
       {profitData?.summary && (

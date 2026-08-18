@@ -390,3 +390,120 @@ export function updateImeiStatus(
   });
 }
 
+
+
+// ── Users & Roles ──────────────────────────────────────────────────
+export interface AppUser {
+  id: number;
+  fullName: string;
+  username: string;
+  email: string | null;
+  isActive: boolean;
+  roleId: number;
+  role?: { id: number; name: string; description: string | null };
+  createdAt?: string;
+}
+
+export interface AppRole {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export function fetchUsers() {
+  return apiFetch<AppUser[]>("/users");
+}
+
+export function fetchRoles() {
+  return apiFetch<AppRole[]>("/users/roles");
+}
+
+export function fetchUser(id: number) {
+  return apiFetch<AppUser>(`/users/${id}`);
+}
+
+export function createUser(payload: {
+  fullName: string;
+  username: string;
+  email?: string;
+  password: string;
+  roleId: number;
+}) {
+  return apiFetch<AppUser>("/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateUser(
+  id: number,
+  payload: {
+    fullName?: string;
+    username?: string;
+    email?: string;
+    roleId?: number;
+    isActive?: boolean;
+  },
+) {
+  return apiFetch<AppUser>(`/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function changePassword(
+  id: number,
+  currentPassword: string,
+  newPassword: string,
+) {
+  return apiFetch<{ message: string }>(`/users/${id}/change-password`, {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function resetUserPassword(id: number, newPassword: string) {
+  return apiFetch<{ message: string }>(`/users/${id}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify({ newPassword }),
+  });
+}
+
+// ── File downloads (PDF / CSV) ─────────────────────────────────────
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function downloadReceiptPdf(saleId: number) {
+  const res = await fetch(
+    `${API_BASE_URL}${API_PREFIX}/sales/${saleId}/receipt/pdf`,
+    { headers: { ...authHeaders() } },
+  );
+  if (!res.ok) throw new ApiError(res.status, "Failed to download PDF");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `receipt-${saleId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadReportCsv(path: string, filename: string) {
+  const res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new ApiError(res.status, "Failed to download CSV");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

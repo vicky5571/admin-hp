@@ -1,3 +1,4 @@
+import { Response } from 'express';
 import { AuthUser } from '../../common/types/auth-user.type';
 import { CreateSaleDto, QuoteSaleDto } from './dto/create-sale.dto';
 import { ListSalesQueryDto } from './dto/list-sales.query.dto';
@@ -55,5 +56,6 @@ export declare class SalesController {
         items: import("./entities/sale-item.entity").SaleItem[];
         payments: import("./entities/payment.entity").Payment[];
     }>;
+    receiptPdf(id: number, res: Response): Promise<void>;
     voidSale(id: number, user: AuthUser): Promise<import("./entities/sale.entity").Sale>;
 }

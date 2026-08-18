@@ -339,6 +339,50 @@ let ReportsService = class ReportsService {
             byMethod,
         };
     }
+    buildCsv(headers, rows) {
+        const escape = (v) => {
+            if (v === null || v === undefined)
+                return '';
+            const s = String(v);
+            if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                return `"${s.replace(/"/g, '""')}"`;
+            }
+            return s;
+        };
+        const lines = [headers.join(',')];
+        for (const row of rows) {
+            lines.push(headers.map((h) => escape(row[h])).join(','));
+        }
+        return lines.join('\n');
+    }
+    async salesSummaryCsv(query) {
+        const { data } = await this.salesSummary(query);
+        return this.buildCsv(['period_start', 'transaction_count', 'subtotal', 'discount_total', 'tax_total', 'grand_total'], data);
+    }
+    async salesByProductCsv(query) {
+        const { data } = await this.salesByProduct(query);
+        return this.buildCsv(['product_id', 'sku', 'product_name', 'brand_name', 'qty_sold', 'net_sales', 'total_discount'], data);
+    }
+    async salesByCashierCsv(query) {
+        const { data } = await this.salesByCashier(query);
+        return this.buildCsv(['cashier_id', 'cashier_name', 'transaction_count', 'total_sales'], data);
+    }
+    async paymentBreakdownCsv(query) {
+        const { data } = await this.paymentBreakdown(query);
+        return this.buildCsv(['method', 'transaction_count', 'total_amount'], data);
+    }
+    async grossProfitCsv(query) {
+        const { data } = await this.grossProfit(query);
+        return this.buildCsv(['product_id', 'sku', 'product_name', 'qty_sold', 'net_revenue', 'total_cost', 'gross_profit', 'margin_percent'], data);
+    }
+    async stockOnHandCsv(query) {
+        const { data } = await this.stockOnHand(query);
+        return this.buildCsv(['id', 'sku', 'name', 'product_type', 'brand', 'on_hand_qty', 'reserved_qty', 'min_stock_alert', 'cost_price', 'selling_price', 'stock_value'], data);
+    }
+    async returnsSummaryCsv(query) {
+        const { byDay } = await this.returnsSummary(query);
+        return this.buildCsv(['period_start', 'return_count', 'total_refunded', 'affected_sales'], byDay);
+    }
 };
 exports.ReportsService = ReportsService;
 exports.ReportsService = ReportsService = __decorate([

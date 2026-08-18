@@ -15,6 +15,7 @@ const navItems = [
   { href: "/imei", label: "IMEI Tracking", icon: "📱" },
   { href: "/sales", label: "Sales", icon: "💰" },
   { href: "/returns", label: "Returns", icon: "↩️" },
+  { href: "/users", label: "Users", icon: "👥" },
   { href: "/reports", label: "Reports", icon: "📈" },
 ];
 

@@ -48,6 +48,41 @@ let ReportsController = class ReportsController {
     returnsSummary(query) {
         return this.service.returnsSummary(query);
     }
+    async salesSummaryCsv(query, res) {
+        const csv = await this.service.salesSummaryCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="sales-summary.csv"' });
+        res.send(csv);
+    }
+    async salesByProductCsv(query, res) {
+        const csv = await this.service.salesByProductCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="sales-by-product.csv"' });
+        res.send(csv);
+    }
+    async salesByCashierCsv(query, res) {
+        const csv = await this.service.salesByCashierCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="sales-by-cashier.csv"' });
+        res.send(csv);
+    }
+    async paymentBreakdownCsv(query, res) {
+        const csv = await this.service.paymentBreakdownCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="payment-breakdown.csv"' });
+        res.send(csv);
+    }
+    async grossProfitCsv(query, res) {
+        const csv = await this.service.grossProfitCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="gross-profit.csv"' });
+        res.send(csv);
+    }
+    async stockOnHandCsv(query, res) {
+        const csv = await this.service.stockOnHandCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="stock-on-hand.csv"' });
+        res.send(csv);
+    }
+    async returnsSummaryCsv(query, res) {
+        const csv = await this.service.returnsSummaryCsv(query);
+        res.set({ 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="returns-summary.csv"' });
+        res.send(csv);
+    }
 };
 exports.ReportsController = ReportsController;
 __decorate([
@@ -114,6 +149,69 @@ __decorate([
     __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "returnsSummary", null);
+__decorate([
+    (0, common_1.Get)('sales-summary/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.SalesSummaryQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "salesSummaryCsv", null);
+__decorate([
+    (0, common_1.Get)('sales-by-product/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "salesByProductCsv", null);
+__decorate([
+    (0, common_1.Get)('sales-by-cashier/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "salesByCashierCsv", null);
+__decorate([
+    (0, common_1.Get)('payment-breakdown/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "paymentBreakdownCsv", null);
+__decorate([
+    (0, common_1.Get)('gross-profit/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "grossProfitCsv", null);
+__decorate([
+    (0, common_1.Get)('stock-on-hand/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.StockOnHandQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "stockOnHandCsv", null);
+__decorate([
+    (0, common_1.Get)('returns-summary/csv'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "returnsSummaryCsv", null);
 exports.ReportsController = ReportsController = __decorate([
     (0, common_1.Controller)('reports'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

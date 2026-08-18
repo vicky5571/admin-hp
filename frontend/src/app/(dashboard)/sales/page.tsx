@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, downloadReceiptPdf } from "@/lib/api";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<any[]>([]);
@@ -27,19 +27,20 @@ export default function SalesPage() {
               <th className="px-4 py-3 font-medium">Items</th>
               <th className="px-4 py-3 font-medium">Total</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Receipt</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && sales.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   No sales yet
                 </td>
               </tr>
@@ -67,6 +68,14 @@ export default function SalesPage() {
                   >
                     {s.status}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => downloadReceiptPdf(s.id)}
+                    className="text-blue-600 hover:underline"
+                  >
+                    PDF
+                  </button>
                 </td>
               </tr>
             ))}

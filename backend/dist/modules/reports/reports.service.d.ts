@@ -50,4 +50,12 @@ export declare class ReportsService {
         byDay: any[];
         byMethod: any[];
     }>;
+    private buildCsv;
+    salesSummaryCsv(query: SalesSummaryQueryDto): Promise<string>;
+    salesByProductCsv(query: DateRangeQueryDto): Promise<string>;
+    salesByCashierCsv(query: DateRangeQueryDto): Promise<string>;
+    paymentBreakdownCsv(query: DateRangeQueryDto): Promise<string>;
+    grossProfitCsv(query: DateRangeQueryDto): Promise<string>;
+    stockOnHandCsv(query: StockOnHandQueryDto): Promise<string>;
+    returnsSummaryCsv(query: DateRangeQueryDto): Promise<string>;
 }
