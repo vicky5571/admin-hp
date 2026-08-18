@@ -179,3 +179,214 @@ export function fetchReturnsSummary() {
     byMethod: any[];
   }>("/reports/returns-summary");
 }
+
+// ── Suppliers ───────────────────────────────────────────────────────
+export interface Supplier {
+  id: number;
+  supplierCode: string;
+  name: string;
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  paymentTermsDays: number;
+  isActive: boolean;
+}
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  pageCount: number;
+}
+
+export function fetchSuppliers(params?: { q?: string; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.q) query.set("q", params.q);
+  query.set("limit", String(params?.limit ?? 100));
+  return apiFetch<Supplier[]>(`/suppliers?${query.toString()}`);
+}
+
+// ── Purchase Orders ─────────────────────────────────────────────────
+export interface PoItem {
+  id: number;
+  productId: number;
+  orderedQty: number;
+  receivedQty: number;
+  unitCost: string;
+  product?: Product;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  poNumber: string;
+  supplierId: number;
+  status: string;
+  orderDate: string;
+  expectedDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  supplier?: { id: number; name: string };
+  items: PoItem[];
+  creator?: { id: number; fullName: string };
+}
+
+export interface CreatePoPayload {
+  supplierId: number;
+  orderDate: string;
+  expectedDate?: string;
+  notes?: string;
+  items: { productId: number; orderedQty: number; unitCost: number }[];
+}
+
+export function fetchPurchaseOrders(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  query.set("page", String(params?.page ?? 1));
+  query.set("limit", String(params?.limit ?? 20));
+  return apiFetch<PurchaseOrder[]>(`/purchase-orders?${query.toString()}`);
+}
+
+export function fetchPurchaseOrder(id: number) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}`);
+}
+
+export function createPurchaseOrder(payload: CreatePoPayload) {
+  return apiFetch<PurchaseOrder>("/purchase-orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function submitPurchaseOrder(id: number) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/submit`, {
+    method: "POST",
+  });
+}
+
+export function cancelPurchaseOrder(id: number) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/cancel`, {
+    method: "POST",
+  });
+}
+
+// ── Goods Receipts ──────────────────────────────────────────────────
+export interface GrItem {
+  id: number;
+  poItemId: number;
+  productId: number;
+  receivedQty: number;
+  unitCost: string;
+  product?: Product;
+  imeis?: {
+    id: number;
+    imeiUnit?: { id: number; imei: string; status?: string };
+  }[];
+}
+
+export interface GoodsReceipt {
+  id: number;
+  grnNumber: string;
+  purchaseOrderId: number;
+  receiveDate: string;
+  notes: string | null;
+  createdAt: string;
+  purchaseOrder?: { id: number; poNumber: string };
+  receiver?: { id: number; fullName: string };
+  items: GrItem[];
+}
+
+export interface CreateGrPayload {
+  purchaseOrderId: number;
+  receiveDate: string;
+  notes?: string;
+  items: {
+    poItemId: number;
+    productId: number;
+    receivedQty: number;
+    unitCost: number;
+    imeis?: string[];
+  }[];
+}
+
+export function fetchGoodsReceipts(params?: { page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  query.set("page", String(params?.page ?? 1));
+  query.set("limit", String(params?.limit ?? 20));
+  return apiFetch<GoodsReceipt[]>(`/goods-receipts?${query.toString()}`);
+}
+
+export function fetchGoodsReceipt(id: number) {
+  return apiFetch<GoodsReceipt>(`/goods-receipts/${id}`);
+}
+
+export function createGoodsReceipt(payload: CreateGrPayload) {
+  return apiFetch<GoodsReceipt>("/goods-receipts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ── IMEI ────────────────────────────────────────────────────────────
+export interface ImeiUnit {
+  id: number;
+  imei: string;
+  productId: number;
+  status: string;
+  currentLocation: string;
+  lastRefType: string | null;
+  lastRefId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  product?: Product;
+}
+
+export function fetchImeiUnits(params?: {
+  q?: string;
+  status?: string;
+  productId?: number;
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.q) query.set("q", params.q);
+  if (params?.status) query.set("status", params.status);
+  if (params?.productId) query.set("productId", String(params.productId));
+  query.set("page", String(params?.page ?? 1));
+  query.set("limit", String(params?.limit ?? 20));
+  return apiFetch<ImeiUnit[]>(`/imei?${query.toString()}`);
+}
+
+export function lookupImei(imei: string) {
+  return apiFetch<{
+    unit: ImeiUnit;
+    sale: { id: number; invoiceNumber: string; saleTime: string } | null;
+    return: { id: number; returnNumber: string; createdAt: string } | null;
+    goodsReceipt: {
+      id: number;
+      grnNumber: string;
+      purchaseOrder?: { poNumber: string };
+    } | null;
+  }>(`/imei/lookup/${encodeURIComponent(imei)}`);
+}
+
+export function fetchAvailableImeis(productId: number) {
+  return apiFetch<ImeiUnit[]>(
+    `/imei/available?productId=${productId}`,
+  );
+}
+
+export function updateImeiStatus(
+  id: number,
+  payload: { status: string; location?: string },
+) {
+  return apiFetch<ImeiUnit>(`/imei/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+

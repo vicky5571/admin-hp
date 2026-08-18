@@ -9,7 +9,6 @@ import { DataSource, Repository } from 'typeorm';
 import { ImeiStatus } from '../../common/enums/imei-status.enum';
 import { MovementType } from '../../common/enums/movement-type.enum';
 import { ProductType } from '../../common/enums/product-type.enum';
-import { RefundMethod } from '../../common/enums/refund-method.enum';
 import { RestockType } from '../../common/enums/restock-type.enum';
 import { ReturnStatus } from '../../common/enums/return-status.enum';
 import { SaleStatus } from '../../common/enums/sale-status.enum';
