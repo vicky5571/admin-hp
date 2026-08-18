@@ -1,22 +1,139 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/pos", label: "POS / Checkout", icon: "🛒" },
-  { href: "/products", label: "Products", icon: "📦" },
-  { href: "/inventory", label: "Inventory", icon: "🏭" },
-  { href: "/purchase-orders", label: "Purchase Orders", icon: "📝" },
-  { href: "/goods-receipts", label: "Goods Receipts", icon: "🚚" },
-  { href: "/imei", label: "IMEI Tracking", icon: "📱" },
-  { href: "/sales", label: "Sales", icon: "💰" },
-  { href: "/returns", label: "Returns", icon: "↩️" },
-  { href: "/users", label: "Users", icon: "👥" },
-  { href: "/reports", label: "Reports", icon: "📈" },
+interface NavGroup {
+  title?: string;
+  items: {
+    href: string;
+    label: string;
+    icon: (props: { className?: string }) => React.ReactNode;
+  }[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    title: "MAIN",
+    items: [
+      {
+        href: "/",
+        label: "Dashboard",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+        ),
+      },
+      {
+        href: "/pos",
+        label: "POS Checkout",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "INVENTORY & PROCUREMENT",
+    items: [
+      {
+        href: "/products",
+        label: "Products",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        ),
+      },
+      {
+        href: "/inventory",
+        label: "Inventory Stock",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        ),
+      },
+      {
+        href: "/purchase-orders",
+        label: "Purchase Orders",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+      },
+      {
+        href: "/goods-receipts",
+        label: "Goods Receipts",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+          </svg>
+        ),
+      },
+      {
+        href: "/imei",
+        label: "IMEI Tracking",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "SALES & FINANCE",
+    items: [
+      {
+        href: "/sales",
+        label: "Sales History",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        ),
+      },
+      {
+        href: "/returns",
+        label: "Returns & Refunds",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 15v-1a4 4 0 00-4-4H4m0 0l3-3m-3 3l3 3m5 4v1a4 4 0 004 4h8m0 0l-3-3m3 3l-3 3" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: "ADMINISTRATION",
+    items: [
+      {
+        href: "/users",
+        label: "Users & Roles",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ),
+      },
+      {
+        href: "/reports",
+        label: "Analytics & Reports",
+        icon: ({ className }) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
 
 export default function DashboardLayout({
@@ -27,6 +144,8 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -34,75 +153,227 @@ export default function DashboardLayout({
     }
   }, [loading, user, router]);
 
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-950">
+        <div className="flex items-center gap-3 text-slate-400">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-medium tracking-wide">Loading workspace...</span>
+        </div>
       </div>
     );
   }
 
+  const userInitials = user.fullName
+    ? user.fullName
+        .split(" ")
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "U";
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased">
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm transition-opacity lg:hidden"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-16 lg:w-64 flex-shrink-0 bg-gray-900 text-gray-100 flex flex-col transition-[width] duration-200">
-        <div className="px-3 lg:px-6 py-4 border-b border-gray-800 flex items-center justify-center lg:justify-start">
-          <div>
-            <h1 className="hidden lg:block text-lg font-bold text-white">
-              SmartStore
-            </h1>
-            <p className="hidden lg:block text-xs text-gray-400">
-              POS & Inventory
-            </p>
-          </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#090d16] text-slate-300 border-r border-slate-800/80 transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        } ${isCollapsed ? "lg:w-20" : "lg:w-64"} w-64 shadow-2xl lg:shadow-none`}
+      >
+        {/* Brand Header */}
+        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800/60">
+          <Link
+            href="/"
+            className="flex items-center gap-3 group overflow-hidden"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-500/25 transition-transform group-hover:scale-105">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            {!isCollapsed && (
+              <div className="flex flex-col transition-opacity duration-200">
+                <span className="text-sm font-bold tracking-tight text-white">
+                  SmartStore
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                  Retail & Inventory
+                </span>
+              </div>
+            )}
+          </Link>
+
+          {/* Desktop Collapse Toggle */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            <svg
+              className={`w-4 h-4 transition-transform duration-200 ${
+                isCollapsed ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <nav className="flex-1 px-2 lg:px-3 py-4 space-y-1">
-          {navItems.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.label}
-                className={`group flex items-center justify-center lg:justify-start gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                }`}
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-700 bg-gray-800 text-base group-hover:border-gray-600">
-                  {item.icon}
-                </span>
-                <span className="hidden lg:inline">{item.label}</span>
-              </Link>
-            );
-          })}
+        {/* Navigation Links */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1">
+              {!isCollapsed && group.title && (
+                <div className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                  {group.title}
+                </div>
+              )}
+              {group.items.map((item) => {
+                const active =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={isCollapsed ? item.label : undefined}
+                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 ${
+                      active
+                        ? "bg-blue-600/15 text-blue-400 font-semibold"
+                        : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                    } ${isCollapsed ? "justify-center px-0" : ""}`}
+                  >
+                    {/* Active Accent Bar */}
+                    {active && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-blue-500 shadow-sm shadow-blue-500" />
+                    )}
+
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                        active
+                          ? "text-blue-400"
+                          : "text-slate-400 group-hover:text-slate-200"
+                      }`}
+                    >
+                      <item.icon className="w-[18px] h-[18px]" />
+                    </span>
+
+                    {!isCollapsed && (
+                      <span className="truncate">{item.label}</span>
+                    )}
+
+                    {/* Collapsed Tooltip */}
+                    {isCollapsed && (
+                      <div className="fixed left-20 z-50 hidden rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl border border-slate-700 group-hover:block whitespace-nowrap">
+                        {item.label}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div className="border-t border-gray-800 px-2 lg:px-3 py-4">
-          <div className="mb-3 hidden lg:block px-3">
-            <p className="text-sm font-medium text-white">{user.fullName}</p>
-            <p className="text-xs text-gray-400">{user.role}</p>
-          </div>
-          <button
-            onClick={logout}
-            title="Sign Out"
-            className="w-full rounded-lg bg-gray-800 px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-red-600 hover:text-white"
+        {/* User Profile Footer */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
+          <div
+            className={`flex items-center gap-3 rounded-xl p-2 transition-colors ${
+              isCollapsed ? "justify-center" : "justify-between"
+            }`}
           >
-            <span className="hidden lg:inline">Sign Out</span>
-            <span className="lg:hidden">⏻</span>
-          </button>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-800 to-slate-700 text-xs font-bold text-slate-200 border border-slate-600/50 shadow-inner">
+                {userInitials}
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white truncate">
+                    {user.fullName || "User"}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400 truncate">
+                      {user.role}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!isCollapsed && (
+              <button
+                onClick={logout}
+                title="Sign Out"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-4 lg:p-6">{children}</div>
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile Header Bar */}
+        <header className="flex h-16 items-center justify-between px-4 bg-white border-b border-slate-200/80 lg:hidden shadow-xs">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            title="Open Menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-slate-900">SmartStore</span>
+          </div>
+          <div className="w-9" />
+        </header>
+
+        {/* Page Container */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

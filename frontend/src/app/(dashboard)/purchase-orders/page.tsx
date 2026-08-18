@@ -19,6 +19,9 @@ import {
   submitPurchaseOrder,
   updatePurchaseOrder,
 } from "@/lib/api";
+import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
+import BulkImeiModal from "@/components/BulkImeiModal";
+import PrintLabelsModal, { LabelItem } from "@/components/PrintLabelsModal";
 
 const PO_STATUSES = [
   "DRAFT",
@@ -107,6 +110,19 @@ export default function PurchaseOrdersPage() {
   const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
   const [receiveSubmitting, setReceiveSubmitting] = useState(false);
   const [receiveError, setReceiveError] = useState("");
+
+  // Scanner & Modal States
+  const [scanningRowId, setScanningRowId] = useState<number | null>(null);
+  const [bulkModalRowId, setBulkModalRowId] = useState<number | null>(null);
+  const [printLabelsData, setPrintLabelsData] = useState<{
+    isOpen: boolean;
+    items: LabelItem[];
+    title: string;
+  }>({
+    isOpen: false,
+    items: [],
+    title: "",
+  });
 
   const load = useCallback(
     async (page = 1) => {
@@ -384,10 +400,10 @@ export default function PurchaseOrdersPage() {
     );
   };
 
-  const addReceiveImei = (poItemId: number) => {
+  const addReceiveImei = (poItemId: number, valueToAdd?: string) => {
     const row = receiveRows.find((r) => r.poItem.id === poItemId);
     if (!row) return;
-    const value = row.imeiInput.trim();
+    const value = (valueToAdd ?? row.imeiInput).trim();
     if (!value || row.imeis.includes(value)) {
       updateReceiveRow(poItemId, { imeiInput: "" });
       return;
@@ -445,11 +461,47 @@ export default function PurchaseOrdersPage() {
         notes: receiveNotes || undefined,
         items,
       });
+
+      const newGr = res.data;
       setSuccess(
-        `Goods Receipt #${res.data.grnNumber} created successfully for PO #${receivePo.poNumber}!`,
+        `Goods Receipt #${newGr.grnNumber} created successfully for PO #${receivePo.poNumber}!`,
       );
       setReceivePo(null);
       load(meta.page);
+
+      // Offer instant label printing
+      const labelItems: LabelItem[] = [];
+      for (const grItem of newGr.items || []) {
+        if (grItem.imeis && grItem.imeis.length > 0) {
+          for (const imeiLink of grItem.imeis) {
+            labelItems.push({
+              sku: grItem.product?.sku || `PROD-${grItem.productId}`,
+              name: grItem.product?.name || "Product",
+              price: grItem.product?.sellingPrice
+                ? parseFloat(grItem.product.sellingPrice)
+                : undefined,
+              imei: imeiLink.imeiUnit?.imei,
+            });
+          }
+        } else {
+          labelItems.push({
+            sku: grItem.product?.sku || `PROD-${grItem.productId}`,
+            name: grItem.product?.name || "Product",
+            price: grItem.product?.sellingPrice
+              ? parseFloat(grItem.product.sellingPrice)
+              : undefined,
+            quantity: grItem.receivedQty,
+          });
+        }
+      }
+
+      if (labelItems.length > 0) {
+        setPrintLabelsData({
+          isOpen: true,
+          items: labelItems,
+          title: `Print Labels — GRN ${newGr.grnNumber}`,
+        });
+      }
     } catch (err) {
       setReceiveError(
         err instanceof Error ? err.message : "Failed to create goods receipt",
@@ -470,6 +522,9 @@ export default function PurchaseOrdersPage() {
     0,
   );
 
+  const activeScanRow = receiveRows.find((r) => r.poItem.id === scanningRowId);
+  const activeBulkRow = receiveRows.find((r) => r.poItem.id === bulkModalRowId);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -486,18 +541,8 @@ export default function PurchaseOrdersPage() {
           onClick={openCreateForm}
           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
-          <svg
-            className="w-4 h-4 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           New Purchase Order
         </button>
@@ -507,25 +552,12 @@ export default function PurchaseOrdersPage() {
       {success && (
         <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 border border-emerald-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5 text-emerald-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
+            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             <span>{success}</span>
           </div>
-          <button
-            onClick={() => setSuccess("")}
-            className="text-emerald-600 hover:text-emerald-800 font-bold"
-          >
+          <button onClick={() => setSuccess("")} className="text-emerald-600 hover:text-emerald-800 font-bold">
             &times;
           </button>
         </div>
@@ -534,25 +566,12 @@ export default function PurchaseOrdersPage() {
       {error && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 border border-red-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5 text-red-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{error}</span>
           </div>
-          <button
-            onClick={() => setError("")}
-            className="text-red-500 hover:text-red-700 font-bold"
-          >
+          <button onClick={() => setError("")} className="text-red-500 hover:text-red-700 font-bold">
             &times;
           </button>
         </div>
@@ -647,7 +666,7 @@ export default function PurchaseOrdersPage() {
                 placeholder="e.g. FOB Destination, Net 30"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
@@ -738,18 +757,8 @@ export default function PurchaseOrdersPage() {
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg text-sm transition-colors"
                       title="Remove Row"
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
                   </div>
@@ -1183,30 +1192,57 @@ export default function PurchaseOrdersPage() {
                       </div>
                     </div>
 
-                    {/* Serialized IMEI input */}
+                    {/* Serialized IMEI input & Camera/Bulk tools */}
                     {isSerialized && qtyNum > 0 && (
-                      <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-gray-700">
-                            IMEI Numbers Required:
-                          </span>
-                          <span
-                            className={`font-semibold px-2 py-0.5 rounded-full ${
-                              r.imeis.length === qtyNum
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {r.imeis.length} of {qtyNum} entered
-                          </span>
+                      <div className="bg-white p-3.5 rounded-xl border border-gray-200 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-700">
+                              IMEI Numbers:
+                            </span>
+                            <span
+                              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                r.imeis.length === qtyNum
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {r.imeis.length} of {qtyNum} registered
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setScanningRowId(r.poItem.id)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span>Scan with Phone / Cam</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setBulkModalRowId(r.poItem.id)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              <span>Bulk Paste</span>
+                            </button>
+                          </div>
                         </div>
 
                         {r.imeis.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-gray-50 rounded-lg border border-gray-100">
                             {r.imeis.map((imei) => (
                               <span
                                 key={imei}
-                                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-mono font-medium text-blue-700 border border-blue-200"
+                                className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-xs font-mono font-medium text-blue-700 border border-blue-200"
                               >
                                 {imei}
                                 <button
@@ -1279,18 +1315,8 @@ export default function PurchaseOrdersPage() {
                   </>
                 ) : (
                   <>
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span>Confirm & Receive Items</span>
                   </>
@@ -1300,6 +1326,47 @@ export default function PurchaseOrdersPage() {
           </div>
         </div>
       )}
+
+      {/* Camera Barcode Scanner Modal */}
+      {scanningRowId !== null && activeScanRow && (
+        <CameraBarcodeScanner
+          isOpen={true}
+          onClose={() => setScanningRowId(null)}
+          onScan={(code) => addReceiveImei(activeScanRow.poItem.id, code)}
+          title={`Scan IMEI: ${activeScanRow.poItem.product?.name || activeScanRow.poItem.product?.sku}`}
+          subtitle={`Required: ${activeScanRow.receivedQty} IMEIs`}
+          expectedCount={Number(activeScanRow.receivedQty)}
+          currentCount={activeScanRow.imeis.length}
+        />
+      )}
+
+      {/* Bulk IMEI Paste Modal */}
+      {bulkModalRowId !== null && activeBulkRow && (
+        <BulkImeiModal
+          isOpen={true}
+          onClose={() => setBulkModalRowId(null)}
+          onApply={(newImeis) => {
+            const combined = Array.from(
+              new Set([...activeBulkRow.imeis, ...newImeis]),
+            );
+            updateReceiveRow(activeBulkRow.poItem.id, {
+              imeis: combined,
+            });
+          }}
+          productSku={activeBulkRow.poItem.product?.sku}
+          productName={activeBulkRow.poItem.product?.name}
+          targetQty={Number(activeBulkRow.receivedQty)}
+          existingImeis={activeBulkRow.imeis}
+        />
+      )}
+
+      {/* Print Barcode Labels Modal */}
+      <PrintLabelsModal
+        isOpen={printLabelsData.isOpen}
+        onClose={() => setPrintLabelsData((prev) => ({ ...prev, isOpen: false }))}
+        items={printLabelsData.items}
+        title={printLabelsData.title}
+      />
     </div>
   );
 }
@@ -1334,10 +1401,7 @@ function PoTableRow({
   const isApproved = po.status === "APPROVED";
   const isRejected = po.status === "REJECTED";
   const isPartial = po.status === "PARTIALLY_RECEIVED";
-  const canReceive = isApproved || isPartial || isSubmitted;
   const canCancel = !["COMPLETED", "CANCELLED"].includes(po.status);
-  const canEdit = isDraft || isRejected;
-  const canDelete = isDraft || isRejected;
 
   return (
     <>
@@ -1353,12 +1417,7 @@ function PoTableRow({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
             <span>{po.poNumber}</span>
           </button>
@@ -1452,18 +1511,8 @@ function PoTableRow({
                 onClick={onReceive}
                 className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-1"
               >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                  />
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
                 <span>Receive Items</span>
               </button>
