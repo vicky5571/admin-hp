@@ -50,25 +50,55 @@ export default function GoodsReceiptsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    load(1);
-  }, [load]);
-
-  const openForm = async () => {
+  const openForm = useCallback(async (autoPoId?: string) => {
     setShowForm(true);
     setError("");
     setSelectedPo(null);
     setRows([]);
     try {
-      const [submitted, partial] = await Promise.all([
+      const [approved, submitted, partial] = await Promise.all([
+        fetchPurchaseOrders({ status: "APPROVED", limit: 100 }),
         fetchPurchaseOrders({ status: "SUBMITTED", limit: 100 }),
         fetchPurchaseOrders({ status: "PARTIALLY_RECEIVED", limit: 100 }),
       ]);
-      setOpenPos([...(submitted.data ?? []), ...(partial.data ?? [])]);
+      const list = [
+        ...(approved.data ?? []),
+        ...(submitted.data ?? []),
+        ...(partial.data ?? []),
+      ];
+      setOpenPos(list);
+
+      if (autoPoId) {
+        const match = list.find((p) => String(p.id) === autoPoId);
+        if (match) {
+          setSelectedPo(match);
+          setRows(
+            (match.items ?? [])
+              .filter((i) => i.orderedQty - i.receivedQty > 0)
+              .map((i) => ({
+                poItem: i,
+                receivedQty: String(i.orderedQty - i.receivedQty),
+                imeis: [],
+                imeiInput: "",
+              })),
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load POs");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    load(1);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlPoId = params.get("poId");
+      if (urlPoId) {
+        openForm(urlPoId);
+      }
+    }
+  }, [load, openForm]);
 
   const selectPo = (poId: string) => {
     const po = openPos.find((p) => String(p.id) === poId) ?? null;
@@ -164,7 +194,7 @@ export default function GoodsReceiptsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Goods Receipts</h1>
         <button
-          onClick={openForm}
+          onClick={() => openForm()}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Receive Stock

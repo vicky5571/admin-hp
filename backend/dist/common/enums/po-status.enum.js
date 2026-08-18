@@ -5,6 +5,8 @@ var PoStatus;
 (function (PoStatus) {
     PoStatus["DRAFT"] = "DRAFT";
     PoStatus["SUBMITTED"] = "SUBMITTED";
+    PoStatus["APPROVED"] = "APPROVED";
+    PoStatus["REJECTED"] = "REJECTED";
     PoStatus["PARTIALLY_RECEIVED"] = "PARTIALLY_RECEIVED";
     PoStatus["COMPLETED"] = "COMPLETED";
     PoStatus["CANCELLED"] = "CANCELLED";

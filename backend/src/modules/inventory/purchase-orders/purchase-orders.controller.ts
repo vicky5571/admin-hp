@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import { RolesGuard } from '../../../common/guards/roles.guard';
 import { AuthUser } from '../../../common/types/auth-user.type';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
+import { RejectPurchaseOrderDto, UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Controller('purchase-orders')
@@ -44,10 +47,41 @@ export class PurchaseOrdersController {
     return this.service.create(dto, user.id);
   }
 
+  @Put(':id')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePurchaseOrderDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.update(id, dto, user.id);
+  }
+
+  @Delete(':id')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
+  }
+
   @Post(':id/submit')
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
   submit(@Param('id', ParseIntPipe) id: number) {
     return this.service.submit(id);
+  }
+
+  @Post(':id/approve')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  approve(@Param('id', ParseIntPipe) id: number) {
+    return this.service.approve(id);
+  }
+
+  @Post(':id/reject')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto?: RejectPurchaseOrderDto,
+  ) {
+    return this.service.reject(id, dto?.reason);
   }
 
   @Post(':id/cancel')

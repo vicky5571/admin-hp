@@ -67,17 +67,17 @@ let GoodsReceiptsService = class GoodsReceiptsService {
         return { data: rows, meta: (0, pagination_util_1.paginateMeta)(total, query.page, query.limit) };
     }
     async findOne(id) {
-        const row = await this.grRepo.findOne({
-            where: { id },
-            relations: [
-                'purchaseOrder',
-                'items',
-                'items.product',
-                'items.imeis',
-                'items.imeis.imeiUnit',
-                'receiver',
-            ],
-        });
+        const row = await this.grRepo
+            .createQueryBuilder('gr')
+            .leftJoinAndSelect('gr.purchaseOrder', 'po')
+            .leftJoinAndSelect('po.supplier', 'supplier')
+            .leftJoinAndSelect('gr.items', 'items')
+            .leftJoinAndSelect('items.product', 'product')
+            .leftJoinAndSelect('items.imeis', 'grImeis')
+            .leftJoinAndSelect('grImeis.imeiUnit', 'imeiUnit')
+            .leftJoinAndSelect('gr.receiver', 'receiver')
+            .where('gr.id = :id', { id })
+            .getOne();
         if (!row) {
             throw new common_1.NotFoundException('Goods receipt not found');
         }
@@ -91,14 +91,16 @@ let GoodsReceiptsService = class GoodsReceiptsService {
         if (!po) {
             throw new common_1.BadRequestException('Purchase order not found');
         }
-        if (po.status === po_status_enum_1.PoStatus.CANCELLED || po.status === po_status_enum_1.PoStatus.DRAFT) {
+        if (po.status === po_status_enum_1.PoStatus.CANCELLED ||
+            po.status === po_status_enum_1.PoStatus.DRAFT ||
+            po.status === po_status_enum_1.PoStatus.REJECTED) {
             throw new common_1.BadRequestException(`Cannot receive against PO with status ${po.status}`);
         }
         if (!dto.items || dto.items.length === 0) {
             throw new common_1.BadRequestException('Goods receipt must have at least one item');
         }
         for (const dtoItem of dto.items) {
-            const poItem = po.items.find((i) => i.id === dtoItem.poItemId);
+            const poItem = po.items.find((i) => Number(i.id) === Number(dtoItem.poItemId));
             if (!poItem) {
                 throw new common_1.BadRequestException(`PO item ${dtoItem.poItemId} does not belong to PO ${po.poNumber}`);
             }
@@ -123,7 +125,7 @@ let GoodsReceiptsService = class GoodsReceiptsService {
             }
         }
         const grnNumber = await this.generateGrnNumber();
-        return this.dataSource.transaction(async (manager) => {
+        const savedGrId = await this.dataSource.transaction(async (manager) => {
             const grRepo = manager.getRepository(goods_receipt_entity_1.GoodsReceipt);
             const grItemRepo = manager.getRepository(goods_receipt_item_entity_1.GoodsReceiptItem);
             const grImeiRepo = manager.getRepository(goods_receipt_item_imei_entity_1.GoodsReceiptItemImei);
@@ -142,7 +144,7 @@ let GoodsReceiptsService = class GoodsReceiptsService {
             const savedGr = await grRepo.save(gr);
             let fullyReceived = true;
             for (const dtoItem of dto.items) {
-                const poItem = po.items.find((i) => i.id === dtoItem.poItemId);
+                const poItem = po.items.find((i) => Number(i.id) === Number(dtoItem.poItemId));
                 const grItem = grItemRepo.create({
                     goodsReceiptId: savedGr.id,
                     poItemId: dtoItem.poItemId,
@@ -226,8 +228,9 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                 po.status = po_status_enum_1.PoStatus.PARTIALLY_RECEIVED;
             }
             await poRepoTx.save(po);
-            return this.findOne(savedGr.id);
+            return savedGr.id;
         });
+        return this.findOne(Number(savedGrId));
     }
     async generateGrnNumber() {
         const date = new Date();

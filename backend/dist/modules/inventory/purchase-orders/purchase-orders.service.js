@@ -21,6 +21,7 @@ const pagination_util_1 = require("../../../common/utils/pagination.util");
 const purchase_order_entity_1 = require("../entities/purchase-order.entity");
 const purchase_order_item_entity_1 = require("../entities/purchase-order-item.entity");
 const supplier_entity_1 = require("../entities/supplier.entity");
+const goods_receipt_entity_1 = require("../entities/goods-receipt.entity");
 let PurchaseOrdersService = class PurchaseOrdersService {
     constructor(poRepo, supplierRepo, dataSource) {
         this.poRepo = poRepo;
@@ -91,12 +92,84 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         });
         return this.poRepo.save(po);
     }
+    async update(id, dto, userId) {
+        const po = await this.findOne(id);
+        if (po.status !== po_status_enum_1.PoStatus.DRAFT && po.status !== po_status_enum_1.PoStatus.REJECTED) {
+            throw new common_1.BadRequestException(`Cannot edit purchase order with status ${po.status}. Only DRAFT or REJECTED POs can be edited.`);
+        }
+        const supplier = await this.supplierRepo.findOne({
+            where: { id: dto.supplierId },
+        });
+        if (!supplier) {
+            throw new common_1.BadRequestException('Supplier not found');
+        }
+        if (!dto.items || dto.items.length === 0) {
+            throw new common_1.BadRequestException('PO must have at least one item');
+        }
+        return this.dataSource.transaction(async (manager) => {
+            const poItemRepo = manager.getRepository(purchase_order_item_entity_1.PurchaseOrderItem);
+            const poRepoTx = manager.getRepository(purchase_order_entity_1.PurchaseOrder);
+            await poItemRepo.delete({ purchaseOrderId: id });
+            const newItems = dto.items.map((i) => poItemRepo.create({
+                purchaseOrderId: id,
+                productId: i.productId,
+                orderedQty: i.orderedQty,
+                receivedQty: 0,
+                unitCost: i.unitCost.toFixed(2),
+            }));
+            await poItemRepo.save(newItems);
+            po.supplierId = dto.supplierId;
+            po.orderDate = dto.orderDate;
+            po.expectedDate = dto.expectedDate ?? null;
+            po.notes = dto.notes ?? null;
+            if (po.status === po_status_enum_1.PoStatus.REJECTED) {
+                po.status = po_status_enum_1.PoStatus.DRAFT;
+            }
+            await poRepoTx.save(po);
+            return id;
+        });
+        return this.findOne(id);
+    }
+    async remove(id) {
+        const po = await this.findOne(id);
+        if (po.status !== po_status_enum_1.PoStatus.DRAFT && po.status !== po_status_enum_1.PoStatus.REJECTED) {
+            throw new common_1.BadRequestException(`Cannot delete purchase order with status ${po.status}. Only DRAFT or REJECTED POs can be deleted.`);
+        }
+        const grCount = await this.dataSource
+            .getRepository(goods_receipt_entity_1.GoodsReceipt)
+            .count({ where: { purchaseOrderId: id } });
+        if (grCount > 0) {
+            throw new common_1.BadRequestException('Cannot delete purchase order with existing goods receipts.');
+        }
+        await this.poRepo.delete(id);
+        return { success: true, message: 'Purchase order deleted successfully' };
+    }
     async submit(id) {
         const po = await this.findOne(id);
-        if (po.status !== po_status_enum_1.PoStatus.DRAFT) {
-            throw new common_1.BadRequestException(`Cannot submit PO with status ${po.status}`);
+        if (po.status !== po_status_enum_1.PoStatus.DRAFT && po.status !== po_status_enum_1.PoStatus.REJECTED) {
+            throw new common_1.BadRequestException(`Cannot submit PO with status ${po.status}. Only DRAFT or REJECTED POs can be submitted.`);
         }
         po.status = po_status_enum_1.PoStatus.SUBMITTED;
+        return this.poRepo.save(po);
+    }
+    async approve(id) {
+        const po = await this.findOne(id);
+        if (po.status !== po_status_enum_1.PoStatus.SUBMITTED) {
+            throw new common_1.BadRequestException(`Cannot approve PO with status ${po.status}. Only SUBMITTED POs can be approved.`);
+        }
+        po.status = po_status_enum_1.PoStatus.APPROVED;
+        return this.poRepo.save(po);
+    }
+    async reject(id, reason) {
+        const po = await this.findOne(id);
+        if (po.status !== po_status_enum_1.PoStatus.SUBMITTED) {
+            throw new common_1.BadRequestException(`Cannot reject PO with status ${po.status}. Only SUBMITTED POs can be rejected.`);
+        }
+        po.status = po_status_enum_1.PoStatus.REJECTED;
+        if (reason && reason.trim()) {
+            const rejectNote = `[Rejection Note: ${reason.trim()}]`;
+            po.notes = po.notes ? `${po.notes}\n${rejectNote}` : rejectNote;
+        }
         return this.poRepo.save(po);
     }
     async cancel(id) {

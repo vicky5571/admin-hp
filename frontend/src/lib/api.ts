@@ -200,11 +200,29 @@ export interface PaginationMeta {
   pageCount: number;
 }
 
+export interface CreateSupplierPayload {
+  supplierCode: string;
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  paymentTermsDays?: number;
+  isActive?: boolean;
+}
+
 export function fetchSuppliers(params?: { q?: string; limit?: number }) {
   const query = new URLSearchParams();
   if (params?.q) query.set("q", params.q);
   query.set("limit", String(params?.limit ?? 100));
   return apiFetch<Supplier[]>(`/suppliers?${query.toString()}`);
+}
+
+export function createSupplier(payload: CreateSupplierPayload) {
+  return apiFetch<Supplier>("/suppliers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ── Purchase Orders ─────────────────────────────────────────────────
@@ -225,6 +243,7 @@ export interface PurchaseOrder {
   orderDate: string;
   expectedDate: string | null;
   notes: string | null;
+  createdBy?: number;
   createdAt: string;
   supplier?: { id: number; name: string };
   items: PoItem[];
@@ -262,9 +281,38 @@ export function createPurchaseOrder(payload: CreatePoPayload) {
   });
 }
 
+export function updatePurchaseOrder(id: number, payload: CreatePoPayload) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePurchaseOrder(id: number) {
+  return apiFetch<{ success: boolean; message: string }>(
+    `/purchase-orders/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export function submitPurchaseOrder(id: number) {
   return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/submit`, {
     method: "POST",
+  });
+}
+
+export function approvePurchaseOrder(id: number) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/approve`, {
+    method: "POST",
+  });
+}
+
+export function rejectPurchaseOrder(id: number, reason?: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
 

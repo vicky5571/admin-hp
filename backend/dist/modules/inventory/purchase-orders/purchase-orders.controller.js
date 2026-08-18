@@ -21,6 +21,7 @@ const jwt_auth_guard_1 = require("../../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../../common/guards/roles.guard");
 const create_purchase_order_dto_1 = require("../dto/create-purchase-order.dto");
 const list_purchase_orders_query_dto_1 = require("../dto/list-purchase-orders.query.dto");
+const update_purchase_order_dto_1 = require("../dto/update-purchase-order.dto");
 const purchase_orders_service_1 = require("./purchase-orders.service");
 let PurchaseOrdersController = class PurchaseOrdersController {
     constructor(service) {
@@ -35,8 +36,20 @@ let PurchaseOrdersController = class PurchaseOrdersController {
     create(dto, user) {
         return this.service.create(dto, user.id);
     }
+    update(id, dto, user) {
+        return this.service.update(id, dto, user.id);
+    }
+    remove(id) {
+        return this.service.remove(id);
+    }
     submit(id) {
         return this.service.submit(id);
+    }
+    approve(id) {
+        return this.service.approve(id);
+    }
+    reject(id, dto) {
+        return this.service.reject(id, dto?.reason);
     }
     cancel(id) {
         return this.service.cancel(id);
@@ -69,6 +82,24 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "create", null);
 __decorate([
+    (0, common_1.Put)(':id'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, update_purchase_order_dto_1.UpdatePurchaseOrderDto, Object]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "remove", null);
+__decorate([
     (0, common_1.Post)(':id/submit'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
@@ -76,6 +107,23 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "submit", null);
+__decorate([
+    (0, common_1.Post)(':id/approve'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Post)(':id/reject'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, update_purchase_order_dto_1.RejectPurchaseOrderDto]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "reject", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),

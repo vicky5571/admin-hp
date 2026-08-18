@@ -71,17 +71,18 @@ export class GoodsReceiptsService {
   }
 
   async findOne(id: number) {
-    const row = await this.grRepo.findOne({
-      where: { id },
-      relations: [
-        'purchaseOrder',
-        'items',
-        'items.product',
-        'items.imeis',
-        'items.imeis.imeiUnit',
-        'receiver',
-      ],
-    });
+    const row = await this.grRepo
+      .createQueryBuilder('gr')
+      .leftJoinAndSelect('gr.purchaseOrder', 'po')
+      .leftJoinAndSelect('po.supplier', 'supplier')
+      .leftJoinAndSelect('gr.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('items.imeis', 'grImeis')
+      .leftJoinAndSelect('grImeis.imeiUnit', 'imeiUnit')
+      .leftJoinAndSelect('gr.receiver', 'receiver')
+      .where('gr.id = :id', { id })
+      .getOne();
+
     if (!row) {
       throw new NotFoundException('Goods receipt not found');
     }
@@ -97,7 +98,11 @@ export class GoodsReceiptsService {
     if (!po) {
       throw new BadRequestException('Purchase order not found');
     }
-    if (po.status === PoStatus.CANCELLED || po.status === PoStatus.DRAFT) {
+    if (
+      po.status === PoStatus.CANCELLED ||
+      po.status === PoStatus.DRAFT ||
+      po.status === PoStatus.REJECTED
+    ) {
       throw new BadRequestException(
         `Cannot receive against PO with status ${po.status}`,
       );
@@ -110,7 +115,9 @@ export class GoodsReceiptsService {
 
     // Validate each received item against the PO
     for (const dtoItem of dto.items) {
-      const poItem = po.items.find((i) => i.id === dtoItem.poItemId);
+      const poItem = po.items.find(
+        (i) => Number(i.id) === Number(dtoItem.poItemId),
+      );
       if (!poItem) {
         throw new BadRequestException(
           `PO item ${dtoItem.poItemId} does not belong to PO ${po.poNumber}`,
@@ -151,7 +158,7 @@ export class GoodsReceiptsService {
     const grnNumber = await this.generateGrnNumber();
 
     // Execute everything in a transaction
-    return this.dataSource.transaction(async (manager) => {
+    const savedGrId = await this.dataSource.transaction(async (manager) => {
       const grRepo = manager.getRepository(GoodsReceipt);
       const grItemRepo = manager.getRepository(GoodsReceiptItem);
       const grImeiRepo = manager.getRepository(GoodsReceiptItemImei);
@@ -175,7 +182,9 @@ export class GoodsReceiptsService {
 
       // Process each received item
       for (const dtoItem of dto.items) {
-        const poItem = po.items.find((i) => i.id === dtoItem.poItemId)!;
+        const poItem = po.items.find(
+          (i) => Number(i.id) === Number(dtoItem.poItemId),
+        )!;
 
         // Create GR item
         const grItem = grItemRepo.create({
@@ -279,9 +288,11 @@ export class GoodsReceiptsService {
       }
       await poRepoTx.save(po);
 
-      // Return the saved GR with relations
-      return this.findOne(savedGr.id);
+      return savedGr.id;
     });
+
+    // Return the saved GR with relations after transaction commits
+    return this.findOne(Number(savedGrId));
   }
 
   private async generateGrnNumber(): Promise<string> {
