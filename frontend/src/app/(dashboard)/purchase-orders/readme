@@ -1,0 +1,76 @@
+Here is the complete explanation of the **Purchase Orders Lifecycle and Status Workflow**:
+
+---
+
+## 🗺️ Visual Workflow Diagram
+
+```mermaid
+stateDiagram-v2
+    direction TB
+
+    [*] --> DRAFT : Create PO
+
+    DRAFT --> SUBMITTED : Submit for Approval
+    DRAFT --> [*] : Delete (Hard Delete)
+
+    SUBMITTED --> APPROVED : Approve (Admin / Owner)
+    SUBMITTED --> REJECTED : Reject with Reason (Admin / Owner)
+    SUBMITTED --> CANCELLED : Cancel / Void
+
+    REJECTED --> DRAFT : Edit & Save (Auto-resets to Draft)
+    REJECTED --> [*] : Delete (Hard Delete)
+
+    APPROVED --> PARTIALLY_RECEIVED : Receive Some Items (GRN)
+    APPROVED --> COMPLETED : Receive All Items (GRN)
+    APPROVED --> CANCELLED : Cancel / Void
+
+    PARTIALLY_RECEIVED --> COMPLETED : Receive Remaining Items (GRN)
+    PARTIALLY_RECEIVED --> CANCELLED : Cancel Remaining Outstanding
+
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+```
+
+---
+
+## 📋 Status Breakdown & Rules
+
+| Status                   | Meaning & Purpose                                                                                                        | Permitted Actions                                                                                                                                           | Who Can Perform                                                       |
+| :----------------------- | :----------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| **`DRAFT`**              | Initial state when a PO is created. It represents a work-in-progress order that has not yet been committed.              | • **Submit**: Send for approval.<br>• **Edit**: Change supplier, dates, items, quantities, and costs.<br>• **Delete**: Permanently remove from database.    | Creator, Inventory Staff, Admin, Owner                                |
+| **`SUBMITTED`**          | The PO is finalized by the creator and is pending review/authorization from managers or admins.                          | • **Approve**: Approve PO for ordering & receiving.<br>• **Reject**: Reject with an optional note explaining why.<br>• **Cancel**: Void/abort the request.  | **Approve/Reject**: Admin, Owner<br>**Cancel**: Creator, Admin, Owner |
+| **`APPROVED`**           | The PO has been authorized. Items can now be ordered from the supplier and received into inventory.                      | • **Receive Items**: Open Goods Receipt modal to record incoming stock & scan IMEIs.<br>• **Cancel**: Void if supplier cannot fulfill.                      | **Receive**: Inventory, Admin, Owner<br>**Cancel**: Admin, Owner      |
+| **`REJECTED`**           | The PO was rejected during review (e.g., budget exceeded, incorrect pricing). Rejection notes are attached to the order. | • **Edit & Re-submit**: Modify items/quantities/notes (automatically returns it to `DRAFT` or ready to re-submit).<br>• **Delete**: Remove the rejected PO. | Creator, Inventory, Admin, Owner                                      |
+| **`PARTIALLY_RECEIVED`** | A Goods Receipt was created for a portion of the ordered quantities, but some items/quantities are still outstanding.    | • **Receive Items**: Receive the remaining outstanding quantities.<br>• **Cancel**: Cancel remaining balance if supplier won't deliver the rest.            | Inventory, Admin, Owner                                               |
+| **`COMPLETED`**          | All items across all line items have been 100% received into stock (`receivedQty == orderedQty`).                        | • **View Details**: Read-only history and audit log.                                                                                                        | All Roles (Read-Only)                                                 |
+| **`CANCELLED`**          | The PO has been voided/terminated. No further goods receipts can be created against it.                                  | • **View Details**: Read-only history and audit log.                                                                                                        | All Roles (Read-Only)                                                 |
+
+---
+
+## 🔄 Step-by-Step Scenario Walkthrough
+
+### Scenario A: Standard Happy Path
+
+1. **Creation**: Inventory staff clicks **"New Purchase Order"**, selects supplier `PT Mitra Jaya`, adds items (e.g., 5x iPhone 15, 10x Chargers), and clicks **"Create PO (Draft)"** &rarr; Status is **`DRAFT`**.
+2. **Submission**: Staff reviews the items and clicks **"Submit"** &rarr; Status changes to **`SUBMITTED`**.
+3. **Approval**: Store Owner or Admin reviews the order cost and clicks **"Approve"** &rarr; Status changes to **`APPROVED`**.
+4. **Receiving**:
+   - The delivery arrives. Staff clicks **"Receive Items"** directly on the PO page.
+   - For serialized items (iPhone 15), staff enters/scans the 5 IMEIs.
+   - Staff submits the receipt &rarr; A **Goods Receipt (`GRN-YYYYMMDD-XXX`)** is generated, stock balance increases, and PO status becomes **`COMPLETED`**.
+
+---
+
+### Scenario B: Partial Delivery
+
+1. PO is **`APPROVED`** for 10 units of a product.
+2. Supplier delivers only 6 units today. Staff receives 6 units &rarr; PO status automatically updates to **`PARTIALLY_RECEIVED`** (6 received, 4 outstanding).
+3. When the remaining 4 units arrive next week, staff clicks **"Receive Items"** again &rarr; receives 4 units &rarr; PO status transitions to **`COMPLETED`**.
+
+---
+
+### Scenario C: Rejection & Correction
+
+1. PO submitted for 100 units &rarr; Status **`SUBMITTED`**.
+2. Manager clicks **"Reject"** and adds note: _"Unit cost negotiated down to IDR 12,000,000"_. Status becomes **`REJECTED`**.
+3. Staff clicks **"Edit & Re-submit"**, adjusts the unit cost to the approved rate, and saves &rarr; PO moves back to **`DRAFT`** and can be submitted again for approval.
