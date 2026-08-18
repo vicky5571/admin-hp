@@ -1,11 +1,10 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { paginateMeta } from '../../../common/utils/pagination.util';
 import { Supplier } from '../entities/supplier.entity';
 import { CreateSupplierDto } from '../dto/create-supplier.dto';

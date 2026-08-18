@@ -10,6 +10,7 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { ImeiModule } from './modules/imei/imei.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     AuditLogsModule,
     CatalogModule,
+    ImeiModule,
     InventoryModule,
     SalesModule,
     ReportsModule,

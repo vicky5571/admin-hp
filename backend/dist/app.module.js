@@ -22,6 +22,7 @@ const response_transform_interceptor_1 = require("./common/interceptors/response
 const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const catalog_module_1 = require("./modules/catalog/catalog.module");
+const imei_module_1 = require("./modules/imei/imei.module");
 const inventory_module_1 = require("./modules/inventory/inventory.module");
 const reports_module_1 = require("./modules/reports/reports.module");
 const roles_module_1 = require("./modules/roles/roles.module");
@@ -56,6 +57,7 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             audit_logs_module_1.AuditLogsModule,
             catalog_module_1.CatalogModule,
+            imei_module_1.ImeiModule,
             inventory_module_1.InventoryModule,
             sales_module_1.SalesModule,
             reports_module_1.ReportsModule,
