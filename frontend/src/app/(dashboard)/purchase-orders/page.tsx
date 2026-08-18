@@ -195,11 +195,11 @@ export default function PurchaseOrdersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-xl bg-white p-5 shadow-sm border border-gray-200">
-          <h2 className="font-semibold text-gray-900 mb-4">
+        <div className="mb-4 sm:mb-6 rounded-xl bg-white p-4 sm:p-5 shadow-sm border border-gray-200">
+          <h2 className="font-semibold text-gray-900 mb-3 sm:mb-4">
             New Purchase Order
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Supplier
@@ -328,7 +328,8 @@ export default function PurchaseOrdersPage() {
       )}
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
               <th className="px-4 py-3 font-medium">PO Number</th>
@@ -369,6 +370,7 @@ export default function PurchaseOrdersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {meta.pageCount > 1 && (
@@ -455,7 +457,7 @@ function FragmentRows({
       {expanded && (
         <tr className="bg-gray-50">
           <td colSpan={7} className="px-6 py-3">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="text-left text-gray-500">
                   <th className="py-1 pr-4 font-medium">Product</th>

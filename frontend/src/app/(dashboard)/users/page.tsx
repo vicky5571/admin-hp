@@ -181,11 +181,11 @@ export default function UsersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 rounded-xl bg-white p-5 shadow-sm border border-gray-200">
-          <h2 className="font-semibold text-gray-900 mb-4">
+        <div className="mb-4 sm:mb-6 rounded-xl bg-white p-4 sm:p-5 shadow-sm border border-gray-200">
+          <h2 className="font-semibold text-gray-900 mb-3 sm:mb-4">
             {editing ? `Edit ${editing.fullName}` : "New User"}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name
@@ -290,8 +290,8 @@ export default function UsersPage() {
       )}
 
       {pwTarget && (
-        <div className="mb-6 rounded-xl bg-white p-5 shadow-sm border border-gray-200">
-          <h2 className="font-semibold text-gray-900 mb-4">
+        <div className="mb-4 sm:mb-6 rounded-xl bg-white p-4 sm:p-5 shadow-sm border border-gray-200">
+          <h2 className="font-semibold text-gray-900 mb-3 sm:mb-4">
             {pwMode === "change" ? "Change" : "Reset"} Password for{" "}
             {pwTarget.fullName}
           </h2>
@@ -341,7 +341,8 @@ export default function UsersPage() {
       )}
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
               <th className="px-4 py-3 font-medium">Full Name</th>
@@ -426,6 +427,7 @@ export default function UsersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

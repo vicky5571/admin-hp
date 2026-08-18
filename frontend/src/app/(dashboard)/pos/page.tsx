@@ -141,7 +141,7 @@ export default function PosPage() {
   if (result) {
     return (
       <div className="max-w-lg mx-auto mt-12 text-center">
-        <div className="rounded-xl bg-white p-8 shadow-sm border border-gray-200">
+        <div className="rounded-xl bg-white p-5 sm:p-8 shadow-sm border border-gray-200">
           <div className="text-5xl mb-4">✅</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">
             Sale Completed
@@ -149,7 +149,7 @@ export default function PosPage() {
           <p className="text-gray-500 mb-4">
             Invoice: {result.invoiceNumber}
           </p>
-          <p className="text-2xl font-bold text-green-600 mb-6">
+          <p className="text-xl sm:text-2xl font-bold text-green-600 mb-6">
             IDR {parseFloat(grandTotal.toFixed(2)).toLocaleString()}
           </p>
           <button
@@ -165,7 +165,7 @@ export default function PosPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">POS Checkout</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">POS Checkout</h1>
 
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 border border-red-200">
@@ -173,7 +173,7 @@ export default function PosPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Left: Search + Products */}
         <div className="space-y-4">
           <div className="relative">
@@ -182,7 +182,7 @@ export default function PosPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search product by SKU or name..."
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+              className="w-full rounded-xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
               autoFocus
             />
             {products.length > 0 && (

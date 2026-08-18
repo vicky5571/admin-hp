@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   fetchSalesSummary,
@@ -45,16 +45,16 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500">
           Welcome back, {user?.fullName ?? "User"}
         </p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <SummaryCard
           title="Today's Sales"
           value={
@@ -97,52 +97,57 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent sales table */}
-      <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
           Sales Summary by Period
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="pb-2 font-medium">Period</th>
-                <th className="pb-2 font-medium">Transactions</th>
-                <th className="pb-2 font-medium">Subtotal</th>
-                <th className="pb-2 font-medium">Discount</th>
-                <th className="pb-2 font-medium">Tax</th>
-                <th className="pb-2 font-medium">Grand Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {salesData?.map((row: any, i: number) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="py-2">
-                    {new Date(row.period_start).toLocaleDateString()}
-                  </td>
-                  <td className="py-2">{row.transaction_count}</td>
-                  <td className="py-2">
-                    IDR {parseFloat(row.subtotal).toLocaleString()}
-                  </td>
-                  <td className="py-2">
-                    IDR {parseFloat(row.discount_total).toLocaleString()}
-                  </td>
-                  <td className="py-2">
-                    IDR {parseFloat(row.tax_total).toLocaleString()}
-                  </td>
-                  <td className="py-2 font-medium">
-                    IDR {parseFloat(row.grand_total).toLocaleString()}
-                  </td>
+        <div className="-mx-4 sm:-mx-6 overflow-x-auto">
+          <div className="px-4 sm:px-6 inline-block min-w-full align-middle">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-gray-500">
+                  <th className="py-2 pr-6 font-medium">Period</th>
+                  <th className="py-2 pr-6 font-medium">Transactions</th>
+                  <th className="py-2 pr-6 font-medium">Subtotal</th>
+                  <th className="py-2 pr-6 font-medium">Discount</th>
+                  <th className="py-2 pr-6 font-medium">Tax</th>
+                  <th className="py-2 pr-6 font-medium">Grand Total</th>
                 </tr>
-              ))}
-              {(!salesData || salesData.length === 0) && (
-                <tr>
-                  <td colSpan={6} className="py-4 text-center text-gray-400">
-                    No sales data yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {salesData?.map((row: any, i: number) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="py-2 pr-6">
+                      {new Date(row.period_start).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 pr-6">{row.transaction_count}</td>
+                    <td className="py-2 pr-6">
+                      IDR {parseFloat(row.subtotal).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-6">
+                      IDR {parseFloat(row.discount_total).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-6">
+                      IDR {parseFloat(row.tax_total).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-6 font-medium">
+                      IDR {parseFloat(row.grand_total).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+                {(!salesData || salesData.length === 0) && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-4 text-center text-gray-400"
+                    >
+                      No sales data yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -167,11 +172,45 @@ function SummaryCard({
     orange: "bg-orange-50 border-orange-200 text-orange-700",
   };
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const valueRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    const el = valueRef.current;
+    if (!card || !el) return;
+
+    const fit = () => {
+      el.style.fontSize = "";
+      const max = card.clientWidth - 1;
+      let size =
+        parseFloat(getComputedStyle(el).fontSize) ||
+        parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5;
+      const min = 11;
+      while (el.scrollWidth > max && size > min) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(card);
+    return () => ro.disconnect();
+  }, [value]);
+
   return (
-    <div className={`rounded-xl border p-5 ${colors[color]}`}>
-      <p className="text-sm font-medium">{title}</p>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
-      <p className="mt-1 text-xs opacity-75">{subtitle}</p>
+    <div ref={cardRef} className={`rounded-xl border p-3 sm:p-4 lg:p-5 ${colors[color]}`}>
+      <p className="text-xs sm:text-sm font-medium">{title}</p>
+      <p className="mt-1 sm:mt-2 font-bold leading-tight">
+        <span
+          ref={valueRef}
+          className="inline-block whitespace-nowrap text-lg sm:text-xl lg:text-2xl"
+        >
+          {value}
+        </span>
+      </p>
+      <p className="mt-1 text-[10px] sm:text-xs opacity-75">{subtitle}</p>
     </div>
   );
 }

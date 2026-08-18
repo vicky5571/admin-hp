@@ -101,10 +101,10 @@ export default function ImeiPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">IMEI Tracking</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">IMEI Tracking</h1>
 
-      <div className="mb-6 rounded-xl bg-white p-5 shadow-sm border border-gray-200">
-        <h2 className="font-semibold text-gray-900 mb-3">IMEI Lookup</h2>
+      <div className="mb-4 sm:mb-6 rounded-xl bg-white p-4 sm:p-5 shadow-sm border border-gray-200">
+        <h2 className="font-semibold text-gray-900 mb-2 sm:mb-3">IMEI Lookup</h2>
         <div className="flex gap-2">
           <input
             type="text"
@@ -207,7 +207,7 @@ export default function ImeiPage() {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-3 sm:mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
         <input
           type="text"
           value={search}
@@ -230,7 +230,8 @@ export default function ImeiPage() {
       </div>
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
               <th className="px-4 py-3 font-medium">IMEI</th>
@@ -307,6 +308,7 @@ export default function ImeiPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {meta.pageCount > 1 && (

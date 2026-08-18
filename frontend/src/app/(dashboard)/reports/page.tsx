@@ -36,7 +36,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Reports</h1>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() =>
@@ -114,8 +114,8 @@ export default function ReportsPage() {
 
       {/* Gross Profit Summary */}
       {profitData?.summary && (
-        <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
             Gross Profit Summary
           </h2>
           <div className="grid grid-cols-4 gap-4">
@@ -155,52 +155,52 @@ export default function ReportsPage() {
       )}
 
       {/* Sales Summary */}
-      <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
           Daily Sales
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto -mx-4 sm:mx-0"><div className="inline-block min-w-full align-middle px-4 sm:px-0"><table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="pb-2 font-medium">Date</th>
-                <th className="pb-2 font-medium">Transactions</th>
-                <th className="pb-2 font-medium">Subtotal</th>
-                <th className="pb-2 font-medium">Discount</th>
-                <th className="pb-2 font-medium">Tax</th>
-                <th className="pb-2 font-medium">Grand Total</th>
+                <th className="py-2 pr-6 font-medium">Date</th>
+                <th className="py-2 pr-6 font-medium">Transactions</th>
+                <th className="py-2 pr-6 font-medium">Subtotal</th>
+                <th className="py-2 pr-6 font-medium">Discount</th>
+                <th className="py-2 pr-6 font-medium">Tax</th>
+                <th className="py-2 pr-6 font-medium">Grand Total</th>
               </tr>
             </thead>
             <tbody>
               {salesData?.map((row: any, i: number) => (
                 <tr key={i} className="border-b border-gray-100">
-                  <td className="py-2">
+                  <td className="py-2 pr-6">
                     {new Date(row.period_start).toLocaleDateString()}
                   </td>
-                  <td className="py-2">{row.transaction_count}</td>
-                  <td className="py-2">
+                  <td className="py-2 pr-6">{row.transaction_count}</td>
+                  <td className="py-2 pr-6">
                     IDR {parseFloat(row.subtotal).toLocaleString()}
                   </td>
-                  <td className="py-2">
+                  <td className="py-2 pr-6">
                     IDR {parseFloat(row.discount_total).toLocaleString()}
                   </td>
-                  <td className="py-2">
+                  <td className="py-2 pr-6">
                     IDR {parseFloat(row.tax_total).toLocaleString()}
                   </td>
-                  <td className="py-2 font-medium">
+                  <td className="py-2 pr-6 font-medium">
                     IDR {parseFloat(row.grand_total).toLocaleString()}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       {/* Returns Summary */}
       {returnsData && (
-        <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
             Returns Summary
           </h2>
           <div className="grid grid-cols-2 gap-4 mb-4">
