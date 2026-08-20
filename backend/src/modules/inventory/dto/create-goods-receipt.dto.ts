@@ -3,6 +3,7 @@ import {
   IsArray,
   IsDateString,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -24,9 +25,23 @@ export class ReceiveGrItemDto {
   receivedQty: number;
 
   @Type(() => Number)
-  @IsInt()
+  @IsNumber()
   @Min(0)
   unitCost: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  actualUnitCost?: number;
+
+  @IsOptional()
+  @IsString()
+  conditionStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  conditionNotes?: string;
 
   @IsOptional()
   @IsArray()
@@ -45,6 +60,18 @@ export class CreateGoodsReceiptDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  supplierDoNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  carrierName?: string;
+
+  @IsOptional()
+  @IsString()
+  trackingNumber?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

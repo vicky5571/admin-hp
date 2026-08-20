@@ -14,7 +14,16 @@ export declare class ProductsController {
             pageCount: number;
         };
     }>;
+    findCategories(): Promise<import("./entities/category.entity").Category[]>;
+    createCategory(name: string): Promise<import("./entities/category.entity").Category>;
+    findBrands(): Promise<import("./entities/brand.entity").Brand[]>;
+    createBrand(name: string): Promise<import("./entities/brand.entity").Brand>;
+    findTaxClasses(): Promise<import("./entities/tax-class.entity").TaxClass[]>;
     create(dto: CreateProductDto): Promise<import("./entities/product.entity").Product>;
     findOne(id: number): Promise<import("./entities/product.entity").Product>;
     update(id: number, dto: UpdateProductDto): Promise<import("./entities/product.entity").Product>;
+    delete(id: number): Promise<{
+        success: boolean;
+        message: string;
+    }>;
 }

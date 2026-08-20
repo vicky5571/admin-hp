@@ -29,6 +29,21 @@ let ProductsController = class ProductsController {
     findAll(query) {
         return this.productsService.findAll(query);
     }
+    findCategories() {
+        return this.productsService.findCategories();
+    }
+    createCategory(name) {
+        return this.productsService.createCategory(name);
+    }
+    findBrands() {
+        return this.productsService.findBrands();
+    }
+    createBrand(name) {
+        return this.productsService.createBrand(name);
+    }
+    findTaxClasses() {
+        return this.productsService.findTaxClasses();
+    }
     create(dto) {
         return this.productsService.create(dto);
     }
@@ -37,6 +52,9 @@ let ProductsController = class ProductsController {
     }
     update(id, dto) {
         return this.productsService.update(id, dto);
+    }
+    delete(id) {
+        return this.productsService.delete(id);
     }
 };
 exports.ProductsController = ProductsController;
@@ -48,6 +66,43 @@ __decorate([
     __metadata("design:paramtypes", [list_products_query_dto_1.ListProductsQueryDto]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('categories'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.CASHIER, role_enum_1.RoleName.INVENTORY),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "findCategories", null);
+__decorate([
+    (0, common_1.Post)('categories'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Body)('name')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "createCategory", null);
+__decorate([
+    (0, common_1.Get)('brands'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.CASHIER, role_enum_1.RoleName.INVENTORY),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "findBrands", null);
+__decorate([
+    (0, common_1.Post)('brands'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Body)('name')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "createBrand", null);
+__decorate([
+    (0, common_1.Get)('tax-classes'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.CASHIER, role_enum_1.RoleName.INVENTORY),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "findTaxClasses", null);
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
@@ -73,6 +128,14 @@ __decorate([
     __metadata("design:paramtypes", [Number, update_product_dto_1.UpdateProductDto]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "delete", null);
 exports.ProductsController = ProductsController = __decorate([
     (0, common_1.Controller)('products'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

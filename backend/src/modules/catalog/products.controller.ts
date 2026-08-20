@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -29,6 +30,36 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
+  @Get('categories')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER, RoleName.INVENTORY)
+  findCategories() {
+    return this.productsService.findCategories();
+  }
+
+  @Post('categories')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  createCategory(@Body('name') name: string) {
+    return this.productsService.createCategory(name);
+  }
+
+  @Get('brands')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER, RoleName.INVENTORY)
+  findBrands() {
+    return this.productsService.findBrands();
+  }
+
+  @Post('brands')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  createBrand(@Body('name') name: string) {
+    return this.productsService.createBrand(name);
+  }
+
+  @Get('tax-classes')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER, RoleName.INVENTORY)
+  findTaxClasses() {
+    return this.productsService.findTaxClasses();
+  }
+
   @Post()
   @Roles(RoleName.OWNER, RoleName.ADMIN)
   create(@Body() dto: CreateProductDto) {
@@ -45,5 +76,11 @@ export class ProductsController {
   @Roles(RoleName.OWNER, RoleName.ADMIN)
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
     return this.productsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  delete(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.delete(id);
   }
 }

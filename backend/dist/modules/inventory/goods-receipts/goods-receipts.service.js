@@ -140,17 +140,28 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                 receiveDate: new Date(dto.receiveDate),
                 receivedBy: userId,
                 notes: dto.notes ?? null,
+                supplierDoNumber: dto.supplierDoNumber ?? null,
+                carrierName: dto.carrierName ?? null,
+                trackingNumber: dto.trackingNumber ?? null,
             });
             const savedGr = await grRepo.save(gr);
             let fullyReceived = true;
             for (const dtoItem of dto.items) {
                 const poItem = po.items.find((i) => Number(i.id) === Number(dtoItem.poItemId));
+                const effectiveCost = dtoItem.actualUnitCost !== undefined && dtoItem.actualUnitCost !== null
+                    ? dtoItem.actualUnitCost
+                    : dtoItem.unitCost;
                 const grItem = grItemRepo.create({
                     goodsReceiptId: savedGr.id,
                     poItemId: dtoItem.poItemId,
                     productId: dtoItem.productId,
                     receivedQty: dtoItem.receivedQty,
                     unitCost: dtoItem.unitCost.toFixed(2),
+                    actualUnitCost: dtoItem.actualUnitCost !== undefined && dtoItem.actualUnitCost !== null
+                        ? dtoItem.actualUnitCost.toFixed(2)
+                        : null,
+                    conditionStatus: dtoItem.conditionStatus || 'GOOD',
+                    conditionNotes: dtoItem.conditionNotes ?? null,
                 });
                 const savedGrItem = await grItemRepo.save(grItem);
                 if (dtoItem.imeis && dtoItem.imeis.length > 0) {
@@ -180,11 +191,11 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                             imeiUnitId: savedImei.id,
                             movementType: movement_type_enum_1.MovementType.IN,
                             qty: 1,
-                            unitCost: dtoItem.unitCost.toFixed(2),
+                            unitCost: effectiveCost.toFixed(2),
                             refType: 'GRN',
                             refId: savedGr.id,
                             createdBy: userId,
-                            notes: `Received via ${grnNumber}`,
+                            notes: `Received via ${grnNumber}${dtoItem.conditionStatus && dtoItem.conditionStatus !== 'GOOD' ? ` (${dtoItem.conditionStatus})` : ''}`,
                         });
                         await movementRepo.save(movement);
                     }
@@ -195,11 +206,11 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                         imeiUnitId: null,
                         movementType: movement_type_enum_1.MovementType.IN,
                         qty: dtoItem.receivedQty,
-                        unitCost: dtoItem.unitCost.toFixed(2),
+                        unitCost: effectiveCost.toFixed(2),
                         refType: 'GRN',
                         refId: savedGr.id,
                         createdBy: userId,
-                        notes: `Received via ${grnNumber}`,
+                        notes: `Received via ${grnNumber}${dtoItem.conditionStatus && dtoItem.conditionStatus !== 'GOOD' ? ` (${dtoItem.conditionStatus})` : ''}`,
                     });
                     await movementRepo.save(movement);
                 }

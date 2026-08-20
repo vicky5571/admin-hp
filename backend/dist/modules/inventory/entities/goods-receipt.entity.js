@@ -42,6 +42,18 @@ __decorate([
     __metadata("design:type", Object)
 ], GoodsReceipt.prototype, "notes", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'supplier_do_number', type: 'varchar', length: 60, nullable: true }),
+    __metadata("design:type", Object)
+], GoodsReceipt.prototype, "supplierDoNumber", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'carrier_name', type: 'varchar', length: 120, nullable: true }),
+    __metadata("design:type", Object)
+], GoodsReceipt.prototype, "carrierName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'tracking_number', type: 'varchar', length: 120, nullable: true }),
+    __metadata("design:type", Object)
+], GoodsReceipt.prototype, "trackingNumber", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], GoodsReceipt.prototype, "createdAt", void 0);

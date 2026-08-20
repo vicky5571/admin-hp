@@ -22,6 +22,7 @@ import {
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 import BulkImeiModal from "@/components/BulkImeiModal";
 import PrintLabelsModal, { LabelItem } from "@/components/PrintLabelsModal";
+import PrintGrnSlip from "@/components/PrintGrnSlip";
 
 const PO_STATUSES = [
   "DRAFT",
@@ -43,6 +44,14 @@ const statusColor: Record<string, string> = {
   CANCELLED: "bg-slate-100 text-slate-500 border-slate-200",
 };
 
+const CONDITION_OPTIONS = [
+  { value: "GOOD", label: "Good Condition" },
+  { value: "DAMAGED_BOX", label: "Damaged Box/Packaging" },
+  { value: "DAMAGED_ITEM", label: "Damaged / Broken Unit" },
+  { value: "SHORTAGE", label: "Shortage / Missing Pieces" },
+  { value: "WRONG_ITEM", label: "Wrong Item / Variant" },
+];
+
 interface ItemRow {
   productId: string;
   orderedQty: string;
@@ -54,6 +63,10 @@ const emptyRow: ItemRow = { productId: "", orderedQty: "1", unitCost: "" };
 interface ReceiveRow {
   poItem: PoItem;
   receivedQty: string;
+  unitCost: string;
+  actualUnitCost: string;
+  conditionStatus: string;
+  conditionNotes: string;
   imeis: string[];
   imeiInput: string;
 }
@@ -107,6 +120,9 @@ export default function PurchaseOrdersPage() {
     new Date().toISOString().slice(0, 10),
   );
   const [receiveNotes, setReceiveNotes] = useState("");
+  const [receiveDoNumber, setReceiveDoNumber] = useState("");
+  const [receiveCarrier, setReceiveCarrier] = useState("");
+  const [receiveTracking, setReceiveTracking] = useState("");
   const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
   const [receiveSubmitting, setReceiveSubmitting] = useState(false);
   const [receiveError, setReceiveError] = useState("");
@@ -123,6 +139,7 @@ export default function PurchaseOrdersPage() {
     items: [],
     title: "",
   });
+  const [printGrnTarget, setPrintGrnTarget] = useState<GoodsReceipt | null>(null);
 
   const load = useCallback(
     async (page = 1) => {
@@ -381,6 +398,9 @@ export default function PurchaseOrdersPage() {
     setReceivePo(po);
     setReceiveDate(new Date().toISOString().slice(0, 10));
     setReceiveNotes(`Direct receipt for PO ${po.poNumber}`);
+    setReceiveDoNumber("");
+    setReceiveCarrier("");
+    setReceiveTracking("");
     setReceiveError("");
     setReceiveRows(
       po.items
@@ -388,6 +408,10 @@ export default function PurchaseOrdersPage() {
         .map((i) => ({
           poItem: i,
           receivedQty: String(i.orderedQty - i.receivedQty),
+          unitCost: String(parseFloat(i.unitCost) || 0),
+          actualUnitCost: String(parseFloat(i.unitCost) || 0),
+          conditionStatus: "GOOD",
+          conditionNotes: "",
           imeis: [],
           imeiInput: "",
         })),
@@ -428,13 +452,21 @@ export default function PurchaseOrdersPage() {
 
     const items = receiveRows
       .filter((r) => Number(r.receivedQty) > 0)
-      .map((r) => ({
-        poItemId: r.poItem.id,
-        productId: r.poItem.productId,
-        receivedQty: Number(r.receivedQty),
-        unitCost: parseFloat(r.poItem.unitCost),
-        imeis: r.imeis.length > 0 ? r.imeis : undefined,
-      }));
+      .map((r) => {
+        const poCost = parseFloat(r.unitCost) || 0;
+        const actualCost = r.actualUnitCost ? parseFloat(r.actualUnitCost) : poCost;
+
+        return {
+          poItemId: r.poItem.id,
+          productId: r.poItem.productId,
+          receivedQty: Number(r.receivedQty),
+          unitCost: poCost,
+          actualUnitCost: actualCost !== poCost ? actualCost : undefined,
+          conditionStatus: r.conditionStatus || "GOOD",
+          conditionNotes: r.conditionNotes.trim() || undefined,
+          imeis: r.imeis.length > 0 ? r.imeis : undefined,
+        };
+      });
 
     if (items.length === 0) {
       setReceiveError("Enter received quantity for at least one item");
@@ -459,6 +491,9 @@ export default function PurchaseOrdersPage() {
         purchaseOrderId: receivePo.id,
         receiveDate: new Date(receiveDate).toISOString(),
         notes: receiveNotes || undefined,
+        supplierDoNumber: receiveDoNumber.trim() || undefined,
+        carrierName: receiveCarrier.trim() || undefined,
+        trackingNumber: receiveTracking.trim() || undefined,
         items,
       });
 
@@ -469,39 +504,8 @@ export default function PurchaseOrdersPage() {
       setReceivePo(null);
       load(meta.page);
 
-      // Offer instant label printing
-      const labelItems: LabelItem[] = [];
-      for (const grItem of newGr.items || []) {
-        if (grItem.imeis && grItem.imeis.length > 0) {
-          for (const imeiLink of grItem.imeis) {
-            labelItems.push({
-              sku: grItem.product?.sku || `PROD-${grItem.productId}`,
-              name: grItem.product?.name || "Product",
-              price: grItem.product?.sellingPrice
-                ? parseFloat(grItem.product.sellingPrice)
-                : undefined,
-              imei: imeiLink.imeiUnit?.imei,
-            });
-          }
-        } else {
-          labelItems.push({
-            sku: grItem.product?.sku || `PROD-${grItem.productId}`,
-            name: grItem.product?.name || "Product",
-            price: grItem.product?.sellingPrice
-              ? parseFloat(grItem.product.sellingPrice)
-              : undefined,
-            quantity: grItem.receivedQty,
-          });
-        }
-      }
-
-      if (labelItems.length > 0) {
-        setPrintLabelsData({
-          isOpen: true,
-          items: labelItems,
-          title: `Print Labels — GRN ${newGr.grnNumber}`,
-        });
-      }
+      // Offer instant formal GRN slip preview
+      setPrintGrnTarget(newGr);
     } catch (err) {
       setReceiveError(
         err instanceof Error ? err.message : "Failed to create goods receipt",
@@ -643,7 +647,7 @@ export default function PurchaseOrdersPage() {
                 type="date"
                 value={orderDate}
                 onChange={(e) => setOrderDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
@@ -654,7 +658,7 @@ export default function PurchaseOrdersPage() {
                 type="date"
                 value={expectedDate}
                 onChange={(e) => setExpectedDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
@@ -1104,30 +1108,56 @@ export default function PurchaseOrdersPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* Delivery Reference Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-1">
                   Receive Date
                 </label>
                 <input
                   type="date"
                   value={receiveDate}
                   onChange={(e) => setReceiveDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                  Receipt Notes / Delivery Note
+                <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-1">
+                  Supplier DO / Surat Jalan #
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Delivery Slip #9921, Arrived in good condition"
-                  value={receiveNotes}
-                  onChange={(e) => setReceiveNotes(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="e.g. DO-88192"
+                  value={receiveDoNumber}
+                  onChange={(e) => setReceiveDoNumber(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
                 />
               </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-1">
+                  Carrier / Tracking #
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. JNE Trucking"
+                  value={receiveCarrier}
+                  onChange={(e) => setReceiveCarrier(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-1">
+                Receipt Notes
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Received at store dock in good condition"
+                value={receiveNotes}
+                onChange={(e) => setReceiveNotes(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+              />
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -1140,13 +1170,16 @@ export default function PurchaseOrdersPage() {
                 const isSerialized =
                   r.poItem.product?.productType === "SERIALIZED";
                 const qtyNum = Number(r.receivedQty) || 0;
+                const poCost = parseFloat(r.unitCost) || 0;
+                const actualCost = parseFloat(r.actualUnitCost) || poCost;
+                const hasVariance = actualCost !== poCost;
 
                 return (
                   <div
                     key={r.poItem.id}
                     className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
                         <div className="font-semibold text-sm text-gray-900">
                           {r.poItem.product
@@ -1154,43 +1187,96 @@ export default function PurchaseOrdersPage() {
                             : `Product #${r.poItem.productId}`}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          Ordered:{" "}
-                          <span className="font-medium text-gray-700">
-                            {r.poItem.orderedQty}
-                          </span>{" "}
-                          | Already Received:{" "}
-                          <span className="font-medium text-gray-700">
-                            {r.poItem.receivedQty}
-                          </span>{" "}
-                          | Outstanding:{" "}
-                          <span className="font-semibold text-blue-600">
-                            {outstanding}
-                          </span>
+                          Ordered: <strong className="text-gray-700">{r.poItem.orderedQty}</strong> | Received: <strong className="text-gray-700">{r.poItem.receivedQty}</strong> | Outstanding: <strong className="text-blue-600">{outstanding}</strong>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs font-medium text-gray-600">
-                          Receive Qty:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={outstanding}
-                          value={r.receivedQty}
-                          onChange={(e) => {
-                            const val = Math.min(
-                              outstanding,
-                              Math.max(0, Number(e.target.value)),
-                            );
-                            updateReceiveRow(r.poItem.id, {
-                              receivedQty: String(val),
-                            });
-                          }}
-                          className="w-20 rounded-lg border border-gray-300 px-3 py-1.5 text-sm bg-white text-right font-medium focus:border-blue-500 focus:outline-none"
-                        />
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-0.5">
+                            Recv Qty
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={outstanding}
+                            value={r.receivedQty}
+                            onChange={(e) => {
+                              const val = Math.min(
+                                outstanding,
+                                Math.max(0, Number(e.target.value)),
+                              );
+                              updateReceiveRow(r.poItem.id, {
+                                receivedQty: String(val),
+                              });
+                            }}
+                            className="w-20 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs bg-white text-right font-bold focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-0.5">
+                            Actual Unit Cost
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="1000"
+                            value={r.actualUnitCost}
+                            onChange={(e) =>
+                              updateReceiveRow(r.poItem.id, {
+                                actualUnitCost: e.target.value,
+                              })
+                            }
+                            className={`w-32 rounded-lg border px-2.5 py-1.5 text-xs font-mono bg-white text-right ${
+                              hasVariance ? "border-blue-400 bg-blue-50 text-blue-900 font-bold" : "border-gray-300"
+                            }`}
+                            placeholder="Unit cost"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-0.5">
+                            Condition
+                          </label>
+                          <select
+                            value={r.conditionStatus}
+                            onChange={(e) =>
+                              updateReceiveRow(r.poItem.id, {
+                                conditionStatus: e.target.value,
+                              })
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:outline-none"
+                          >
+                            {CONDITION_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Condition Note if not GOOD */}
+                    {r.conditionStatus !== "GOOD" && (
+                      <div className="bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center gap-2">
+                        <span className="text-xs font-semibold text-amber-900 shrink-0">
+                          Damage Remark:
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Describe condition/defect details..."
+                          value={r.conditionNotes}
+                          onChange={(e) =>
+                            updateReceiveRow(r.poItem.id, {
+                              conditionNotes: e.target.value,
+                            })
+                          }
+                          className="flex-1 rounded border border-amber-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
 
                     {/* Serialized IMEI input & Camera/Bulk tools */}
                     {isSerialized && qtyNum > 0 && (
@@ -1366,6 +1452,13 @@ export default function PurchaseOrdersPage() {
         onClose={() => setPrintLabelsData((prev) => ({ ...prev, isOpen: false }))}
         items={printLabelsData.items}
         title={printLabelsData.title}
+      />
+
+      {/* Formal GRN Printable Slip Modal */}
+      <PrintGrnSlip
+        isOpen={Boolean(printGrnTarget)}
+        onClose={() => setPrintGrnTarget(null)}
+        gr={printGrnTarget}
       />
     </div>
   );

@@ -31,6 +31,15 @@ export class GoodsReceipt {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  @Column({ name: 'supplier_do_number', type: 'varchar', length: 60, nullable: true })
+  supplierDoNumber: string | null;
+
+  @Column({ name: 'carrier_name', type: 'varchar', length: 120, nullable: true })
+  carrierName: string | null;
+
+  @Column({ name: 'tracking_number', type: 'varchar', length: 120, nullable: true })
+  trackingNumber: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -205,7 +205,7 @@ function SummaryCard({
       <p className="mt-1 sm:mt-2 font-bold leading-tight">
         <span
           ref={valueRef}
-          className="inline-block whitespace-nowrap text-lg sm:text-xl lg:text-2xl"
+          className="inline-block text-ellipsis overflow-hidden text-lg sm:text-xl lg:text-2xl"
         >
           {value}
         </span>

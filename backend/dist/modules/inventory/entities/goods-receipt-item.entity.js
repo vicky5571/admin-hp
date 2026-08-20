@@ -43,6 +43,18 @@ __decorate([
     __metadata("design:type", String)
 ], GoodsReceiptItem.prototype, "unitCost", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'actual_unit_cost', type: 'numeric', precision: 14, scale: 2, nullable: true }),
+    __metadata("design:type", Object)
+], GoodsReceiptItem.prototype, "actualUnitCost", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'condition_status', type: 'varchar', length: 30, default: 'GOOD' }),
+    __metadata("design:type", String)
+], GoodsReceiptItem.prototype, "conditionStatus", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'condition_notes', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], GoodsReceiptItem.prototype, "conditionNotes", void 0);
+__decorate([
     (0, typeorm_1.ManyToOne)(() => goods_receipt_entity_1.GoodsReceipt, (gr) => gr.items),
     (0, typeorm_1.JoinColumn)({ name: 'goods_receipt_id' }),
     __metadata("design:type", goods_receipt_entity_1.GoodsReceipt)

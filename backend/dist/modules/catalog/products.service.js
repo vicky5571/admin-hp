@@ -17,13 +17,23 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const pagination_util_1 = require("../../common/utils/pagination.util");
+const brand_entity_1 = require("./entities/brand.entity");
+const category_entity_1 = require("./entities/category.entity");
 const product_entity_1 = require("./entities/product.entity");
+const tax_class_entity_1 = require("./entities/tax-class.entity");
 let ProductsService = class ProductsService {
-    constructor(productsRepo) {
+    constructor(productsRepo, categoryRepo, brandRepo, taxClassRepo) {
         this.productsRepo = productsRepo;
+        this.categoryRepo = categoryRepo;
+        this.brandRepo = brandRepo;
+        this.taxClassRepo = taxClassRepo;
     }
     async findAll(query) {
-        const qb = this.productsRepo.createQueryBuilder('product');
+        const qb = this.productsRepo
+            .createQueryBuilder('product')
+            .leftJoinAndSelect('product.category', 'category')
+            .leftJoinAndSelect('product.brand', 'brand')
+            .leftJoinAndSelect('product.taxClass', 'taxClass');
         if (query.q) {
             qb.andWhere('(product.sku ILIKE :q OR product.name ILIKE :q)', {
                 q: `%${query.q}%`,
@@ -51,10 +61,16 @@ let ProductsService = class ProductsService {
         const [rows, total] = await qb.getManyAndCount();
         return { data: rows, meta: (0, pagination_util_1.paginateMeta)(total, query.page, query.limit) };
     }
-    create(dto) {
+    async create(dto) {
+        const existing = await this.productsRepo.findOne({
+            where: { sku: dto.sku.trim() },
+        });
+        if (existing) {
+            throw new common_1.ConflictException(`SKU "${dto.sku}" already exists`);
+        }
         const entity = this.productsRepo.create({
-            sku: dto.sku,
-            name: dto.name,
+            sku: dto.sku.trim(),
+            name: dto.name.trim(),
             categoryId: dto.categoryId ?? null,
             brandId: dto.brandId ?? null,
             productType: dto.productType,
@@ -64,10 +80,17 @@ let ProductsService = class ProductsService {
             minStockAlert: dto.minStockAlert ?? 0,
             isActive: dto.isActive ?? true,
         });
-        return this.productsRepo.save(entity);
+        const saved = await this.productsRepo.save(entity);
+        return this.findOne(saved.id);
     }
     async findOne(id) {
-        const row = await this.productsRepo.findOne({ where: { id } });
+        const row = await this.productsRepo
+            .createQueryBuilder('product')
+            .leftJoinAndSelect('product.category', 'category')
+            .leftJoinAndSelect('product.brand', 'brand')
+            .leftJoinAndSelect('product.taxClass', 'taxClass')
+            .where('product.id = :id', { id })
+            .getOne();
         if (!row) {
             throw new common_1.NotFoundException('Product not found');
         }
@@ -75,23 +98,89 @@ let ProductsService = class ProductsService {
     }
     async update(id, dto) {
         const row = await this.findOne(id);
-        row.sku = dto.sku ?? row.sku;
-        row.name = dto.name ?? row.name;
-        row.categoryId = dto.categoryId ?? row.categoryId;
-        row.brandId = dto.brandId ?? row.brandId;
-        row.productType = dto.productType ?? row.productType;
-        row.costPrice = dto.costPrice !== undefined ? dto.costPrice.toFixed(2) : row.costPrice;
-        row.sellingPrice = dto.sellingPrice !== undefined ? dto.sellingPrice.toFixed(2) : row.sellingPrice;
-        row.taxClassId = dto.taxClassId ?? row.taxClassId;
-        row.minStockAlert = dto.minStockAlert ?? row.minStockAlert;
-        row.isActive = dto.isActive ?? row.isActive;
-        return this.productsRepo.save(row);
+        if (dto.sku && dto.sku.trim() !== row.sku) {
+            const existing = await this.productsRepo.findOne({
+                where: { sku: dto.sku.trim() },
+            });
+            if (existing && Number(existing.id) !== Number(id)) {
+                throw new common_1.ConflictException(`SKU "${dto.sku}" already exists`);
+            }
+            row.sku = dto.sku.trim();
+        }
+        if (dto.name !== undefined)
+            row.name = dto.name.trim();
+        if (dto.categoryId !== undefined)
+            row.categoryId = dto.categoryId;
+        if (dto.brandId !== undefined)
+            row.brandId = dto.brandId;
+        if (dto.productType !== undefined)
+            row.productType = dto.productType;
+        if (dto.costPrice !== undefined)
+            row.costPrice = dto.costPrice.toFixed(2);
+        if (dto.sellingPrice !== undefined)
+            row.sellingPrice = dto.sellingPrice.toFixed(2);
+        if (dto.taxClassId !== undefined)
+            row.taxClassId = dto.taxClassId;
+        if (dto.minStockAlert !== undefined)
+            row.minStockAlert = dto.minStockAlert;
+        if (dto.isActive !== undefined)
+            row.isActive = dto.isActive;
+        await this.productsRepo.save(row);
+        return this.findOne(id);
+    }
+    async delete(id) {
+        const row = await this.findOne(id);
+        await this.productsRepo.remove(row);
+        return { success: true, message: `Product ${row.sku} deleted` };
+    }
+    async findCategories() {
+        return this.categoryRepo.find({
+            order: { name: 'ASC' },
+        });
+    }
+    async createCategory(name) {
+        const trimmed = name.trim();
+        const existing = await this.categoryRepo.findOne({
+            where: { name: trimmed },
+        });
+        if (existing) {
+            return existing;
+        }
+        const cat = this.categoryRepo.create({ name: trimmed, isActive: true });
+        return this.categoryRepo.save(cat);
+    }
+    async findBrands() {
+        return this.brandRepo.find({
+            order: { name: 'ASC' },
+        });
+    }
+    async createBrand(name) {
+        const trimmed = name.trim();
+        const existing = await this.brandRepo.findOne({
+            where: { name: trimmed },
+        });
+        if (existing) {
+            return existing;
+        }
+        const brand = this.brandRepo.create({ name: trimmed, isActive: true });
+        return this.brandRepo.save(brand);
+    }
+    async findTaxClasses() {
+        return this.taxClassRepo.find({
+            order: { name: 'ASC' },
+        });
     }
 };
 exports.ProductsService = ProductsService;
 exports.ProductsService = ProductsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(product_entity_1.Product)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __param(1, (0, typeorm_1.InjectRepository)(category_entity_1.Category)),
+    __param(2, (0, typeorm_1.InjectRepository)(brand_entity_1.Brand)),
+    __param(3, (0, typeorm_1.InjectRepository)(tax_class_entity_1.TaxClass)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository])
 ], ProductsService);
 //# sourceMappingURL=products.service.js.map

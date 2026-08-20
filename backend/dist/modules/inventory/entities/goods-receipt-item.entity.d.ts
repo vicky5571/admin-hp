@@ -9,6 +9,9 @@ export declare class GoodsReceiptItem {
     productId: number;
     receivedQty: number;
     unitCost: string;
+    actualUnitCost: string | null;
+    conditionStatus: string;
+    conditionNotes: string | null;
     goodsReceipt: GoodsReceipt;
     poItem: PurchaseOrderItem;
     product: Product;

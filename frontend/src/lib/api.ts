@@ -69,29 +69,139 @@ export function login(username: string, password: string) {
   });
 }
 
-// ── Products ────────────────────────────────────────────────────────
+// ── Products & Catalog ──────────────────────────────────────────────
+export interface Category {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+export interface Brand {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+export interface TaxClass {
+  id: number;
+  name: string;
+  ratePercent: string;
+  isInclusive: boolean;
+}
+
 export interface Product {
   id: number;
   sku: string;
   name: string;
-  productType: string;
+  categoryId?: number | null;
+  brandId?: number | null;
+  productType: "SERIALIZED" | "NON_SERIALIZED" | "SERVICE" | string;
   costPrice: string;
   sellingPrice: string;
+  taxClassId?: number | null;
+  minStockAlert: number;
   isActive: boolean;
-  brand?: { id: number; name: string };
-  category?: { id: number; name: string };
+  brand?: { id: number; name: string } | null;
+  category?: { id: number; name: string } | null;
+  taxClass?: { id: number; name: string; ratePercent: string } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateProductPayload {
+  sku: string;
+  name: string;
+  categoryId?: number;
+  brandId?: number;
+  productType: string;
+  costPrice: number;
+  sellingPrice: number;
+  taxClassId?: number;
+  minStockAlert?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateProductPayload {
+  sku?: string;
+  name?: string;
+  categoryId?: number | null;
+  brandId?: number | null;
+  productType?: string;
+  costPrice?: number;
+  sellingPrice?: number;
+  taxClassId?: number | null;
+  minStockAlert?: number;
+  isActive?: boolean;
 }
 
 export function fetchProducts(params?: {
   q?: string;
+  categoryId?: number;
+  brandId?: number;
+  productType?: string;
+  isActive?: boolean;
   page?: number;
   limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params?.q) query.set("q", params.q);
+  if (params?.categoryId) query.set("categoryId", String(params.categoryId));
+  if (params?.brandId) query.set("brandId", String(params.brandId));
+  if (params?.productType) query.set("productType", params.productType);
+  if (params?.isActive !== undefined) query.set("isActive", String(params.isActive));
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
   return apiFetch<Product[]>(`/products?${query.toString()}`);
+}
+
+export function fetchProduct(id: number) {
+  return apiFetch<Product>(`/products/${id}`);
+}
+
+export function createProduct(payload: CreateProductPayload) {
+  return apiFetch<Product>("/products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProduct(id: number, payload: UpdateProductPayload) {
+  return apiFetch<Product>(`/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProduct(id: number) {
+  return apiFetch<{ success: boolean; message: string }>(`/products/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchCategories() {
+  return apiFetch<Category[]>("/products/categories");
+}
+
+export function createCategory(name: string) {
+  return apiFetch<Category>("/products/categories", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function fetchBrands() {
+  return apiFetch<Brand[]>("/products/brands");
+}
+
+export function createBrand(name: string) {
+  return apiFetch<Brand>("/products/brands", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function fetchTaxClasses() {
+  return apiFetch<TaxClass[]>("/products/tax-classes");
 }
 
 // ── Sales ───────────────────────────────────────────────────────────
@@ -329,9 +439,14 @@ export interface GrItem {
   productId: number;
   receivedQty: number;
   unitCost: string;
+  actualUnitCost?: string | null;
+  conditionStatus?: string;
+  conditionNotes?: string | null;
   product?: Product;
+  poItem?: PoItem;
   imeis?: {
     id: number;
+    imeiUnitId?: number;
     imeiUnit?: { id: number; imei: string; status?: string };
   }[];
 }
@@ -341,9 +456,17 @@ export interface GoodsReceipt {
   grnNumber: string;
   purchaseOrderId: number;
   receiveDate: string;
+  receivedBy?: number;
   notes: string | null;
+  supplierDoNumber?: string | null;
+  carrierName?: string | null;
+  trackingNumber?: string | null;
   createdAt: string;
-  purchaseOrder?: { id: number; poNumber: string };
+  purchaseOrder?: {
+    id: number;
+    poNumber: string;
+    supplier?: { id: number; name: string; address?: string | null; phone?: string | null };
+  };
   receiver?: { id: number; fullName: string };
   items: GrItem[];
 }
@@ -352,11 +475,17 @@ export interface CreateGrPayload {
   purchaseOrderId: number;
   receiveDate: string;
   notes?: string;
+  supplierDoNumber?: string;
+  carrierName?: string;
+  trackingNumber?: string;
   items: {
     poItemId: number;
     productId: number;
     receivedQty: number;
     unitCost: number;
+    actualUnitCost?: number;
+    conditionStatus?: string;
+    conditionNotes?: string;
     imeis?: string[];
   }[];
 }

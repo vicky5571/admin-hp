@@ -8,6 +8,9 @@ export declare class GoodsReceipt {
     receiveDate: Date;
     receivedBy: number;
     notes: string | null;
+    supplierDoNumber: string | null;
+    carrierName: string | null;
+    trackingNumber: string | null;
     createdAt: Date;
     purchaseOrder: PurchaseOrder;
     receiver: User;

@@ -12,13 +12,26 @@ import {
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 import BulkImeiModal from "@/components/BulkImeiModal";
 import PrintLabelsModal, { LabelItem } from "@/components/PrintLabelsModal";
+import PrintGrnSlip from "@/components/PrintGrnSlip";
 
 interface ReceiveRow {
   poItem: PoItem;
   receivedQty: string;
+  unitCost: string;
+  actualUnitCost: string;
+  conditionStatus: string;
+  conditionNotes: string;
   imeis: string[];
   imeiInput: string;
 }
+
+const CONDITION_OPTIONS = [
+  { value: "GOOD", label: "Good Condition", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  { value: "DAMAGED_BOX", label: "Damaged Box/Packaging", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  { value: "DAMAGED_ITEM", label: "Damaged / Broken Unit", color: "text-rose-700 bg-rose-50 border-rose-200" },
+  { value: "SHORTAGE", label: "Shortage / Missing Pieces", color: "text-purple-700 bg-purple-50 border-purple-200" },
+  { value: "WRONG_ITEM", label: "Wrong Item / Variant", color: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+];
 
 export default function GoodsReceiptsPage() {
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([]);
@@ -40,6 +53,9 @@ export default function GoodsReceiptsPage() {
     new Date().toISOString().slice(0, 10),
   );
   const [notes, setNotes] = useState("");
+  const [supplierDoNumber, setSupplierDoNumber] = useState("");
+  const [carrierName, setCarrierName] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
   const [rows, setRows] = useState<ReceiveRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,6 +71,7 @@ export default function GoodsReceiptsPage() {
     items: [],
     title: "",
   });
+  const [printGrnTarget, setPrintGrnTarget] = useState<GoodsReceipt | null>(null);
 
   const load = useCallback(async (page = 1) => {
     setLoading(true);
@@ -74,6 +91,10 @@ export default function GoodsReceiptsPage() {
     setError("");
     setSuccess("");
     setSelectedPo(null);
+    setSupplierDoNumber("");
+    setCarrierName("");
+    setTrackingNumber("");
+    setNotes("");
     setRows([]);
     try {
       const [approved, submitted, partial] = await Promise.all([
@@ -98,6 +119,10 @@ export default function GoodsReceiptsPage() {
               .map((i) => ({
                 poItem: i,
                 receivedQty: String(i.orderedQty - i.receivedQty),
+                unitCost: String(parseFloat(i.unitCost) || 0),
+                actualUnitCost: String(parseFloat(i.unitCost) || 0),
+                conditionStatus: "GOOD",
+                conditionNotes: "",
                 imeis: [],
                 imeiInput: "",
               })),
@@ -129,6 +154,10 @@ export default function GoodsReceiptsPage() {
         .map((i) => ({
           poItem: i,
           receivedQty: String(i.orderedQty - i.receivedQty),
+          unitCost: String(parseFloat(i.unitCost) || 0),
+          actualUnitCost: String(parseFloat(i.unitCost) || 0),
+          conditionStatus: "GOOD",
+          conditionNotes: "",
           imeis: [],
           imeiInput: "",
         })),
@@ -167,13 +196,21 @@ export default function GoodsReceiptsPage() {
 
     const items = rows
       .filter((r) => Number(r.receivedQty) > 0)
-      .map((r) => ({
-        poItemId: r.poItem.id,
-        productId: r.poItem.productId,
-        receivedQty: Number(r.receivedQty),
-        unitCost: parseFloat(r.poItem.unitCost),
-        imeis: r.imeis.length > 0 ? r.imeis : undefined,
-      }));
+      .map((r) => {
+        const poCost = parseFloat(r.unitCost) || 0;
+        const actualCost = r.actualUnitCost ? parseFloat(r.actualUnitCost) : poCost;
+
+        return {
+          poItemId: r.poItem.id,
+          productId: r.poItem.productId,
+          receivedQty: Number(r.receivedQty),
+          unitCost: poCost,
+          actualUnitCost: actualCost !== poCost ? actualCost : undefined,
+          conditionStatus: r.conditionStatus || "GOOD",
+          conditionNotes: r.conditionNotes.trim() || undefined,
+          imeis: r.imeis.length > 0 ? r.imeis : undefined,
+        };
+      });
 
     if (items.length === 0) {
       setError("Enter received quantity for at least one item");
@@ -198,6 +235,9 @@ export default function GoodsReceiptsPage() {
         purchaseOrderId: selectedPo.id,
         receiveDate: new Date(receiveDate).toISOString(),
         notes: notes || undefined,
+        supplierDoNumber: supplierDoNumber.trim() || undefined,
+        carrierName: carrierName.trim() || undefined,
+        trackingNumber: trackingNumber.trim() || undefined,
         items,
       });
 
@@ -208,39 +248,8 @@ export default function GoodsReceiptsPage() {
       setRows([]);
       load(1);
 
-      // Offer instant label printing for the newly created GR
-      const labelItems: LabelItem[] = [];
-      for (const grItem of newGr.items || []) {
-        if (grItem.imeis && grItem.imeis.length > 0) {
-          for (const imeiLink of grItem.imeis) {
-            labelItems.push({
-              sku: grItem.product?.sku || `PROD-${grItem.productId}`,
-              name: grItem.product?.name || "Product",
-              price: grItem.product?.sellingPrice
-                ? parseFloat(grItem.product.sellingPrice)
-                : undefined,
-              imei: imeiLink.imeiUnit?.imei,
-            });
-          }
-        } else {
-          labelItems.push({
-            sku: grItem.product?.sku || `PROD-${grItem.productId}`,
-            name: grItem.product?.name || "Product",
-            price: grItem.product?.sellingPrice
-              ? parseFloat(grItem.product.sellingPrice)
-              : undefined,
-            quantity: grItem.receivedQty,
-          });
-        }
-      }
-
-      if (labelItems.length > 0) {
-        setPrintLabelsData({
-          isOpen: true,
-          items: labelItems,
-          title: `Print Labels — GRN ${newGr.grnNumber}`,
-        });
-      }
+      // Auto-open print slip prompt
+      setPrintGrnTarget(newGr);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to create goods receipt",
@@ -258,12 +267,23 @@ export default function GoodsReceiptsPage() {
       const matchGrn = gr.grnNumber?.toLowerCase().includes(q);
       const matchPo = gr.purchaseOrder?.poNumber?.toLowerCase().includes(q);
       const matchSupplier = gr.purchaseOrder?.supplier?.name?.toLowerCase().includes(q);
+      const matchDo = gr.supplierDoNumber?.toLowerCase().includes(q);
+      const matchCarrier = gr.carrierName?.toLowerCase().includes(q);
+      const matchTracking = gr.trackingNumber?.toLowerCase().includes(q);
       const matchItems = gr.items?.some((i) =>
         i.product?.sku?.toLowerCase().includes(q) ||
         i.product?.name?.toLowerCase().includes(q) ||
         i.imeis?.some((im) => im.imeiUnit?.imei?.toLowerCase().includes(q))
       );
-      return matchGrn || matchPo || matchSupplier || matchItems;
+      return (
+        matchGrn ||
+        matchPo ||
+        matchSupplier ||
+        matchDo ||
+        matchCarrier ||
+        matchTracking ||
+        matchItems
+      );
     });
   }, [receipts, searchQuery]);
 
@@ -280,7 +300,7 @@ export default function GoodsReceiptsPage() {
             Goods Receipts (GRN)
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Receive incoming stock against Purchase Orders, register IMEI serials, and print barcode labels.
+            Receive incoming stock against Purchase Orders, track Delivery Orders, manage landed costs, and print formal GRN slips.
           </p>
         </div>
         <button
@@ -343,6 +363,7 @@ export default function GoodsReceiptsPage() {
             </button>
           </div>
 
+          {/* PO, Date & Delivery Information */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
@@ -374,11 +395,50 @@ export default function GoodsReceiptsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                Delivery / DO Notes
+                Supplier DO / Surat Jalan #
               </label>
               <input
                 type="text"
-                placeholder="e.g. Courier Tracking / Delivery Note #889"
+                placeholder="e.g. DO-2026-0889"
+                value={supplierDoNumber}
+                onChange={(e) => setSupplierDoNumber(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                Carrier / Courier Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. JNE Trucking / SiCepat Cargo"
+                value={carrierName}
+                onChange={(e) => setCarrierName(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                Tracking / AWB Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. JNE01928374610"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                General Receiving Remarks
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Received at loading dock by Budi"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
@@ -393,21 +453,29 @@ export default function GoodsReceiptsPage() {
           )}
 
           {rows.length > 0 && (
-            <div className="space-y-3">
-              <div className="text-xs font-semibold text-gray-700 uppercase">
-                Items to Receive
+            <div className="space-y-4">
+              <div className="text-xs font-semibold text-gray-700 uppercase flex items-center justify-between">
+                <span>Items to Receive</span>
+                <span className="text-[11px] text-gray-500 font-normal">
+                  Adjust actual unit cost if invoice differs from PO estimate
+                </span>
               </div>
+
               {rows.map((row) => {
                 const outstanding = row.poItem.orderedQty - row.poItem.receivedQty;
                 const isSerialized = row.poItem.product?.productType === "SERIALIZED";
                 const qtyNum = Number(row.receivedQty) || 0;
+                const poCost = parseFloat(row.unitCost) || 0;
+                const actualCost = parseFloat(row.actualUnitCost) || poCost;
+                const hasVariance = actualCost !== poCost;
 
                 return (
                   <div
                     key={row.poItem.id}
                     className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    {/* Item Header & Main Controls */}
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                       <div>
                         <div className="font-semibold text-sm text-gray-900">
                           {row.poItem.product
@@ -415,32 +483,116 @@ export default function GoodsReceiptsPage() {
                             : `Product #${row.poItem.productId}`}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          Ordered: <span className="font-medium text-gray-700">{row.poItem.orderedQty}</span> | Already Received: <span className="font-medium text-gray-700">{row.poItem.receivedQty}</span> | Outstanding: <span className="font-semibold text-blue-600">{outstanding}</span>
+                          Ordered: <strong className="text-gray-700">{row.poItem.orderedQty}</strong> | Received: <strong className="text-gray-700">{row.poItem.receivedQty}</strong> | Outstanding: <strong className="text-blue-600">{outstanding}</strong>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs font-medium text-gray-600">
-                          Receive Qty:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={outstanding}
-                          value={row.receivedQty}
-                          onChange={(e) => {
-                            const val = Math.min(
-                              outstanding,
-                              Math.max(0, Number(e.target.value)),
-                            );
-                            updateRow(row.poItem.id, {
-                              receivedQty: String(val),
-                            });
-                          }}
-                          className="w-20 rounded-lg border border-gray-300 px-3 py-1.5 text-sm bg-white text-right font-medium focus:border-blue-500 focus:outline-none"
-                        />
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Received Qty Input */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-0.5">
+                            Recv Qty
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={outstanding}
+                            value={row.receivedQty}
+                            onChange={(e) => {
+                              const val = Math.min(
+                                outstanding,
+                                Math.max(0, Number(e.target.value)),
+                              );
+                              updateRow(row.poItem.id, {
+                                receivedQty: String(val),
+                              });
+                            }}
+                            className="w-20 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs bg-white text-right font-bold focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* PO Estimated Cost (Read only) */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-0.5">
+                            PO Est. Cost
+                          </label>
+                          <div className="px-2.5 py-1.5 text-xs font-mono text-gray-600 bg-gray-100 rounded-lg border border-gray-200">
+                            IDR {poCost.toLocaleString()}
+                          </div>
+                        </div>
+
+                        {/* Actual Landed Unit Cost Override */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-700 uppercase mb-0.5 flex items-center gap-1">
+                            <span>Actual Landed Cost</span>
+                            {hasVariance && (
+                              <span className="text-[10px] font-bold text-blue-600">
+                                ({actualCost > poCost ? "+" : ""}{(((actualCost - poCost) / poCost) * 100).toFixed(1)}%)
+                              </span>
+                            )}
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="1000"
+                            value={row.actualUnitCost}
+                            onChange={(e) =>
+                              updateRow(row.poItem.id, {
+                                actualUnitCost: e.target.value,
+                              })
+                            }
+                            className={`w-36 rounded-lg border px-2.5 py-1.5 text-xs font-mono bg-white text-right font-medium focus:border-blue-500 focus:outline-none ${
+                              hasVariance
+                                ? "border-blue-400 bg-blue-50/50 text-blue-900 font-bold"
+                                : "border-gray-300"
+                            }`}
+                            placeholder="Actual Unit Cost"
+                          />
+                        </div>
+
+                        {/* Condition Status Selector */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-0.5">
+                            Condition
+                          </label>
+                          <select
+                            value={row.conditionStatus}
+                            onChange={(e) =>
+                              updateRow(row.poItem.id, {
+                                conditionStatus: e.target.value,
+                              })
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-800 focus:border-blue-500 focus:outline-none"
+                          >
+                            {CONDITION_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Condition Remarks if not GOOD */}
+                    {row.conditionStatus !== "GOOD" && (
+                      <div className="bg-amber-50/80 p-2.5 rounded-lg border border-amber-200 flex items-center gap-2">
+                        <span className="text-xs font-semibold text-amber-900 shrink-0">
+                          Condition Remark:
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Describe the box damage, broken seal, or shortage details..."
+                          value={row.conditionNotes}
+                          onChange={(e) =>
+                            updateRow(row.poItem.id, {
+                              conditionNotes: e.target.value,
+                            })
+                          }
+                          className="flex-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
 
                     {/* Serialized IMEI Scanner & Intake Area */}
                     {isSerialized && qtyNum > 0 && (
@@ -568,7 +720,7 @@ export default function GoodsReceiptsPage() {
 
       {/* Search Bar & Filter */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-        <div className="relative w-full sm:w-80">
+        <div className="relative w-full sm:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -576,7 +728,7 @@ export default function GoodsReceiptsPage() {
           </div>
           <input
             type="text"
-            placeholder="Search GRN, PO#, Supplier, SKU, or IMEI..."
+            placeholder="Search GRN, PO#, DO#, Carrier, SKU, or IMEI..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 rounded-lg border border-gray-300 text-xs focus:border-blue-500 focus:outline-none"
@@ -594,10 +746,11 @@ export default function GoodsReceiptsPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50/75 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3.5">GRN Number</th>
-                <th className="px-4 py-3.5">PO Number</th>
+                <th className="px-4 py-3.5">PO / DO Reference</th>
                 <th className="px-4 py-3.5">Supplier</th>
                 <th className="px-4 py-3.5">Receive Date</th>
                 <th className="px-4 py-3.5 text-center">Items</th>
+                <th className="px-4 py-3.5">Landed Cost</th>
                 <th className="px-4 py-3.5">Received By</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
               </tr>
@@ -605,7 +758,7 @@ export default function GoodsReceiptsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading goods receipts...</span>
@@ -615,50 +768,66 @@ export default function GoodsReceiptsPage() {
               )}
               {!loading && filteredReceipts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     No goods receipts found.
                   </td>
                 </tr>
               )}
-              {filteredReceipts.map((gr) => (
-                <ReceiptTableRow
-                  key={gr.id}
-                  gr={gr}
-                  expanded={expanded === gr.id}
-                  onToggle={() => setExpanded(expanded === gr.id ? null : gr.id)}
-                  onPrintLabels={() => {
-                    const labelItems: LabelItem[] = [];
-                    for (const grItem of gr.items || []) {
-                      if (grItem.imeis && grItem.imeis.length > 0) {
-                        for (const imeiLink of grItem.imeis) {
+              {filteredReceipts.map((gr) => {
+                const totalLanded = (gr.items || []).reduce((sum, item) => {
+                  const unitCost = item.actualUnitCost
+                    ? parseFloat(item.actualUnitCost)
+                    : parseFloat(item.unitCost) || 0;
+                  return sum + unitCost * (item.receivedQty || 0);
+                }, 0);
+
+                const hasDamaged = (gr.items || []).some(
+                  (i) => i.conditionStatus && i.conditionStatus !== "GOOD",
+                );
+
+                return (
+                  <ReceiptTableRow
+                    key={gr.id}
+                    gr={gr}
+                    totalLanded={totalLanded}
+                    hasDamaged={hasDamaged}
+                    expanded={expanded === gr.id}
+                    onToggle={() => setExpanded(expanded === gr.id ? null : gr.id)}
+                    onPrintSlip={() => setPrintGrnTarget(gr)}
+                    onPrintLabels={() => {
+                      const labelItems: LabelItem[] = [];
+                      for (const grItem of gr.items || []) {
+                        if (grItem.imeis && grItem.imeis.length > 0) {
+                          for (const imeiLink of grItem.imeis) {
+                            labelItems.push({
+                              sku: grItem.product?.sku || `PROD-${grItem.productId}`,
+                              name: grItem.product?.name || "Product",
+                              price: grItem.product?.sellingPrice
+                                ? parseFloat(grItem.product.sellingPrice)
+                                : undefined,
+                              imei: imeiLink.imeiUnit?.imei,
+                            });
+                          }
+                        } else {
                           labelItems.push({
                             sku: grItem.product?.sku || `PROD-${grItem.productId}`,
                             name: grItem.product?.name || "Product",
                             price: grItem.product?.sellingPrice
                               ? parseFloat(grItem.product.sellingPrice)
                               : undefined,
-                            imei: imeiLink.imeiUnit?.imei,
+                            quantity: grItem.receivedQty,
                           });
                         }
-                      } else {
-                        labelItems.push({
-                          sku: grItem.product?.sku || `PROD-${grItem.productId}`,
-                          name: grItem.product?.name || "Product",
-                          price: grItem.product?.sellingPrice
-                            ? parseFloat(grItem.product.sellingPrice)
-                            : undefined,
-                          quantity: grItem.receivedQty,
-                        });
                       }
-                    }
-                    setPrintLabelsData({
-                      isOpen: true,
-                      items: labelItems,
-                      title: `Print Labels — GRN ${gr.grnNumber}`,
-                    });
-                  }}
-                />
-              ))}
+                      setPrintLabelsData({
+                        isOpen: true,
+                        items: labelItems,
+                        title: `Print Labels — GRN ${gr.grnNumber}`,
+                      });
+                    }}
+                  />
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -729,19 +898,32 @@ export default function GoodsReceiptsPage() {
         items={printLabelsData.items}
         title={printLabelsData.title}
       />
+
+      {/* Formal GRN Printable Slip Modal */}
+      <PrintGrnSlip
+        isOpen={Boolean(printGrnTarget)}
+        onClose={() => setPrintGrnTarget(null)}
+        gr={printGrnTarget}
+      />
     </div>
   );
 }
 
 function ReceiptTableRow({
   gr,
+  totalLanded,
+  hasDamaged,
   expanded,
   onToggle,
+  onPrintSlip,
   onPrintLabels,
 }: {
   gr: GoodsReceipt;
+  totalLanded: number;
+  hasDamaged: boolean;
   expanded: boolean;
   onToggle: () => void;
+  onPrintSlip: () => void;
   onPrintLabels: () => void;
 }) {
   return (
@@ -763,89 +945,185 @@ function ReceiptTableRow({
             <span>{gr.grnNumber}</span>
           </button>
         </td>
-        <td className="px-4 py-3.5 font-mono text-gray-700 text-xs">
-          {gr.purchaseOrder?.poNumber ?? `#${gr.purchaseOrderId}`}
+
+        <td className="px-4 py-3.5 text-xs">
+          <div className="font-mono font-medium text-gray-900">
+            {gr.purchaseOrder?.poNumber ?? `#${gr.purchaseOrderId}`}
+          </div>
+          {gr.supplierDoNumber && (
+            <div className="text-[11px] text-gray-500 font-mono">
+              DO: {gr.supplierDoNumber}
+            </div>
+          )}
         </td>
-        <td className="px-4 py-3.5 font-medium text-gray-900">
+
+        <td className="px-4 py-3.5 font-medium text-gray-900 text-xs">
           {gr.purchaseOrder?.supplier?.name ?? "-"}
         </td>
+
         <td className="px-4 py-3.5 text-gray-600 text-xs">
           {gr.receiveDate ? new Date(gr.receiveDate).toLocaleDateString() : "-"}
         </td>
+
         <td className="px-4 py-3.5 text-center text-gray-700 font-medium">
-          {gr.items?.length ?? 0}
+          <span className="inline-flex items-center gap-1.5">
+            <span>{gr.items?.length ?? 0}</span>
+            {hasDamaged && (
+              <span className="h-2 w-2 rounded-full bg-rose-500" title="Contains damaged/irregular item"></span>
+            )}
+          </span>
         </td>
+
+        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-gray-900">
+          IDR {totalLanded.toLocaleString()}
+        </td>
+
         <td className="px-4 py-3.5 text-xs text-gray-600">
-          {gr.receiver?.fullName ?? `#${gr.receivedBy}`}
+          {gr.receiver?.fullName ?? (gr.receivedBy ? `#${gr.receivedBy}` : "-")}
         </td>
+
         <td className="px-4 py-3.5 text-right">
-          <button
-            type="button"
-            onClick={onPrintLabels}
-            className="inline-flex items-center gap-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors"
-          >
-            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            <span>Print Labels</span>
-          </button>
+          <div className="inline-flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={onPrintSlip}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 text-xs font-semibold transition-colors"
+              title="Print Formal GRN Document"
+            >
+              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>GRN Slip</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onPrintLabels}
+              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 px-2.5 py-1 text-xs font-semibold transition-colors"
+              title="Print Barcode Stickers"
+            >
+              <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              <span>Labels</span>
+            </button>
+          </div>
         </td>
       </tr>
 
-      {/* Expanded GRN Item Breakdown with IMEIs */}
+      {/* Expanded GRN Item Breakdown with IMEIs, Variances, and Conditions */}
       {expanded && (
         <tr className="bg-gray-50/90 border-y border-gray-200">
-          <td colSpan={7} className="px-6 py-4">
+          <td colSpan={8} className="px-6 py-4">
             <div className="space-y-3">
-              {gr.notes && (
-                <div className="bg-white p-2.5 rounded-lg border border-gray-200 text-xs text-gray-700">
-                  <span className="font-semibold text-gray-900 mr-1">Notes:</span>
-                  {gr.notes}
+              {/* Shipping & Delivery Reference Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-gray-200 text-xs">
+                <div>
+                  <span className="font-semibold text-gray-500 block">Supplier DO #:</span>
+                  <span className="font-mono font-bold text-gray-800">
+                    {gr.supplierDoNumber || "None specified"}
+                  </span>
                 </div>
-              )}
+                <div>
+                  <span className="font-semibold text-gray-500 block">Carrier & Tracking:</span>
+                  <span className="font-medium text-gray-800">
+                    {gr.carrierName ? `${gr.carrierName} — ` : ""}
+                    {gr.trackingNumber || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-500 block">General Notes:</span>
+                  <span className="text-gray-700">{gr.notes || "No notes"}</span>
+                </div>
+              </div>
 
+              {/* Items Breakdown Table */}
               <div className="rounded-lg bg-white border border-gray-200 overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-100 text-left text-gray-600 font-semibold uppercase">
                       <th className="py-2 px-3">Product</th>
+                      <th className="py-2 px-3 text-center">Condition</th>
                       <th className="py-2 px-3 text-center">Received Qty</th>
-                      <th className="py-2 px-3 text-right">Unit Cost</th>
-                      <th className="py-2 px-3 text-left">IMEI Numbers</th>
+                      <th className="py-2 px-3 text-right">PO Cost</th>
+                      <th className="py-2 px-3 text-right">Actual Cost</th>
+                      <th className="py-2 px-3 text-left">IMEI Serials</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {gr.items?.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50/50">
-                        <td className="py-2 px-3 font-medium text-gray-900">
-                          {item.product
-                            ? `${item.product.sku} — ${item.product.name}`
-                            : `Product #${item.productId}`}
-                        </td>
-                        <td className="py-2 px-3 text-center font-semibold text-emerald-700">
-                          {item.receivedQty}
-                        </td>
-                        <td className="py-2 px-3 text-right text-gray-600 font-mono">
-                          IDR {parseFloat(item.unitCost).toLocaleString()}
-                        </td>
-                        <td className="py-2 px-3">
-                          {item.imeis && item.imeis.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 max-w-lg">
-                              {item.imeis.map((im) => (
-                                <span
-                                  key={im.id}
-                                  className="font-mono text-[11px] bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200"
-                                >
-                                  {im.imeiUnit?.imei ?? `#${im.imeiUnitId}`}
-                                </span>
-                              ))}
+                    {gr.items?.map((item) => {
+                      const poCost = parseFloat(item.unitCost) || 0;
+                      const actCost = item.actualUnitCost
+                        ? parseFloat(item.actualUnitCost)
+                        : poCost;
+                      const hasVariance = item.actualUnitCost && actCost !== poCost;
+                      const isDamaged =
+                        item.conditionStatus && item.conditionStatus !== "GOOD";
+
+                      return (
+                        <tr key={item.id} className="hover:bg-gray-50/50">
+                          <td className="py-2.5 px-3">
+                            <div className="font-medium text-gray-900">
+                              {item.product
+                                ? `${item.product.sku} — ${item.product.name}`
+                                : `Product #${item.productId}`}
                             </div>
-                          ) : (
-                            <span className="text-gray-400 italic">Non-serialized</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            {item.conditionNotes && (
+                              <div className="text-[11px] text-amber-700 italic mt-0.5">
+                                Note: {item.conditionNotes}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isDamaged
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              {item.conditionStatus?.replace(/_/g, " ") || "GOOD"}
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
+                            {item.receivedQty}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right text-gray-500 font-mono">
+                            IDR {poCost.toLocaleString()}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right font-mono font-semibold">
+                            <span
+                              className={
+                                hasVariance ? "text-blue-700 font-bold" : "text-gray-800"
+                              }
+                            >
+                              IDR {actCost.toLocaleString()}
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {item.imeis && item.imeis.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-lg">
+                                {item.imeis.map((im) => (
+                                  <span
+                                    key={im.id}
+                                    className="font-mono text-[11px] bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200"
+                                  >
+                                    {im.imeiUnit?.imei ?? (im.imeiUnitId ? `#${im.imeiUnitId}` : `#${im.id}`)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 italic">Non-serialized</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

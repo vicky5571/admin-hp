@@ -192,7 +192,7 @@ export default function DashboardLayout({
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#090d16] text-slate-300 border-r border-slate-800/80 transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } ${isCollapsed ? "lg:w-20" : "lg:w-64"} w-64 shadow-2xl lg:shadow-none`}
+        } ${isCollapsed ? "lg:w-20" : "lg:w-64"} w-64 shadow-2xl lg:shadow-none mt-16 lg:mt-0`}
       >
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800/60">
@@ -346,12 +346,12 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile Header Bar */}
-        <header className="flex h-16 items-center justify-between px-4 bg-white border-b border-slate-200/80 lg:hidden shadow-xs">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden mt-16">
+        {/* Fixed Header Bar - All Viewports */}
+        <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between px-4 bg-white border-b border-slate-200/80 shadow-xs">
           <button
             onClick={() => setMobileOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
             title="Open Menu"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,7 +370,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto pt-16 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>

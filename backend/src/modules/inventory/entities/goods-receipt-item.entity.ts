@@ -31,6 +31,15 @@ export class GoodsReceiptItem {
   @Column({ name: 'unit_cost', type: 'numeric', precision: 14, scale: 2 })
   unitCost: string;
 
+  @Column({ name: 'actual_unit_cost', type: 'numeric', precision: 14, scale: 2, nullable: true })
+  actualUnitCost: string | null;
+
+  @Column({ name: 'condition_status', type: 'varchar', length: 30, default: 'GOOD' })
+  conditionStatus: string;
+
+  @Column({ name: 'condition_notes', type: 'text', nullable: true })
+  conditionNotes: string | null;
+
   @ManyToOne(() => GoodsReceipt, (gr) => gr.items)
   @JoinColumn({ name: 'goods_receipt_id' })
   goodsReceipt: GoodsReceipt;
