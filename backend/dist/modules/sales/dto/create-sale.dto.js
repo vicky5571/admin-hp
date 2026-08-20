@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.QuoteSaleDto = exports.CreateSaleDto = exports.CreatePaymentDto = exports.CreateSaleItemDto = void 0;
+exports.QuoteSaleDto = exports.CreateSaleDto = exports.CreatePaymentDto = exports.QuoteSaleItemDto = exports.CreateSaleItemDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const payment_method_enum_1 = require("../../../common/enums/payment-method.enum");
@@ -51,6 +51,47 @@ __decorate([
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], CreateSaleItemDto.prototype, "imeis", void 0);
+class QuoteSaleItemDto {
+}
+exports.QuoteSaleItemDto = QuoteSaleItemDto;
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "productId", void 0);
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "qty", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "unitPrice", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "discountAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "taxAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], QuoteSaleItemDto.prototype, "lineTotal", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], QuoteSaleItemDto.prototype, "imeis", void 0);
 class CreatePaymentDto {
 }
 exports.CreatePaymentDto = CreatePaymentDto;
@@ -122,7 +163,7 @@ __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),
     (0, class_validator_1.ValidateNested)({ each: true }),
-    (0, class_transformer_1.Type)(() => CreateSaleItemDto),
+    (0, class_transformer_1.Type)(() => QuoteSaleItemDto),
     __metadata("design:type", Array)
 ], QuoteSaleDto.prototype, "items", void 0);
 __decorate([

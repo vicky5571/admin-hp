@@ -42,6 +42,39 @@ export class CreateSaleItemDto {
   imeis?: string[];
 }
 
+export class QuoteSaleItemDto {
+  @IsInt()
+  productId: number;
+
+  @IsInt()
+  @Min(1)
+  qty: number;
+
+  @IsNumber()
+  @Min(0)
+  unitPrice: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discountAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  taxAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  lineTotal?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  imeis?: string[];
+}
+
 export class CreatePaymentDto {
   @IsEnum(PaymentMethod)
   method: PaymentMethod;
@@ -97,8 +130,8 @@ export class QuoteSaleDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => CreateSaleItemDto)
-  items: CreateSaleItemDto[];
+  @Type(() => QuoteSaleItemDto)
+  items: QuoteSaleItemDto[];
 
   @IsOptional()
   @IsNumber()

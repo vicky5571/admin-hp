@@ -8,6 +8,15 @@ export declare class CreateSaleItemDto {
     lineTotal: number;
     imeis?: string[];
 }
+export declare class QuoteSaleItemDto {
+    productId: number;
+    qty: number;
+    unitPrice: number;
+    discountAmount?: number;
+    taxAmount?: number;
+    lineTotal?: number;
+    imeis?: string[];
+}
 export declare class CreatePaymentDto {
     method: PaymentMethod;
     amount: number;
@@ -24,6 +33,6 @@ export declare class CreateSaleDto {
     notes?: string;
 }
 export declare class QuoteSaleDto {
-    items: CreateSaleItemDto[];
+    items: QuoteSaleItemDto[];
     cartDiscountValue?: number;
 }

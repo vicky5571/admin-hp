@@ -501,13 +501,13 @@ export default function PosPage() {
     try {
       // 1. Get official server pricing & tax quote
       const quotePayload = cart.map((i) => ({
-        productId: i.productId,
-        qty: i.qty,
-        unitPrice: i.unitPrice,
-        discountAmount: i.discountAmount,
-        taxAmount: i.taxAmount,
-        lineTotal: i.lineTotal,
-        imeis: i.imeis.length > 0 ? i.imeis : undefined,
+        productId: Number(i.productId),
+        qty: Number(i.qty),
+        unitPrice: Number(i.unitPrice),
+        discountAmount: Number(i.discountAmount || 0),
+        taxAmount: Number(i.taxAmount || 0),
+        lineTotal: Number(i.lineTotal),
+        imeis: i.imeis && i.imeis.length > 0 ? i.imeis : undefined,
       }));
 
       const quoteRes = await quoteSale(quotePayload);

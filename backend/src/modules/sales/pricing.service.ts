@@ -1,20 +1,35 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateSaleDto } from './dto/create-sale.dto';
+import { CreateSaleDto, QuoteSaleDto } from './dto/create-sale.dto';
 
 @Injectable()
 export class PricingService {
-  quote(dto: CreateSaleDto) {
-    const computedSubtotal = dto.items.reduce(
-      (acc, item) => acc + item.unitPrice * item.qty,
-      0,
-    );
+  quote(dto: QuoteSaleDto) {
+    let computedSubtotal = 0;
+    let computedDiscount = 0;
+    let computedTax = 0;
 
-    const computedDiscount = dto.items.reduce(
-      (acc, item) => acc + item.discountAmount,
-      0,
-    );
+    const items = dto.items.map((item) => {
+      const unitPrice = item.unitPrice;
+      const qty = item.qty;
+      const rawSub = unitPrice * qty;
+      const discount = item.discountAmount ?? 0;
+      const discountedSub = Math.max(0, rawSub - discount);
+      const tax = item.taxAmount ?? 0;
+      const lineTotal = item.lineTotal ?? (discountedSub + tax);
 
-    const computedTax = dto.items.reduce((acc, item) => acc + item.taxAmount, 0);
+      computedSubtotal += rawSub;
+      computedDiscount += discount;
+      computedTax += tax;
+
+      return {
+        productId: item.productId,
+        qty,
+        unitPrice,
+        discountAmount: discount,
+        taxAmount: tax,
+        lineTotal,
+      };
+    });
 
     const computedGrand = computedSubtotal - computedDiscount + computedTax;
 
@@ -23,11 +38,12 @@ export class PricingService {
       discountTotal: computedDiscount,
       taxTotal: computedTax,
       grandTotal: computedGrand,
+      items,
     };
   }
 
   validateClientTotals(dto: CreateSaleDto) {
-    const quoted = this.quote(dto);
+    const quoted = this.quote(dto as QuoteSaleDto);
 
     if (
       quoted.subtotal !== dto.subtotal ||

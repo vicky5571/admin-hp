@@ -15,6 +15,14 @@ export declare class SalesController {
         discountTotal: number;
         taxTotal: number;
         grandTotal: number;
+        items: {
+            productId: number;
+            qty: number;
+            unitPrice: number;
+            discountAmount: number;
+            taxAmount: number;
+            lineTotal: number;
+        }[];
     };
     create(dto: CreateSaleDto, user: AuthUser): Promise<any>;
     findAll(query: ListSalesQueryDto): Promise<{
