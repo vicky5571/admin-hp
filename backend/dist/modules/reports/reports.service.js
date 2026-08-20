@@ -29,11 +29,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND s.sale_time >= $${params.length}`;
+            whereClause += ` AND s.sale_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND s.sale_time <= $${params.length}`;
+            whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT
@@ -56,11 +56,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND s.sale_time >= $${params.length}`;
+            whereClause += ` AND s.sale_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND s.sale_time <= $${params.length}`;
+            whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT
@@ -87,11 +87,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND s.sale_time >= $${params.length}`;
+            whereClause += ` AND s.sale_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND s.sale_time <= $${params.length}`;
+            whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT
@@ -113,11 +113,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND s.sale_time >= $${params.length}`;
+            whereClause += ` AND s.sale_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND s.sale_time <= $${params.length}`;
+            whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT
@@ -138,11 +138,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND s.sale_time >= $${params.length}`;
+            whereClause += ` AND s.sale_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND s.sale_time <= $${params.length}`;
+            whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT
@@ -254,11 +254,11 @@ let ReportsService = class ReportsService {
         }
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND sm.movement_time >= $${params.length}`;
+            whereClause += ` AND sm.movement_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND sm.movement_time <= $${params.length}`;
+            whereClause += ` AND sm.movement_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const countSql = `SELECT COUNT(*)::int AS total FROM stock_movements sm LEFT JOIN imei_units iu ON iu.id = sm.imei_unit_id ${whereClause}`;
         const countResult = await this.dataSource.query(countSql, params);
@@ -300,11 +300,11 @@ let ReportsService = class ReportsService {
         let whereClause = `WHERE r.status = 'COMPLETED'`;
         if (query.dateFrom) {
             params.push(query.dateFrom);
-            whereClause += ` AND r.return_time >= $${params.length}`;
+            whereClause += ` AND r.return_time >= $${params.length}::date`;
         }
         if (query.dateTo) {
             params.push(query.dateTo);
-            whereClause += ` AND r.return_time <= $${params.length}`;
+            whereClause += ` AND r.return_time < ($${params.length}::date + INTERVAL '1 day')`;
         }
         const sql = `
       SELECT

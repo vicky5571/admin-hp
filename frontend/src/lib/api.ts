@@ -282,12 +282,68 @@ export function fetchGrossProfit(params?: {
   );
 }
 
-export function fetchReturnsSummary() {
+export function fetchReturnsSummary(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
   return apiFetch<{
     summary: { totalReturns: number; totalRefunded: string };
     byDay: any[];
     byMethod: any[];
-  }>("/reports/returns-summary");
+  }>(`/reports/returns-summary?${query.toString()}`);
+}
+
+export function fetchSalesByProduct(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  return apiFetch<{ data: any[] }>(`/reports/sales-by-product?${query.toString()}`);
+}
+
+export function fetchSalesByCashier(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  return apiFetch<{ data: any[] }>(`/reports/sales-by-cashier?${query.toString()}`);
+}
+
+export function fetchPaymentBreakdown(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  return apiFetch<{ data: any[] }>(`/reports/payment-breakdown?${query.toString()}`);
+}
+
+export function fetchStockMovements(params?: {
+  productId?: string;
+  imei?: string;
+  movementType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.productId) query.set("productId", params.productId);
+  if (params?.imei) query.set("imei", params.imei);
+  if (params?.movementType) query.set("movementType", params.movementType);
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  return apiFetch<any[]>(`/reports/stock-movements?${query.toString()}`);
 }
 
 // ── Suppliers ───────────────────────────────────────────────────────

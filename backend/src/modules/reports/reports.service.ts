@@ -28,11 +28,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND s.sale_time >= $${params.length}`;
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND s.sale_time <= $${params.length}`;
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
@@ -60,11 +60,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND s.sale_time >= $${params.length}`;
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND s.sale_time <= $${params.length}`;
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
@@ -96,11 +96,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND s.sale_time >= $${params.length}`;
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND s.sale_time <= $${params.length}`;
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
@@ -127,11 +127,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND s.sale_time >= $${params.length}`;
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND s.sale_time <= $${params.length}`;
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
@@ -157,11 +157,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND s.sale_time >= $${params.length}`;
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND s.sale_time <= $${params.length}`;
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
@@ -302,11 +302,11 @@ export class ReportsService {
     }
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND sm.movement_time >= $${params.length}`;
+      whereClause += ` AND sm.movement_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND sm.movement_time <= $${params.length}`;
+      whereClause += ` AND sm.movement_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const countSql = `SELECT COUNT(*)::int AS total FROM stock_movements sm LEFT JOIN imei_units iu ON iu.id = sm.imei_unit_id ${whereClause}`;
@@ -355,11 +355,11 @@ export class ReportsService {
 
     if (query.dateFrom) {
       params.push(query.dateFrom);
-      whereClause += ` AND r.return_time >= $${params.length}`;
+      whereClause += ` AND r.return_time >= $${params.length}::date`;
     }
     if (query.dateTo) {
       params.push(query.dateTo);
-      whereClause += ` AND r.return_time <= $${params.length}`;
+      whereClause += ` AND r.return_time < ($${params.length}::date + INTERVAL '1 day')`;
     }
 
     const sql = `
