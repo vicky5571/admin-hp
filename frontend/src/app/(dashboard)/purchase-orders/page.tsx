@@ -67,8 +67,10 @@ interface ReceiveRow {
   actualUnitCost: string;
   conditionStatus: string;
   conditionNotes: string;
-  imeis: string[];
+  imeiUnits: { imei: string; conditionGrade?: string | null; batteryHealth?: number | null }[];
   imeiInput: string;
+  gradeInput: string;
+  batteryInput: string;
 }
 
 export default function PurchaseOrdersPage() {
@@ -412,8 +414,10 @@ export default function PurchaseOrdersPage() {
           actualUnitCost: String(parseFloat(i.unitCost) || 0),
           conditionStatus: "GOOD",
           conditionNotes: "",
-          imeis: [],
+          imeiUnits: [],
           imeiInput: "",
+          gradeInput: "",
+          batteryInput: "",
         })),
     );
   };
@@ -424,17 +428,28 @@ export default function PurchaseOrdersPage() {
     );
   };
 
-  const addReceiveImei = (poItemId: number, valueToAdd?: string) => {
+  const addReceiveImei = (
+    poItemId: number,
+    valueToAdd?: string,
+    gradeToAdd?: string,
+    batteryToAdd?: number | null,
+  ) => {
     const row = receiveRows.find((r) => r.poItem.id === poItemId);
     if (!row) return;
     const value = (valueToAdd ?? row.imeiInput).trim();
-    if (!value || row.imeis.includes(value)) {
+    if (!value || row.imeiUnits.some((u) => u.imei === value)) {
       updateReceiveRow(poItemId, { imeiInput: "" });
       return;
     }
+    const grade = gradeToAdd !== undefined ? gradeToAdd : (row.gradeInput.trim() || null);
+    const rawBat = batteryToAdd !== undefined ? batteryToAdd : (row.batteryInput.trim() ? parseInt(row.batteryInput.trim(), 10) : null);
+    const bat = rawBat != null && !isNaN(rawBat) ? Math.min(100, Math.max(0, rawBat)) : null;
+
     updateReceiveRow(poItemId, {
-      imeis: [...row.imeis, value],
+      imeiUnits: [...row.imeiUnits, { imei: value, conditionGrade: grade, batteryHealth: bat }],
       imeiInput: "",
+      gradeInput: "",
+      batteryInput: "",
     });
   };
 
@@ -442,7 +457,7 @@ export default function PurchaseOrdersPage() {
     const row = receiveRows.find((r) => r.poItem.id === poItemId);
     if (!row) return;
     updateReceiveRow(poItemId, {
-      imeis: row.imeis.filter((v) => v !== imei),
+      imeiUnits: row.imeiUnits.filter((u) => u.imei !== imei),
     });
   };
 
@@ -464,7 +479,8 @@ export default function PurchaseOrdersPage() {
           actualUnitCost: actualCost !== poCost ? actualCost : undefined,
           conditionStatus: r.conditionStatus || "GOOD",
           conditionNotes: r.conditionNotes.trim() || undefined,
-          imeis: r.imeis.length > 0 ? r.imeis : undefined,
+          imeis: r.imeiUnits.length > 0 ? r.imeiUnits.map((u) => u.imei) : undefined,
+          imeiUnits: r.imeiUnits.length > 0 ? r.imeiUnits : undefined,
         };
       });
 
@@ -476,9 +492,9 @@ export default function PurchaseOrdersPage() {
     for (const r of receiveRows.filter((r) => Number(r.receivedQty) > 0)) {
       if (r.poItem.product?.productType === "SERIALIZED") {
         const qty = Number(r.receivedQty);
-        if (r.imeis.length !== qty) {
+        if (r.imeiUnits.length !== qty) {
           setReceiveError(
-            `${r.poItem.product.sku} is serialized and requires exactly ${qty} IMEI(s) (currently ${r.imeis.length} entered)`,
+            `${r.poItem.product.sku} is serialized and requires exactly ${qty} IMEI(s) (currently ${r.imeiUnits.length} entered)`,
           );
           return;
         }
@@ -1284,16 +1300,16 @@ export default function PurchaseOrdersPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-semibold text-gray-700">
-                              IMEI Numbers:
+                              IMEI Units:
                             </span>
                             <span
                               className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                r.imeis.length === qtyNum
+                                r.imeiUnits.length === qtyNum
                                   ? "bg-emerald-100 text-emerald-800"
                                   : "bg-amber-100 text-amber-800"
                               }`}
                             >
-                              {r.imeis.length} of {qtyNum} registered
+                              {r.imeiUnits.length} of {qtyNum} registered
                             </span>
                           </div>
 
@@ -1323,20 +1339,30 @@ export default function PurchaseOrdersPage() {
                           </div>
                         </div>
 
-                        {r.imeis.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-gray-50 rounded-lg border border-gray-100">
-                            {r.imeis.map((imei) => (
+                        {r.imeiUnits.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            {r.imeiUnits.map((u) => (
                               <span
-                                key={imei}
-                                className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-xs font-mono font-medium text-blue-700 border border-blue-200"
+                                key={u.imei}
+                                className="inline-flex items-center gap-1.5 rounded-md bg-white px-2 py-1 text-xs font-mono font-medium text-slate-800 border border-gray-200 shadow-2xs"
                               >
-                                {imei}
+                                <span className="text-blue-700 font-bold">{u.imei}</span>
+                                {u.conditionGrade && (
+                                  <span className="font-sans text-[10px] font-semibold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
+                                    {u.conditionGrade}
+                                  </span>
+                                )}
+                                {u.batteryHealth != null && (
+                                  <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                    {u.batteryHealth}% BH
+                                  </span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    removeReceiveImei(r.poItem.id, imei)
+                                    removeReceiveImei(r.poItem.id, u.imei)
                                   }
-                                  className="text-blue-500 hover:text-blue-700 font-bold"
+                                  className="text-red-400 hover:text-red-600 font-bold ml-1"
                                 >
                                   &times;
                                 </button>
@@ -1345,8 +1371,8 @@ export default function PurchaseOrdersPage() {
                           </div>
                         )}
 
-                        {r.imeis.length < qtyNum && (
-                          <div className="flex gap-2">
+                        {r.imeiUnits.length < qtyNum && (
+                          <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                             <input
                               type="text"
                               placeholder="Scan or enter 15-digit IMEI..."
@@ -1362,15 +1388,41 @@ export default function PurchaseOrdersPage() {
                                   addReceiveImei(r.poItem.id);
                                 }
                               }}
-                              className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none"
+                              className="flex-1 min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none"
                             />
-                            <button
-                              type="button"
-                              onClick={() => addReceiveImei(r.poItem.id)}
-                              className="rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900"
-                            >
-                              Add IMEI
-                            </button>
+                            <div className="flex gap-1.5 items-center">
+                              <input
+                                type="text"
+                                placeholder="Grade (opt)"
+                                value={r.gradeInput}
+                                onChange={(e) =>
+                                  updateReceiveRow(r.poItem.id, {
+                                    gradeInput: e.target.value,
+                                  })
+                                }
+                                className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-xs bg-white focus:border-blue-500 focus:outline-none"
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="BH % (opt)"
+                                value={r.batteryInput}
+                                onChange={(e) =>
+                                  updateReceiveRow(r.poItem.id, {
+                                    batteryInput: e.target.value,
+                                  })
+                                }
+                                className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-mono bg-white focus:border-blue-500 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addReceiveImei(r.poItem.id)}
+                                className="rounded-lg bg-gray-800 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-gray-900 shrink-0"
+                              >
+                                + Add
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1422,7 +1474,7 @@ export default function PurchaseOrdersPage() {
           title={`Scan IMEI: ${activeScanRow.poItem.product?.name || activeScanRow.poItem.product?.sku}`}
           subtitle={`Required: ${activeScanRow.receivedQty} IMEIs`}
           expectedCount={Number(activeScanRow.receivedQty)}
-          currentCount={activeScanRow.imeis.length}
+          currentCount={activeScanRow.imeiUnits.length}
         />
       )}
 
@@ -1431,18 +1483,33 @@ export default function PurchaseOrdersPage() {
         <BulkImeiModal
           isOpen={true}
           onClose={() => setBulkModalRowId(null)}
-          onApply={(newImeis) => {
-            const combined = Array.from(
-              new Set([...activeBulkRow.imeis, ...newImeis]),
-            );
+          onApply={(newImeis, parsedUnits) => {
+            const existingUnits = activeBulkRow.imeiUnits;
+            const newUnits = parsedUnits
+              ? parsedUnits.map((u) => ({
+                  imei: u.imei,
+                  conditionGrade: u.conditionGrade,
+                  batteryHealth: u.batteryHealth,
+                }))
+              : newImeis.map((im) => ({ imei: im, conditionGrade: null, batteryHealth: null }));
+
+            const existingImeiSet = new Set(existingUnits.map((u) => u.imei));
+            const merged = [...existingUnits];
+            for (const nu of newUnits) {
+              if (!existingImeiSet.has(nu.imei)) {
+                merged.push(nu);
+                existingImeiSet.add(nu.imei);
+              }
+            }
+
             updateReceiveRow(activeBulkRow.poItem.id, {
-              imeis: combined,
+              imeiUnits: merged,
             });
           }}
           productSku={activeBulkRow.poItem.product?.sku}
           productName={activeBulkRow.poItem.product?.name}
           targetQty={Number(activeBulkRow.receivedQty)}
-          existingImeis={activeBulkRow.imeis}
+          existingImeis={activeBulkRow.imeiUnits.map((u) => u.imei)}
         />
       )}
 

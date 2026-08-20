@@ -213,24 +213,57 @@ export class GoodsReceiptsService {
         const savedGrItem = await grItemRepo.save(grItem);
 
         // Register IMEIs for serialized items
-        if (dtoItem.imeis && dtoItem.imeis.length > 0) {
+        const imeiList: {
+          imei: string;
+          conditionGrade?: string | null;
+          batteryHealth?: number | null;
+        }[] = [];
+
+        if (dtoItem.imeiUnits && dtoItem.imeiUnits.length > 0) {
+          for (const u of dtoItem.imeiUnits) {
+            if (u && u.imei) {
+              imeiList.push({
+                imei: u.imei.trim(),
+                conditionGrade: u.conditionGrade ? u.conditionGrade.trim() : null,
+                batteryHealth:
+                  u.batteryHealth != null && !isNaN(Number(u.batteryHealth))
+                    ? Number(u.batteryHealth)
+                    : null,
+              });
+            }
+          }
+        } else if (dtoItem.imeis && dtoItem.imeis.length > 0) {
           for (const imeiStr of dtoItem.imeis) {
+            if (imeiStr) {
+              imeiList.push({
+                imei: imeiStr.trim(),
+                conditionGrade: null,
+                batteryHealth: null,
+              });
+            }
+          }
+        }
+
+        if (imeiList.length > 0) {
+          for (const imeiItem of imeiList) {
             // Check if IMEI already exists
             const existing = await imeiRepo.findOne({
-              where: { imei: imeiStr },
+              where: { imei: imeiItem.imei },
             });
             if (existing) {
               throw new ConflictException(
-                `IMEI ${imeiStr} already exists in the system`,
+                `IMEI ${imeiItem.imei} already exists in the system`,
               );
             }
 
             // Create IMEI unit
             const imeiUnit = imeiRepo.create({
-              imei: imeiStr,
+              imei: imeiItem.imei,
               productId: dtoItem.productId,
               status: ImeiStatus.IN_STOCK,
               currentLocation: 'STORE',
+              conditionGrade: imeiItem.conditionGrade ?? null,
+              batteryHealth: imeiItem.batteryHealth ?? null,
               lastRefType: 'GRN',
               lastRefId: savedGr.id,
             });

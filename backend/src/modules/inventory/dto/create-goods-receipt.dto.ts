@@ -6,9 +6,28 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+
+export class GrImeiUnitDto {
+  @IsString()
+  imei: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  conditionGrade?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  batteryHealth?: number;
+}
 
 export class ReceiveGrItemDto {
   @Type(() => Number)
@@ -47,6 +66,12 @@ export class ReceiveGrItemDto {
   @IsArray()
   @IsString({ each: true })
   imeis?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GrImeiUnitDto)
+  imeiUnits?: GrImeiUnitDto[];
 }
 
 export class CreateGoodsReceiptDto {

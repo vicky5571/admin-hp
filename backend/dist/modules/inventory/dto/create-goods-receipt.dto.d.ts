@@ -1,3 +1,8 @@
+export declare class GrImeiUnitDto {
+    imei: string;
+    conditionGrade?: string;
+    batteryHealth?: number;
+}
 export declare class ReceiveGrItemDto {
     poItemId: number;
     productId: number;
@@ -7,6 +12,7 @@ export declare class ReceiveGrItemDto {
     conditionStatus?: string;
     conditionNotes?: string;
     imeis?: string[];
+    imeiUnits?: GrImeiUnitDto[];
 }
 export declare class CreateGoodsReceiptDto {
     purchaseOrderId: number;

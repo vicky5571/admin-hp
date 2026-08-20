@@ -2,15 +2,29 @@
 
 import { useMemo, useState } from "react";
 
+export interface BulkImeiParsedUnit {
+  imei: string;
+  conditionGrade?: string | null;
+  batteryHealth?: number | null;
+}
+
 interface BulkImeiModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: (imeis: string[]) => void;
+  onApply: (imeis: string[], imeiUnits?: BulkImeiParsedUnit[]) => void;
   productName?: string;
   productSku?: string;
   targetQty?: number;
   existingImeis?: string[];
 }
+
+const COMMON_GRADES = [
+  "Brand New",
+  "Grade A",
+  "Grade B",
+  "Grade C",
+  "Like New",
+];
 
 export default function BulkImeiModal({
   isOpen,
@@ -22,53 +36,76 @@ export default function BulkImeiModal({
   existingImeis = [],
 }: BulkImeiModalProps) {
   const [rawText, setRawText] = useState("");
+  const [batchGrade, setBatchGrade] = useState("");
+  const [batchBattery, setBatchBattery] = useState("");
 
-  // Parse and deduplicate raw text into clean IMEI tokens
-  const { validImeis, duplicateCount, existingOverlapCount } = useMemo(() => {
+  // Parse and deduplicate raw text into clean IMEI tokens & structured units
+  const { validUnits, validImeis, duplicateCount, existingOverlapCount } = useMemo(() => {
     if (!rawText.trim()) {
-      return { validImeis: [], duplicateCount: 0, existingOverlapCount: 0 };
+      return { validUnits: [], validImeis: [], duplicateCount: 0, existingOverlapCount: 0 };
     }
 
-    // Split by newlines, commas, tabs, spaces, or semicolons
-    const tokens = rawText
-      .split(/[\r\n,;\t\s]+/)
-      .map((t) => t.trim().replace(/[^a-zA-Z0-9]/g, ""))
-      .filter((t) => t.length >= 8); // Minimum reasonable serial/IMEI length
-
+    const lines = rawText.split(/[\r\n]+/);
+    const parsedList: BulkImeiParsedUnit[] = [];
     const uniqueSet = new Set<string>();
     let duplicates = 0;
     let existingDuplicates = 0;
 
-    for (const token of tokens) {
-      if (existingImeis.includes(token)) {
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Check if line contains CSV/tab tokens: "IMEI, Grade, Battery"
+      const parts = line.split(/[,;\t]+/).map((p) => p.trim());
+      const cleanImei = parts[0]?.replace(/[^a-zA-Z0-9]/g, "") || "";
+
+      if (cleanImei.length < 8) continue;
+
+      if (existingImeis.includes(cleanImei)) {
         existingDuplicates++;
       }
-      if (uniqueSet.has(token)) {
+      if (uniqueSet.has(cleanImei)) {
         duplicates++;
-      } else {
-        uniqueSet.add(token);
+        continue;
       }
+
+      uniqueSet.add(cleanImei);
+
+      // Line-specific grade or batch default
+      const lineGrade = parts[1] ? parts[1] : batchGrade.trim() || undefined;
+      // Line-specific battery or batch default
+      const rawBattery = parts[2] ? parseInt(parts[2].replace(/[^0-9]/g, ""), 10) : (batchBattery.trim() ? parseInt(batchBattery.trim(), 10) : undefined);
+      const lineBattery = rawBattery !== undefined && !isNaN(rawBattery) ? Math.min(100, Math.max(0, rawBattery)) : undefined;
+
+      parsedList.push({
+        imei: cleanImei,
+        conditionGrade: lineGrade || null,
+        batteryHealth: lineBattery != null ? lineBattery : null,
+      });
     }
 
     return {
+      validUnits: parsedList,
       validImeis: Array.from(uniqueSet),
       duplicateCount: duplicates,
       existingOverlapCount: existingDuplicates,
     };
-  }, [rawText, existingImeis]);
+  }, [rawText, existingImeis, batchGrade, batchBattery]);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
     if (validImeis.length === 0) return;
-    onApply(validImeis);
+    onApply(validImeis, validUnits);
     setRawText("");
+    setBatchGrade("");
+    setBatchBattery("");
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 flex flex-col">
+      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
           <div>
@@ -94,8 +131,60 @@ export default function BulkImeiModal({
         <div className="rounded-lg bg-blue-50/70 p-3 text-xs text-blue-800 border border-blue-100 mb-3 space-y-1">
           <p className="font-semibold">📋 Multi-line or Spreadsheet Paste</p>
           <p className="text-blue-700">
-            Paste a list of IMEIs from Excel, Google Sheets, or supplier packing slips. They can be separated by newlines, spaces, or commas.
+            Paste IMEIs from Excel, Google Sheets, or supplier packing slips. You can paste plain IMEIs or CSV format (<code>IMEI, Grade, BatteryHealth</code>).
           </p>
+        </div>
+
+        {/* Batch Condition & Battery Presets */}
+        <div className="mb-3.5 p-3 rounded-xl bg-gray-50 border border-gray-200">
+          <p className="text-xs font-semibold text-gray-700 uppercase mb-2">
+            Batch Presets <span className="text-gray-400 font-normal lowercase">(applied to pasted IMEIs without explicit grade)</span>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                Batch Condition Grade
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  placeholder="e.g. Grade A or Brand New"
+                  value={batchGrade}
+                  onChange={(e) => setBatchGrade(e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs bg-white focus:border-blue-500 focus:outline-none"
+                />
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setBatchGrade(e.target.value);
+                  }}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs bg-white focus:outline-none"
+                >
+                  <option value="">Presets</option>
+                  {COMMON_GRADES.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                Batch Battery Health (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                placeholder="e.g. 100 or 95"
+                value={batchBattery}
+                onChange={(e) => setBatchBattery(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-mono bg-white focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Textarea */}
@@ -104,10 +193,10 @@ export default function BulkImeiModal({
             IMEI List Input
           </label>
           <textarea
-            rows={8}
+            rows={6}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
-            placeholder="Paste IMEIs here, for example:&#10;358921098471928&#10;358921098471929&#10;358921098471930..."
+            placeholder={"Paste IMEIs here, for example:\n358921098471928\n358921098471929\n358921098471930, Grade A, 95..."}
             className="w-full rounded-xl border border-gray-300 p-3 text-xs font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
@@ -140,7 +229,7 @@ export default function BulkImeiModal({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
           <button
             type="button"
             onClick={onClose}

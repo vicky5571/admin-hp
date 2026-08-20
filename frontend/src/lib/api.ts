@@ -503,7 +503,13 @@ export interface GrItem {
   imeis?: {
     id: number;
     imeiUnitId?: number;
-    imeiUnit?: { id: number; imei: string; status?: string };
+    imeiUnit?: {
+      id: number;
+      imei: string;
+      status?: string;
+      conditionGrade?: string | null;
+      batteryHealth?: number | null;
+    };
   }[];
 }
 
@@ -527,6 +533,12 @@ export interface GoodsReceipt {
   items: GrItem[];
 }
 
+export interface GrItemImeiIntake {
+  imei: string;
+  conditionGrade?: string | null;
+  batteryHealth?: number | null;
+}
+
 export interface CreateGrPayload {
   purchaseOrderId: number;
   receiveDate: string;
@@ -543,6 +555,7 @@ export interface CreateGrPayload {
     conditionStatus?: string;
     conditionNotes?: string;
     imeis?: string[];
+    imeiUnits?: GrItemImeiIntake[];
   }[];
 }
 

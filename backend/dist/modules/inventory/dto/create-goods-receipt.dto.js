@@ -9,9 +9,30 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateGoodsReceiptDto = exports.ReceiveGrItemDto = void 0;
+exports.CreateGoodsReceiptDto = exports.ReceiveGrItemDto = exports.GrImeiUnitDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+class GrImeiUnitDto {
+}
+exports.GrImeiUnitDto = GrImeiUnitDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], GrImeiUnitDto.prototype, "imei", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], GrImeiUnitDto.prototype, "conditionGrade", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], GrImeiUnitDto.prototype, "batteryHealth", void 0);
 class ReceiveGrItemDto {
 }
 exports.ReceiveGrItemDto = ReceiveGrItemDto;
@@ -60,6 +81,13 @@ __decorate([
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], ReceiveGrItemDto.prototype, "imeis", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => GrImeiUnitDto),
+    __metadata("design:type", Array)
+], ReceiveGrItemDto.prototype, "imeiUnits", void 0);
 class CreateGoodsReceiptDto {
 }
 exports.CreateGoodsReceiptDto = CreateGoodsReceiptDto;
