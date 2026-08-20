@@ -245,7 +245,7 @@ export function quoteSale(items: SaleItemDto[]) {
 }
 
 export function createSale(payload: CreateSalePayload) {
-  return apiFetch<unknown>("/sales", {
+  return apiFetch<any>("/sales", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -726,6 +726,52 @@ export function resetUserPassword(id: number, newPassword: string) {
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export interface ReceiptPayload {
+  id: number;
+  invoiceNumber: string;
+  saleTime: string;
+  subtotal: string;
+  discountTotal: string;
+  taxTotal: string;
+  grandTotal: string;
+  notes?: string | null;
+  cashier?: { id: number; fullName: string } | null;
+  customer?: { id: number; name: string; phone?: string | null; email?: string | null } | null;
+  items: {
+    id: number;
+    productId: number;
+    productName: string;
+    sku: string;
+    productType?: string;
+    qty: number;
+    unitPrice: string;
+    discountAmount: string;
+    lineTotal: string;
+    imeis?: {
+      id: number;
+      imeiUnitId: number;
+      imei: string;
+      conditionGrade?: string | null;
+      batteryHealth?: number | null;
+    }[];
+  }[];
+  payments: {
+    id: number;
+    method: string;
+    amount: string | number;
+    referenceNumber?: string | null;
+  }[];
+  warrantyPolicy?: {
+    secondHandDays: number;
+    newWarranty: string;
+    conditions: string[];
+  };
+}
+
+export function fetchSaleReceipt(saleId: number) {
+  return apiFetch<ReceiptPayload>(`/sales/${saleId}/receipt`);
 }
 
 export async function downloadReceiptPdf(saleId: number) {

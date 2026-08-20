@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch, downloadReceiptPdf } from "@/lib/api";
+import { apiFetch, downloadReceiptPdf, fetchSaleReceipt, ReceiptPayload } from "@/lib/api";
+import PrintReceiptModal from "@/components/PrintReceiptModal";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<any[]>([]);
@@ -10,6 +11,8 @@ export default function SalesPage() {
     pageCount: 1,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptPayload | null>(null);
+  const [fetchingReceiptId, setFetchingReceiptId] = useState<number | null>(null);
 
   const load = useCallback(async (page = 1) => {
     setLoading(true);
@@ -28,9 +31,29 @@ export default function SalesPage() {
     load(1);
   }, [load]);
 
+  const handleOpenReceipt = async (saleId: number) => {
+    setFetchingReceiptId(saleId);
+    try {
+      const res = await fetchSaleReceipt(saleId);
+      setSelectedReceipt(res.data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to load receipt");
+    } finally {
+      setFetchingReceiptId(null);
+    }
+  };
+
   return (
     <div>
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Sales</h1>
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Sales Transactions</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Audit store sales, inspect serialized IMEI records, and reprint receipts or download warranty invoices.
+          </p>
+        </div>
+      </div>
+
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -42,7 +65,7 @@ export default function SalesPage() {
                 <th className="px-4 py-3 font-medium">Items</th>
                 <th className="px-4 py-3 font-medium">Total</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Receipt</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -62,14 +85,14 @@ export default function SalesPage() {
               )}
               {sales.map((s: any) => (
                 <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{s.invoiceNumber}</td>
-                  <td className="px-4 py-3">
-                    {new Date(s.saleTime).toLocaleString()}
+                  <td className="px-4 py-3 font-medium font-mono text-blue-700">{s.invoiceNumber}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">
+                    {new Date(s.saleTime).toLocaleString("id-ID")}
                   </td>
-                  <td className="px-4 py-3">{s.cashier?.fullName ?? "-"}</td>
-                  <td className="px-4 py-3">{s.items?.length ?? 0}</td>
-                  <td className="px-4 py-3 font-medium">
-                    IDR {parseFloat(s.grandTotal).toLocaleString()}
+                  <td className="px-4 py-3 text-xs">{s.cashier?.fullName ?? "-"}</td>
+                  <td className="px-4 py-3 text-xs font-semibold">{s.items?.length ?? 0}</td>
+                  <td className="px-4 py-3 font-medium font-mono">
+                    IDR {parseFloat(s.grandTotal).toLocaleString("id-ID")}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -84,13 +107,31 @@ export default function SalesPage() {
                       {s.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => downloadReceiptPdf(s.id)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      PDF
-                    </button>
+                  <td className="px-4 py-3 text-right">
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReceipt(s.id)}
+                        disabled={fetchingReceiptId === s.id}
+                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        <span>{fetchingReceiptId === s.id ? "Loading..." : "Receipt"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => downloadReceiptPdf(s.id)}
+                        className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-300 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>PDF</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -123,6 +164,14 @@ export default function SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Printable Receipt Modal */}
+      <PrintReceiptModal
+        isOpen={Boolean(selectedReceipt)}
+        onClose={() => setSelectedReceipt(null)}
+        receipt={selectedReceipt}
+      />
     </div>
   );
 }
+

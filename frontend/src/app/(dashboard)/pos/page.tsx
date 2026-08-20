@@ -5,15 +5,18 @@ import {
   Category,
   ImeiUnit,
   Product,
+  ReceiptPayload,
   createSale,
   downloadReceiptPdf,
   fetchAvailableImeis,
   fetchCategories,
   fetchProducts,
+  fetchSaleReceipt,
   lookupImei,
   quoteSale,
 } from "@/lib/api";
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
+import PrintReceiptModal from "@/components/PrintReceiptModal";
 
 interface CartItem {
   productId: number;
@@ -58,6 +61,8 @@ export default function PosPage() {
   const [payAmount, setPayAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [saleResult, setSaleResult] = useState<any>(null);
+  const [receiptPayload, setReceiptPayload] = useState<ReceiptPayload | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -587,6 +592,14 @@ export default function PosPage() {
       setCart([]);
       setPayAmount("");
       setGlobalDiscountPercent(null);
+
+      // Preload complete receipt for thermal printing & review
+      try {
+        const rc = await fetchSaleReceipt(res.data.id);
+        setReceiptPayload(rc.data);
+      } catch {
+        // non-blocking
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
     } finally {
@@ -619,7 +632,7 @@ export default function PosPage() {
             <div className="flex justify-between text-gray-600">
               <span>Grand Total:</span>
               <span className="font-bold text-gray-900 font-mono text-sm">
-                IDR {parseFloat(saleResult.grandTotal || "0").toLocaleString()}
+                IDR {parseFloat(saleResult.grandTotal || "0").toLocaleString("id-ID")}
               </span>
             </div>
             {payMethod === "CASH" && (
@@ -627,40 +640,61 @@ export default function PosPage() {
                 <div className="flex justify-between text-gray-600">
                   <span>Cash Paid:</span>
                   <span className="font-mono font-medium text-gray-800">
-                    IDR {amountPaidNum.toLocaleString()}
+                    IDR {amountPaidNum.toLocaleString("id-ID")}
                   </span>
                 </div>
                 <div className="flex justify-between text-emerald-700 font-bold border-t border-slate-200 pt-2 text-sm">
                   <span>Kembalian / Change:</span>
                   <span className="font-mono">
-                    IDR {changeDue.toLocaleString()}
+                    IDR {changeDue.toLocaleString("id-ID")}
                   </span>
                 </div>
               </>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
               type="button"
-              onClick={() => downloadReceiptPdf(saleResult.id)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3 text-xs font-bold text-gray-800 hover:bg-gray-200 transition-colors"
+              onClick={() => setShowReceiptModal(true)}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-bold text-white hover:bg-emerald-700 shadow-md transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              <span>Print PDF Receipt</span>
+              <span>Print Receipt</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setSaleResult(null)}
-              className="rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white hover:bg-blue-700 shadow-md transition-colors"
+              onClick={() => downloadReceiptPdf(saleResult.id)}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-gray-100 px-4 py-3 text-xs font-bold text-gray-800 hover:bg-gray-200 border border-gray-300 transition-colors"
             >
-              Start New Sale (F2)
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Download PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSaleResult(null);
+                setReceiptPayload(null);
+              }}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white hover:bg-blue-700 shadow-md transition-colors"
+            >
+              <span>New Sale (F2)</span>
             </button>
           </div>
         </div>
+
+        {/* Printable Receipt Modal */}
+        <PrintReceiptModal
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          receipt={receiptPayload}
+        />
       </div>
     );
   }
