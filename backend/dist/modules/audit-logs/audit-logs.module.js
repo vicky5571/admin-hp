@@ -16,11 +16,12 @@ let AuditLogsModule = class AuditLogsModule {
 };
 exports.AuditLogsModule = AuditLogsModule;
 exports.AuditLogsModule = AuditLogsModule = __decorate([
+    (0, common_1.Global)(),
     (0, common_1.Module)({
         imports: [typeorm_1.TypeOrmModule.forFeature([audit_log_entity_1.AuditLog])],
         controllers: [audit_logs_controller_1.AuditLogsController],
         providers: [audit_logs_service_1.AuditLogsService],
-        exports: [audit_logs_service_1.AuditLogsService],
+        exports: [audit_logs_service_1.AuditLogsService, typeorm_1.TypeOrmModule],
     })
 ], AuditLogsModule);
 //# sourceMappingURL=audit-logs.module.js.map

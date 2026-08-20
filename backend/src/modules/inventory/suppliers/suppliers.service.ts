@@ -10,12 +10,14 @@ import { Supplier } from '../entities/supplier.entity';
 import { CreateSupplierDto } from '../dto/create-supplier.dto';
 import { UpdateSupplierDto } from '../dto/update-supplier.dto';
 import { ListSuppliersQueryDto } from '../dto/list-suppliers.query.dto';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 
 @Injectable()
 export class SuppliersService {
   constructor(
     @InjectRepository(Supplier)
     private readonly repo: Repository<Supplier>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(query: ListSuppliersQueryDto) {
@@ -49,7 +51,7 @@ export class SuppliersService {
     return row;
   }
 
-  async create(dto: CreateSupplierDto) {
+  async create(dto: CreateSupplierDto, userId?: number) {
     const exists = await this.repo.findOne({
       where: { supplierCode: dto.supplierCode },
     });
@@ -67,10 +69,20 @@ export class SuppliersService {
       paymentTermsDays: dto.paymentTermsDays ?? 0,
       isActive: dto.isActive ?? true,
     });
-    return this.repo.save(entity);
+    const saved = await this.repo.save(entity);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'SUPPLIER_CREATED',
+      entityType: 'SUPPLIER',
+      entityId: Number(saved.id),
+      metadataJson: { supplierCode: saved.supplierCode, name: saved.name },
+    });
+
+    return saved;
   }
 
-  async update(id: number, dto: UpdateSupplierDto) {
+  async update(id: number, dto: UpdateSupplierDto, userId?: number) {
     const row = await this.findOne(id);
 
     if (dto.supplierCode && dto.supplierCode !== row.supplierCode) {
@@ -91,6 +103,16 @@ export class SuppliersService {
     row.paymentTermsDays = dto.paymentTermsDays ?? row.paymentTermsDays;
     row.isActive = dto.isActive ?? row.isActive;
 
-    return this.repo.save(row);
+    const saved = await this.repo.save(row);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'SUPPLIER_UPDATED',
+      entityType: 'SUPPLIER',
+      entityId: Number(saved.id),
+      metadataJson: { supplierCode: saved.supplierCode, name: saved.name },
+    });
+
+    return saved;
   }
 }

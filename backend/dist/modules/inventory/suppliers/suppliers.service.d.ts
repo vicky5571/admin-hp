@@ -3,9 +3,11 @@ import { Supplier } from '../entities/supplier.entity';
 import { CreateSupplierDto } from '../dto/create-supplier.dto';
 import { UpdateSupplierDto } from '../dto/update-supplier.dto';
 import { ListSuppliersQueryDto } from '../dto/list-suppliers.query.dto';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 export declare class SuppliersService {
     private readonly repo;
-    constructor(repo: Repository<Supplier>);
+    private readonly auditLogsService;
+    constructor(repo: Repository<Supplier>, auditLogsService: AuditLogsService);
     findAll(query: ListSuppliersQueryDto): Promise<{
         data: Supplier[];
         meta: {
@@ -16,6 +18,6 @@ export declare class SuppliersService {
         };
     }>;
     findOne(id: number): Promise<Supplier>;
-    create(dto: CreateSupplierDto): Promise<Supplier>;
-    update(id: number, dto: UpdateSupplierDto): Promise<Supplier>;
+    create(dto: CreateSupplierDto, userId?: number): Promise<Supplier>;
+    update(id: number, dto: UpdateSupplierDto, userId?: number): Promise<Supplier>;
 }

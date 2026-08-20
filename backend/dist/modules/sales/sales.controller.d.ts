@@ -16,26 +16,7 @@ export declare class SalesController {
         taxTotal: number;
         grandTotal: number;
     };
-    create(dto: CreateSaleDto, user: AuthUser): Promise<{
-        paidTotal: string;
-        change: string;
-        id?: number | undefined;
-        invoiceNumber?: string | undefined;
-        saleTime?: Date | undefined;
-        cashierId?: number | undefined;
-        customerId?: number | null | undefined;
-        subtotal?: string | undefined;
-        discountTotal?: string | undefined;
-        taxTotal?: string | undefined;
-        grandTotal?: string | undefined;
-        status?: import("../../common/enums/sale-status.enum").SaleStatus | undefined;
-        notes?: string | null | undefined;
-        cashier?: import("../users/entities/user.entity").User | undefined;
-        customer?: import("./entities/customer.entity").Customer | null | undefined;
-        items?: import("./entities/sale-item.entity").SaleItem[] | undefined;
-        payments?: import("./entities/payment.entity").Payment[] | undefined;
-        createdAt?: Date | undefined;
-    }>;
+    create(dto: CreateSaleDto, user: AuthUser): Promise<any>;
     findAll(query: ListSalesQueryDto): Promise<{
         data: import("./entities/sale.entity").Sale[];
         meta: {
@@ -57,5 +38,5 @@ export declare class SalesController {
         payments: import("./entities/payment.entity").Payment[];
     }>;
     receiptPdf(id: number, res: Response): Promise<void>;
-    voidSale(id: number, user: AuthUser): Promise<import("./entities/sale.entity").Sale>;
+    voidSale(id: number, user: AuthUser): Promise<any>;
 }

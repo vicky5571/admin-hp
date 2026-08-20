@@ -3,6 +3,7 @@ import { SaleStatus } from '../../common/enums/sale-status.enum';
 import { Product } from '../catalog/entities/product.entity';
 import { ImeiUnit } from '../imei/entities/imei-unit.entity';
 import { AuthUser } from '../../common/types/auth-user.type';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { ListReturnsQueryDto } from './dto/list-returns.query.dto';
 import { ValidateReturnDto } from './dto/validate-return.dto';
@@ -14,7 +15,8 @@ export declare class ReturnsService {
     private readonly salesRepo;
     private readonly productRepo;
     private readonly imeiRepo;
-    constructor(dataSource: DataSource, returnsRepo: Repository<Return>, salesRepo: Repository<Sale>, productRepo: Repository<Product>, imeiRepo: Repository<ImeiUnit>);
+    private readonly auditLogsService;
+    constructor(dataSource: DataSource, returnsRepo: Repository<Return>, salesRepo: Repository<Sale>, productRepo: Repository<Product>, imeiRepo: Repository<ImeiUnit>, auditLogsService: AuditLogsService);
     validate(dto: ValidateReturnDto): Promise<{
         invoiceNumber: string;
         saleId: number;
@@ -26,7 +28,7 @@ export declare class ReturnsService {
             reason?: string;
         }[];
     }>;
-    create(dto: CreateReturnDto, user: AuthUser): Promise<Return>;
+    create(dto: CreateReturnDto, user: AuthUser): Promise<any>;
     findAll(query: ListReturnsQueryDto): Promise<{
         data: Return[];
         meta: {

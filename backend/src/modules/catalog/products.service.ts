@@ -9,6 +9,7 @@ import { Brand } from './entities/brand.entity';
 import { Category } from './entities/category.entity';
 import { Product } from './entities/product.entity';
 import { TaxClass } from './entities/tax-class.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class ProductsService {
@@ -21,6 +22,7 @@ export class ProductsService {
     private readonly brandRepo: Repository<Brand>,
     @InjectRepository(TaxClass)
     private readonly taxClassRepo: Repository<TaxClass>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(query: ListProductsQueryDto) {
@@ -60,7 +62,7 @@ export class ProductsService {
     return { data: rows, meta: paginateMeta(total, query.page, query.limit) };
   }
 
-  async create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto, userId?: number) {
     const existing = await this.productsRepo.findOne({
       where: { sku: dto.sku.trim() },
     });
@@ -81,7 +83,22 @@ export class ProductsService {
       isActive: dto.isActive ?? true,
     });
     const saved = await this.productsRepo.save(entity);
-    return this.findOne(saved.id);
+    const result = await this.findOne(saved.id);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PRODUCT_CREATED',
+      entityType: 'PRODUCT',
+      entityId: Number(saved.id),
+      metadataJson: {
+        sku: saved.sku,
+        name: saved.name,
+        productType: saved.productType,
+        sellingPrice: saved.sellingPrice,
+      },
+    });
+
+    return result;
   }
 
   async findOne(id: number) {
@@ -99,7 +116,7 @@ export class ProductsService {
     return row;
   }
 
-  async update(id: number, dto: UpdateProductDto) {
+  async update(id: number, dto: UpdateProductDto, userId?: number) {
     const row = await this.findOne(id);
 
     if (dto.sku && dto.sku.trim() !== row.sku) {
@@ -123,12 +140,31 @@ export class ProductsService {
     if (dto.isActive !== undefined) row.isActive = dto.isActive;
 
     await this.productsRepo.save(row);
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PRODUCT_UPDATED',
+      entityType: 'PRODUCT',
+      entityId: Number(id),
+      metadataJson: { sku: row.sku, name: row.name, isActive: row.isActive },
+    });
+
+    return updated;
   }
 
-  async delete(id: number) {
+  async delete(id: number, userId?: number) {
     const row = await this.findOne(id);
     await this.productsRepo.remove(row);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PRODUCT_DELETED',
+      entityType: 'PRODUCT',
+      entityId: Number(id),
+      metadataJson: { sku: row.sku, name: row.name },
+    });
+
     return { success: true, message: `Product ${row.sku} deleted` };
   }
 
@@ -139,7 +175,7 @@ export class ProductsService {
     });
   }
 
-  async createCategory(name: string) {
+  async createCategory(name: string, userId?: number) {
     const trimmed = name.trim();
     const existing = await this.categoryRepo.findOne({
       where: { name: trimmed },
@@ -148,7 +184,17 @@ export class ProductsService {
       return existing;
     }
     const cat = this.categoryRepo.create({ name: trimmed, isActive: true });
-    return this.categoryRepo.save(cat);
+    const saved = await this.categoryRepo.save(cat);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'CATEGORY_CREATED',
+      entityType: 'CATEGORY',
+      entityId: Number(saved.id),
+      metadataJson: { name: saved.name },
+    });
+
+    return saved;
   }
 
   // Brands
@@ -158,7 +204,7 @@ export class ProductsService {
     });
   }
 
-  async createBrand(name: string) {
+  async createBrand(name: string, userId?: number) {
     const trimmed = name.trim();
     const existing = await this.brandRepo.findOne({
       where: { name: trimmed },
@@ -167,7 +213,17 @@ export class ProductsService {
       return existing;
     }
     const brand = this.brandRepo.create({ name: trimmed, isActive: true });
-    return this.brandRepo.save(brand);
+    const saved = await this.brandRepo.save(brand);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'BRAND_CREATED',
+      entityType: 'BRAND',
+      entityId: Number(saved.id),
+      metadataJson: { name: saved.name },
+    });
+
+    return saved;
   }
 
   // Tax Classes

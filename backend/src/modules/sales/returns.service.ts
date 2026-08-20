@@ -18,6 +18,7 @@ import { ImeiUnit } from '../imei/entities/imei-unit.entity';
 import { StockBalance } from '../inventory/entities/stock-balance.entity';
 import { StockMovement } from '../inventory/entities/stock-movement.entity';
 import { AuthUser } from '../../common/types/auth-user.type';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { ListReturnsQueryDto } from './dto/list-returns.query.dto';
 import { ValidateReturnDto } from './dto/validate-return.dto';
@@ -39,6 +40,7 @@ export class ReturnsService {
     private readonly productRepo: Repository<Product>,
     @InjectRepository(ImeiUnit)
     private readonly imeiRepo: Repository<ImeiUnit>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   /**
@@ -363,6 +365,21 @@ export class ReturnsService {
 
       return this.findOne(savedReturn.id);
     });
+
+    await this.auditLogsService.log({
+      userId: user.id,
+      action: 'RETURN_CREATED',
+      entityType: 'RETURN',
+      entityId: res?.id ? Number(res.id) : null,
+      metadataJson: {
+        returnNumber: res?.returnNumber,
+        invoiceNumber: dto.invoiceNumber,
+        refundTotal: dto.refundTotal,
+        itemsCount: dto.items.length,
+      },
+    });
+
+    return res;
   }
 
   async findAll(query: ListReturnsQueryDto) {

@@ -684,3 +684,71 @@ export async function downloadReportCsv(path: string, filename: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ── Settings ────────────────────────────────────────────────────────
+export interface AppSettingsMap {
+  STORE_NAME?: string;
+  STORE_ADDRESS?: string;
+  STORE_PHONE?: string;
+  CURRENCY_CODE?: string;
+  TAX_MODE?: "EXCLUSIVE" | "INCLUSIVE" | "NONE" | string;
+  TAX_DEFAULT_RATE?: string;
+  RECEIPT_PREFIX?: string;
+  RECEIPT_FOOTER?: string;
+  RETURN_WINDOW_DAYS?: string;
+  MAX_DISCOUNT_PERCENT_CASHIER?: string;
+  SESSION_TIMEOUT_MINUTES?: string;
+  [key: string]: string | undefined;
+}
+
+export function fetchSettings() {
+  return apiFetch<Record<string, string>>("/settings");
+}
+
+export function updateSettings(settings: { key: string; value: string }[]) {
+  return apiFetch<Record<string, string>>("/settings", {
+    method: "PATCH",
+    body: JSON.stringify({ settings }),
+  });
+}
+
+// ── Audit Logs ──────────────────────────────────────────────────────
+export interface AuditLogItem {
+  id: number;
+  eventTime: string;
+  userId: number | null;
+  action: string;
+  entityType: string;
+  entityId: number | null;
+  metadataJson: Record<string, any> | null;
+  ipAddress: string | null;
+  user?: {
+    id: number;
+    fullName: string;
+    username: string;
+    email: string | null;
+    roleId: number;
+    isActive: boolean;
+  } | null;
+}
+
+export function fetchAuditLogs(params?: {
+  userId?: number;
+  action?: string;
+  entityType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.userId) query.set("userId", String(params.userId));
+  if (params?.action) query.set("action", params.action);
+  if (params?.entityType) query.set("entityType", params.entityType);
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  return apiFetch<AuditLogItem[]>(`/audit-logs?${query.toString()}`);
+}
+

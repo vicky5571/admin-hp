@@ -10,10 +10,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RoleName } from '../../common/enums/role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuthUser } from '../../common/types/auth-user.type';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -38,8 +40,11 @@ export class ProductsController {
 
   @Post('categories')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
-  createCategory(@Body('name') name: string) {
-    return this.productsService.createCategory(name);
+  createCategory(
+    @Body('name') name: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.createCategory(name, user.id);
   }
 
   @Get('brands')
@@ -50,8 +55,11 @@ export class ProductsController {
 
   @Post('brands')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
-  createBrand(@Body('name') name: string) {
-    return this.productsService.createBrand(name);
+  createBrand(
+    @Body('name') name: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.createBrand(name, user.id);
   }
 
   @Get('tax-classes')
@@ -62,8 +70,11 @@ export class ProductsController {
 
   @Post()
   @Roles(RoleName.OWNER, RoleName.ADMIN)
-  create(@Body() dto: CreateProductDto) {
-    return this.productsService.create(dto);
+  create(
+    @Body() dto: CreateProductDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.create(dto, user.id);
   }
 
   @Get(':id')
@@ -74,13 +85,20 @@ export class ProductsController {
 
   @Patch(':id')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
-    return this.productsService.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateProductDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.update(id, dto, user.id);
   }
 
   @Delete(':id')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
-  delete(@Param('id', ParseIntPipe) id: number) {
-    return this.productsService.delete(id);
+  delete(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.delete(id, user.id);
   }
 }

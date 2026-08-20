@@ -30,14 +30,16 @@ const purchase_order_entity_1 = require("../entities/purchase-order.entity");
 const stock_balance_entity_1 = require("../entities/stock-balance.entity");
 const stock_movement_entity_1 = require("../entities/stock-movement.entity");
 const imei_unit_entity_1 = require("../../imei/entities/imei-unit.entity");
+const audit_logs_service_1 = require("../../audit-logs/audit-logs.service");
 let GoodsReceiptsService = class GoodsReceiptsService {
-    constructor(grRepo, poRepo, poItemRepo, productRepo, imeiRepo, dataSource) {
+    constructor(grRepo, poRepo, poItemRepo, productRepo, imeiRepo, dataSource, auditLogsService) {
         this.grRepo = grRepo;
         this.poRepo = poRepo;
         this.poItemRepo = poItemRepo;
         this.productRepo = productRepo;
         this.imeiRepo = imeiRepo;
         this.dataSource = dataSource;
+        this.auditLogsService = auditLogsService;
     }
     async findAll(query) {
         const qb = this.grRepo.createQueryBuilder('gr');
@@ -241,7 +243,22 @@ let GoodsReceiptsService = class GoodsReceiptsService {
             await poRepoTx.save(po);
             return savedGr.id;
         });
-        return this.findOne(Number(savedGrId));
+        const result = await this.findOne(Number(savedGrId));
+        await this.auditLogsService.log({
+            userId,
+            action: 'GOODS_RECEIPT_CREATED',
+            entityType: 'GOODS_RECEIPT',
+            entityId: Number(savedGrId),
+            metadataJson: {
+                grnNumber: result.grnNumber,
+                poNumber: result.purchaseOrder?.poNumber,
+                supplierDoNumber: dto.supplierDoNumber,
+                carrierName: dto.carrierName,
+                trackingNumber: dto.trackingNumber,
+                itemsCount: dto.items.length,
+            },
+        });
+        return result;
     }
     async generateGrnNumber() {
         const date = new Date();
@@ -277,6 +294,7 @@ exports.GoodsReceiptsService = GoodsReceiptsService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.DataSource])
+        typeorm_2.DataSource,
+        audit_logs_service_1.AuditLogsService])
 ], GoodsReceiptsService);
 //# sourceMappingURL=goods-receipts.service.js.map

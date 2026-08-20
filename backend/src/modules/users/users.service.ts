@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { Role } from '../roles/entities/role.entity';
 import { User } from './entities/user.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class UsersService {
@@ -17,6 +18,7 @@ export class UsersService {
     private readonly usersRepo: Repository<User>,
     @InjectRepository(Role)
     private readonly rolesRepo: Repository<Role>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   findAll() {
@@ -31,13 +33,16 @@ export class UsersService {
     return this.usersRepo.findOne({ where: { id }, relations: ['role'] });
   }
 
-  async create(dto: {
-    fullName: string;
-    username: string;
-    email?: string;
-    password: string;
-    roleId: number;
-  }) {
+  async create(
+    dto: {
+      fullName: string;
+      username: string;
+      email?: string;
+      password: string;
+      roleId: number;
+    },
+    performedByUserId?: number,
+  ) {
     const existingUser = await this.usersRepo.findOne({
       where: [{ username: dto.username }],
     });
@@ -71,7 +76,17 @@ export class UsersService {
     });
 
     const saved = await this.usersRepo.save(user);
-    return this.findOne(saved.id);
+    const result = await this.findOne(saved.id);
+
+    await this.auditLogsService.log({
+      userId: performedByUserId ?? null,
+      action: 'USER_CREATED',
+      entityType: 'USER',
+      entityId: Number(saved.id),
+      metadataJson: { username: saved.username, fullName: saved.fullName, roleId: saved.roleId },
+    });
+
+    return result;
   }
 
   async update(
@@ -83,6 +98,7 @@ export class UsersService {
       roleId?: number;
       isActive?: boolean;
     },
+    performedByUserId?: number,
   ) {
     const user = await this.usersRepo.findOne({ where: { id } });
     if (!user) {
@@ -121,6 +137,15 @@ export class UsersService {
     if (dto.isActive !== undefined) user.isActive = dto.isActive;
 
     await this.usersRepo.save(user);
+
+    await this.auditLogsService.log({
+      userId: performedByUserId ?? null,
+      action: 'USER_UPDATED',
+      entityType: 'USER',
+      entityId: Number(id),
+      metadataJson: { username: user.username, isActive: user.isActive, roleId: user.roleId },
+    });
+
     return this.findOne(id);
   }
 
@@ -141,10 +166,19 @@ export class UsersService {
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await this.usersRepo.save(user);
+
+    await this.auditLogsService.log({
+      userId: Number(id),
+      action: 'PASSWORD_CHANGED',
+      entityType: 'USER',
+      entityId: Number(id),
+      metadataJson: { username: user.username },
+    });
+
     return { message: 'Password changed successfully' };
   }
 
-  async resetPassword(id: number, newPassword: string) {
+  async resetPassword(id: number, newPassword: string, performedByUserId?: number) {
     const user = await this.usersRepo.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -152,6 +186,15 @@ export class UsersService {
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await this.usersRepo.save(user);
+
+    await this.auditLogsService.log({
+      userId: performedByUserId ?? null,
+      action: 'PASSWORD_RESET',
+      entityType: 'USER',
+      entityId: Number(id),
+      metadataJson: { username: user.username },
+    });
+
     return { message: 'Password reset successfully' };
   }
 

@@ -10,6 +10,7 @@ import {
   fetchCategories,
   fetchProducts,
   lookupImei,
+  quoteSale,
 } from "@/lib/api";
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 
@@ -498,24 +499,31 @@ export default function PosPage() {
 
     setSubmitting(true);
     try {
+      // 1. Get official server pricing & tax quote
+      const quotePayload = cart.map((i) => ({
+        productId: i.productId,
+        qty: i.qty,
+        unitPrice: i.unitPrice,
+        discountAmount: i.discountAmount,
+        taxAmount: i.taxAmount,
+        lineTotal: i.lineTotal,
+        imeis: i.imeis.length > 0 ? i.imeis : undefined,
+      }));
+
+      const quoteRes = await quoteSale(quotePayload);
+      const quoted = quoteRes.data;
+
+      // 2. Submit sale with server-validated totals
       const res = await createSale({
-        items: cart.map((i) => ({
-          productId: i.productId,
-          qty: i.qty,
-          unitPrice: i.unitPrice,
-          discountAmount: i.discountAmount,
-          taxAmount: i.taxAmount,
-          lineTotal: i.lineTotal,
-          imeis: i.imeis.length > 0 ? i.imeis : undefined,
-        })),
-        subtotal: rawSubtotal,
-        discountTotal,
-        taxTotal,
-        grandTotal,
+        items: quotePayload,
+        subtotal: quoted ? quoted.subtotal : rawSubtotal,
+        discountTotal: quoted ? quoted.discountTotal : discountTotal,
+        taxTotal: quoted ? quoted.taxTotal : taxTotal,
+        grandTotal: quoted ? quoted.grandTotal : grandTotal,
         payments: [
           {
             method: payMethod,
-            amount: payMethod === "CASH" ? amountPaidNum : grandTotal,
+            amount: payMethod === "CASH" ? amountPaidNum : (quoted ? quoted.grandTotal : grandTotal),
           },
         ],
       });

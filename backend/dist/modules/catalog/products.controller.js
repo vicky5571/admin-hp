@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductsController = void 0;
 const common_1 = require("@nestjs/common");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const role_enum_1 = require("../../common/enums/role.enum");
 const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
@@ -32,29 +33,29 @@ let ProductsController = class ProductsController {
     findCategories() {
         return this.productsService.findCategories();
     }
-    createCategory(name) {
-        return this.productsService.createCategory(name);
+    createCategory(name, user) {
+        return this.productsService.createCategory(name, user.id);
     }
     findBrands() {
         return this.productsService.findBrands();
     }
-    createBrand(name) {
-        return this.productsService.createBrand(name);
+    createBrand(name, user) {
+        return this.productsService.createBrand(name, user.id);
     }
     findTaxClasses() {
         return this.productsService.findTaxClasses();
     }
-    create(dto) {
-        return this.productsService.create(dto);
+    create(dto, user) {
+        return this.productsService.create(dto, user.id);
     }
     findOne(id) {
         return this.productsService.findOne(id);
     }
-    update(id, dto) {
-        return this.productsService.update(id, dto);
+    update(id, dto, user) {
+        return this.productsService.update(id, dto, user.id);
     }
-    delete(id) {
-        return this.productsService.delete(id);
+    delete(id, user) {
+        return this.productsService.delete(id, user.id);
     }
 };
 exports.ProductsController = ProductsController;
@@ -77,8 +78,9 @@ __decorate([
     (0, common_1.Post)('categories'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
     __param(0, (0, common_1.Body)('name')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "createCategory", null);
 __decorate([
@@ -92,8 +94,9 @@ __decorate([
     (0, common_1.Post)('brands'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
     __param(0, (0, common_1.Body)('name')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "createBrand", null);
 __decorate([
@@ -107,8 +110,9 @@ __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_product_dto_1.CreateProductDto]),
+    __metadata("design:paramtypes", [create_product_dto_1.CreateProductDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "create", null);
 __decorate([
@@ -124,16 +128,18 @@ __decorate([
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, update_product_dto_1.UpdateProductDto]),
+    __metadata("design:paramtypes", [Number, update_product_dto_1.UpdateProductDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "delete", null);
 exports.ProductsController = ProductsController = __decorate([

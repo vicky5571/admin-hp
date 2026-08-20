@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const app_setting_entity_1 = require("./entities/app-setting.entity");
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 const SETTING_VALIDATORS = {
     CURRENCY_CODE: (v) => {
         if (v.length < 2 || v.length > 10)
@@ -68,8 +69,9 @@ const SETTING_VALIDATORS = {
     },
 };
 let SettingsService = class SettingsService {
-    constructor(repo) {
+    constructor(repo, auditLogsService) {
         this.repo = repo;
+        this.auditLogsService = auditLogsService;
     }
     async findAll() {
         const rows = await this.repo.find({ order: { key: 'ASC' } });
@@ -104,6 +106,14 @@ let SettingsService = class SettingsService {
             existing.updatedBy = userId;
             await this.repo.save(existing);
         }
+        await this.auditLogsService.log({
+            userId,
+            action: 'SETTINGS_UPDATED',
+            entityType: 'SETTINGS',
+            metadataJson: {
+                keys: dto.settings.map((s) => s.key),
+            },
+        });
         return this.findAll();
     }
 };
@@ -111,6 +121,7 @@ exports.SettingsService = SettingsService;
 exports.SettingsService = SettingsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(app_setting_entity_1.AppSetting)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        audit_logs_service_1.AuditLogsService])
 ], SettingsService);
 //# sourceMappingURL=settings.service.js.map

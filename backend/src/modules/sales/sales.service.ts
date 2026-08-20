@@ -25,6 +25,7 @@ import { SaleItemImei } from './entities/sale-item-imei.entity';
 import { SaleItem } from './entities/sale-item.entity';
 import { Sale } from './entities/sale.entity';
 import { PricingService } from './pricing.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class SalesService {
@@ -40,6 +41,7 @@ export class SalesService {
     @InjectRepository(Customer)
     private readonly customerRepo: Repository<Customer>,
     private readonly pricingService: PricingService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async create(dto: CreateSaleDto, user: AuthUser) {
@@ -185,6 +187,22 @@ export class SalesService {
         change: change.toFixed(2),
       };
     });
+
+    await this.auditLogsService.log({
+      userId: user.id,
+      action: 'SALE_CREATED',
+      entityType: 'SALE',
+      entityId: saleRes?.id ? Number(saleRes.id) : null,
+      metadataJson: {
+        invoiceNumber: saleRes?.invoiceNumber,
+        grandTotal: dto.grandTotal,
+        subtotal: dto.subtotal,
+        itemsCount: dto.items.length,
+        paymentMethods: dto.payments.map((p) => p.method),
+      },
+    });
+
+    return saleRes;
   }
 
   async findAll(query: ListSalesQueryDto) {
@@ -298,6 +316,19 @@ export class SalesService {
       sale.status = SaleStatus.VOIDED;
       return manager.save(Sale, sale);
     });
+
+    await this.auditLogsService.log({
+      userId: user.id,
+      action: 'SALE_VOIDED',
+      entityType: 'SALE',
+      entityId: Number(sale.id),
+      metadataJson: {
+        invoiceNumber: sale.invoiceNumber,
+        grandTotal: sale.grandTotal,
+      },
+    });
+
+    return voidedSale;
   }
 
   private async generateInvoiceNumber(manager: import('typeorm').EntityManager): Promise<string> {

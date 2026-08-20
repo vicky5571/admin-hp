@@ -22,8 +22,8 @@ let AuthController = class AuthController {
     constructor(authService) {
         this.authService = authService;
     }
-    login(dto) {
-        return this.authService.login(dto);
+    login(dto, ip) {
+        return this.authService.login(dto, ip);
     }
     logout() {
         return { loggedOut: true };
@@ -36,8 +36,9 @@ exports.AuthController = AuthController;
 __decorate([
     (0, common_1.Post)('auth/login'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [login_dto_1.LoginDto]),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, String]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
 __decorate([

@@ -12,6 +12,30 @@ export class AuditLogsService {
     private readonly repo: Repository<AuditLog>,
   ) {}
 
+  async log(payload: {
+    userId?: number | null;
+    action: string;
+    entityType: string;
+    entityId?: number | null;
+    metadataJson?: Record<string, unknown> | null;
+    ipAddress?: string | null;
+  }) {
+    try {
+      const entry = this.repo.create({
+        eventTime: new Date(),
+        userId: payload.userId ?? null,
+        action: payload.action,
+        entityType: payload.entityType,
+        entityId: payload.entityId ?? null,
+        metadataJson: payload.metadataJson ?? null,
+        ipAddress: payload.ipAddress ?? null,
+      });
+      return await this.repo.save(entry);
+    } catch (err) {
+      console.warn('Failed to persist audit log:', err);
+    }
+  }
+
   async findAll(query: ListAuditLogsQueryDto) {
     const qb = this.repo
       .createQueryBuilder('log')

@@ -51,25 +51,48 @@ const jwt_1 = require("@nestjs/jwt");
 const typeorm_1 = require("@nestjs/typeorm");
 const bcrypt = __importStar(require("bcrypt"));
 const typeorm_2 = require("typeorm");
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 const user_entity_1 = require("../users/entities/user.entity");
 let AuthService = class AuthService {
-    constructor(usersRepo, jwtService) {
+    constructor(usersRepo, jwtService, auditLogsService) {
         this.usersRepo = usersRepo;
         this.jwtService = jwtService;
+        this.auditLogsService = auditLogsService;
     }
-    async login(dto) {
+    async login(dto, ipAddress) {
         const user = await this.usersRepo.findOne({
             where: { username: dto.username, isActive: true },
         });
         if (!user) {
+            await this.auditLogsService.log({
+                action: 'LOGIN_FAILED',
+                entityType: 'AUTH',
+                metadataJson: { username: dto.username, reason: 'USER_NOT_FOUND_OR_INACTIVE' },
+                ipAddress,
+            });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         const ok = await bcrypt.compare(dto.password, user.passwordHash);
         if (!ok) {
+            await this.auditLogsService.log({
+                userId: Number(user.id),
+                action: 'LOGIN_FAILED',
+                entityType: 'AUTH',
+                metadataJson: { username: dto.username, reason: 'INVALID_PASSWORD' },
+                ipAddress,
+            });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         user.lastLoginAt = new Date();
         await this.usersRepo.save(user);
+        await this.auditLogsService.log({
+            userId: Number(user.id),
+            action: 'LOGIN_SUCCESS',
+            entityType: 'AUTH',
+            entityId: Number(user.id),
+            metadataJson: { username: user.username, role: user.role?.name },
+            ipAddress,
+        });
         const payload = {
             sub: Number(user.id),
             username: user.username,
@@ -90,6 +113,7 @@ exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        audit_logs_service_1.AuditLogsService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

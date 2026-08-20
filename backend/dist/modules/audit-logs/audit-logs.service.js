@@ -22,6 +22,23 @@ let AuditLogsService = class AuditLogsService {
     constructor(repo) {
         this.repo = repo;
     }
+    async log(payload) {
+        try {
+            const entry = this.repo.create({
+                eventTime: new Date(),
+                userId: payload.userId ?? null,
+                action: payload.action,
+                entityType: payload.entityType,
+                entityId: payload.entityId ?? null,
+                metadataJson: payload.metadataJson ?? null,
+                ipAddress: payload.ipAddress ?? null,
+            });
+            return await this.repo.save(entry);
+        }
+        catch (err) {
+            console.warn('Failed to persist audit log:', err);
+        }
+    }
     async findAll(query) {
         const qb = this.repo
             .createQueryBuilder('log')

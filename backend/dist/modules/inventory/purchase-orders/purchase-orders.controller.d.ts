@@ -17,7 +17,7 @@ export declare class PurchaseOrdersController {
     }>;
     findOne(id: number): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     create(dto: CreatePurchaseOrderDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
-    update(id: number, dto: UpdatePurchaseOrderDto, user: AuthUser): Promise<number | import("../entities/purchase-order.entity").PurchaseOrder>;
+    update(id: number, dto: UpdatePurchaseOrderDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     remove(id: number): Promise<{
         success: boolean;
         message: string;

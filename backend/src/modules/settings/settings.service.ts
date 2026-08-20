@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppSetting } from './entities/app-setting.entity';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 const SETTING_VALIDATORS: Record<
   string,
@@ -63,6 +64,7 @@ export class SettingsService {
   constructor(
     @InjectRepository(AppSetting)
     private readonly repo: Repository<AppSetting>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(): Promise<Record<string, string>> {
@@ -105,6 +107,15 @@ export class SettingsService {
       existing.updatedBy = userId;
       await this.repo.save(existing);
     }
+
+    await this.auditLogsService.log({
+      userId,
+      action: 'SETTINGS_UPDATED',
+      entityType: 'SETTINGS',
+      metadataJson: {
+        keys: dto.settings.map((s) => s.key),
+      },
+    });
 
     return this.findAll();
   }

@@ -22,6 +22,7 @@ import { PurchaseOrder } from '../entities/purchase-order.entity';
 import { StockBalance } from '../entities/stock-balance.entity';
 import { StockMovement } from '../entities/stock-movement.entity';
 import { ImeiUnit } from '../../imei/entities/imei-unit.entity';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 
 @Injectable()
 export class GoodsReceiptsService {
@@ -37,6 +38,7 @@ export class GoodsReceiptsService {
     @InjectRepository(ImeiUnit)
     private readonly imeiRepo: Repository<ImeiUnit>,
     private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(query: ListGoodsReceiptsQueryDto) {
@@ -305,8 +307,25 @@ export class GoodsReceiptsService {
       return savedGr.id;
     });
 
+    const result = await this.findOne(Number(savedGrId));
+
+    await this.auditLogsService.log({
+      userId,
+      action: 'GOODS_RECEIPT_CREATED',
+      entityType: 'GOODS_RECEIPT',
+      entityId: Number(savedGrId),
+      metadataJson: {
+        grnNumber: result.grnNumber,
+        poNumber: result.purchaseOrder?.poNumber,
+        supplierDoNumber: dto.supplierDoNumber,
+        carrierName: dto.carrierName,
+        trackingNumber: dto.trackingNumber,
+        itemsCount: dto.items.length,
+      },
+    });
+
     // Return the saved GR with relations after transaction commits
-    return this.findOne(Number(savedGrId));
+    return result;
   }
 
   private async generateGrnNumber(): Promise<string> {

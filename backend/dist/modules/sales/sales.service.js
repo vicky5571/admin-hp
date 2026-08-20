@@ -32,14 +32,16 @@ const sale_item_imei_entity_1 = require("./entities/sale-item-imei.entity");
 const sale_item_entity_1 = require("./entities/sale-item.entity");
 const sale_entity_1 = require("./entities/sale.entity");
 const pricing_service_1 = require("./pricing.service");
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 let SalesService = class SalesService {
-    constructor(dataSource, salesRepo, productsRepo, imeiRepo, customerRepo, pricingService) {
+    constructor(dataSource, salesRepo, productsRepo, imeiRepo, customerRepo, pricingService, auditLogsService) {
         this.dataSource = dataSource;
         this.salesRepo = salesRepo;
         this.productsRepo = productsRepo;
         this.imeiRepo = imeiRepo;
         this.customerRepo = customerRepo;
         this.pricingService = pricingService;
+        this.auditLogsService = auditLogsService;
     }
     async create(dto, user) {
         this.pricingService.validateClientTotals(dto);
@@ -151,6 +153,20 @@ let SalesService = class SalesService {
                 change: change.toFixed(2),
             };
         });
+        await this.auditLogsService.log({
+            userId: user.id,
+            action: 'SALE_CREATED',
+            entityType: 'SALE',
+            entityId: saleRes?.id ? Number(saleRes.id) : null,
+            metadataJson: {
+                invoiceNumber: saleRes?.invoiceNumber,
+                grandTotal: dto.grandTotal,
+                subtotal: dto.subtotal,
+                itemsCount: dto.items.length,
+                paymentMethods: dto.payments.map((p) => p.method),
+            },
+        });
+        return saleRes;
     }
     async findAll(query) {
         const qb = this.salesRepo.createQueryBuilder('sale');
@@ -246,6 +262,17 @@ let SalesService = class SalesService {
             sale.status = sale_status_enum_1.SaleStatus.VOIDED;
             return manager.save(sale_entity_1.Sale, sale);
         });
+        await this.auditLogsService.log({
+            userId: user.id,
+            action: 'SALE_VOIDED',
+            entityType: 'SALE',
+            entityId: Number(sale.id),
+            metadataJson: {
+                invoiceNumber: sale.invoiceNumber,
+                grandTotal: sale.grandTotal,
+            },
+        });
+        return voidedSale;
     }
     async generateInvoiceNumber(manager) {
         const date = new Date();
@@ -283,6 +310,7 @@ exports.SalesService = SalesService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        pricing_service_1.PricingService])
+        pricing_service_1.PricingService,
+        audit_logs_service_1.AuditLogsService])
 ], SalesService);
 //# sourceMappingURL=sales.service.js.map

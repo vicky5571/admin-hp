@@ -18,9 +18,11 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const pagination_util_1 = require("../../../common/utils/pagination.util");
 const supplier_entity_1 = require("../entities/supplier.entity");
+const audit_logs_service_1 = require("../../audit-logs/audit-logs.service");
 let SuppliersService = class SuppliersService {
-    constructor(repo) {
+    constructor(repo, auditLogsService) {
         this.repo = repo;
+        this.auditLogsService = auditLogsService;
     }
     async findAll(query) {
         const qb = this.repo.createQueryBuilder('supplier');
@@ -45,7 +47,7 @@ let SuppliersService = class SuppliersService {
         }
         return row;
     }
-    async create(dto) {
+    async create(dto, userId) {
         const exists = await this.repo.findOne({
             where: { supplierCode: dto.supplierCode },
         });
@@ -62,9 +64,17 @@ let SuppliersService = class SuppliersService {
             paymentTermsDays: dto.paymentTermsDays ?? 0,
             isActive: dto.isActive ?? true,
         });
-        return this.repo.save(entity);
+        const saved = await this.repo.save(entity);
+        await this.auditLogsService.log({
+            userId: userId ?? null,
+            action: 'SUPPLIER_CREATED',
+            entityType: 'SUPPLIER',
+            entityId: Number(saved.id),
+            metadataJson: { supplierCode: saved.supplierCode, name: saved.name },
+        });
+        return saved;
     }
-    async update(id, dto) {
+    async update(id, dto, userId) {
         const row = await this.findOne(id);
         if (dto.supplierCode && dto.supplierCode !== row.supplierCode) {
             const conflict = await this.repo.findOne({
@@ -82,13 +92,22 @@ let SuppliersService = class SuppliersService {
         row.address = dto.address ?? row.address;
         row.paymentTermsDays = dto.paymentTermsDays ?? row.paymentTermsDays;
         row.isActive = dto.isActive ?? row.isActive;
-        return this.repo.save(row);
+        const saved = await this.repo.save(row);
+        await this.auditLogsService.log({
+            userId: userId ?? null,
+            action: 'SUPPLIER_UPDATED',
+            entityType: 'SUPPLIER',
+            entityId: Number(saved.id),
+            metadataJson: { supplierCode: saved.supplierCode, name: saved.name },
+        });
+        return saved;
     }
 };
 exports.SuppliersService = SuppliersService;
 exports.SuppliersService = SuppliersService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(supplier_entity_1.Supplier)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        audit_logs_service_1.AuditLogsService])
 ], SuppliersService);
 //# sourceMappingURL=suppliers.service.js.map

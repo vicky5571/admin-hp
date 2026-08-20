@@ -52,10 +52,12 @@ const bcrypt = __importStar(require("bcrypt"));
 const typeorm_2 = require("typeorm");
 const role_entity_1 = require("../roles/entities/role.entity");
 const user_entity_1 = require("./entities/user.entity");
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 let UsersService = class UsersService {
-    constructor(usersRepo, rolesRepo) {
+    constructor(usersRepo, rolesRepo, auditLogsService) {
         this.usersRepo = usersRepo;
         this.rolesRepo = rolesRepo;
+        this.auditLogsService = auditLogsService;
     }
     findAll() {
         return this.usersRepo.find({
@@ -67,7 +69,7 @@ let UsersService = class UsersService {
     findOne(id) {
         return this.usersRepo.findOne({ where: { id }, relations: ['role'] });
     }
-    async create(dto) {
+    async create(dto, performedByUserId) {
         const existingUser = await this.usersRepo.findOne({
             where: [{ username: dto.username }],
         });
@@ -96,9 +98,17 @@ let UsersService = class UsersService {
             isActive: true,
         });
         const saved = await this.usersRepo.save(user);
-        return this.findOne(saved.id);
+        const result = await this.findOne(saved.id);
+        await this.auditLogsService.log({
+            userId: performedByUserId ?? null,
+            action: 'USER_CREATED',
+            entityType: 'USER',
+            entityId: Number(saved.id),
+            metadataJson: { username: saved.username, fullName: saved.fullName, roleId: saved.roleId },
+        });
+        return result;
     }
-    async update(id, dto) {
+    async update(id, dto, performedByUserId) {
         const user = await this.usersRepo.findOne({ where: { id } });
         if (!user) {
             throw new common_1.NotFoundException('User not found');
@@ -136,6 +146,13 @@ let UsersService = class UsersService {
         if (dto.isActive !== undefined)
             user.isActive = dto.isActive;
         await this.usersRepo.save(user);
+        await this.auditLogsService.log({
+            userId: performedByUserId ?? null,
+            action: 'USER_UPDATED',
+            entityType: 'USER',
+            entityId: Number(id),
+            metadataJson: { username: user.username, isActive: user.isActive, roleId: user.roleId },
+        });
         return this.findOne(id);
     }
     async changePassword(id, currentPassword, newPassword) {
@@ -149,15 +166,29 @@ let UsersService = class UsersService {
         }
         user.passwordHash = await bcrypt.hash(newPassword, 10);
         await this.usersRepo.save(user);
+        await this.auditLogsService.log({
+            userId: Number(id),
+            action: 'PASSWORD_CHANGED',
+            entityType: 'USER',
+            entityId: Number(id),
+            metadataJson: { username: user.username },
+        });
         return { message: 'Password changed successfully' };
     }
-    async resetPassword(id, newPassword) {
+    async resetPassword(id, newPassword, performedByUserId) {
         const user = await this.usersRepo.findOne({ where: { id } });
         if (!user) {
             throw new common_1.NotFoundException('User not found');
         }
         user.passwordHash = await bcrypt.hash(newPassword, 10);
         await this.usersRepo.save(user);
+        await this.auditLogsService.log({
+            userId: performedByUserId ?? null,
+            action: 'PASSWORD_RESET',
+            entityType: 'USER',
+            entityId: Number(id),
+            metadataJson: { username: user.username },
+        });
         return { message: 'Password reset successfully' };
     }
     async getRoles() {
@@ -170,6 +201,7 @@ exports.UsersService = UsersService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(role_entity_1.Role)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        audit_logs_service_1.AuditLogsService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

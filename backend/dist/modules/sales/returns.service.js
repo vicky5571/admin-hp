@@ -27,17 +27,19 @@ const product_entity_1 = require("../catalog/entities/product.entity");
 const imei_unit_entity_1 = require("../imei/entities/imei-unit.entity");
 const stock_balance_entity_1 = require("../inventory/entities/stock-balance.entity");
 const stock_movement_entity_1 = require("../inventory/entities/stock-movement.entity");
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 const return_item_imei_entity_1 = require("./entities/return-item-imei.entity");
 const return_item_entity_1 = require("./entities/return-item.entity");
 const return_entity_1 = require("./entities/return.entity");
 const sale_entity_1 = require("./entities/sale.entity");
 let ReturnsService = class ReturnsService {
-    constructor(dataSource, returnsRepo, salesRepo, productRepo, imeiRepo) {
+    constructor(dataSource, returnsRepo, salesRepo, productRepo, imeiRepo, auditLogsService) {
         this.dataSource = dataSource;
         this.returnsRepo = returnsRepo;
         this.salesRepo = salesRepo;
         this.productRepo = productRepo;
         this.imeiRepo = imeiRepo;
+        this.auditLogsService = auditLogsService;
     }
     async validate(dto) {
         const sale = await this.salesRepo.findOne({
@@ -280,6 +282,19 @@ let ReturnsService = class ReturnsService {
             await manager.save(sale_entity_1.Sale, sale);
             return this.findOne(savedReturn.id);
         });
+        await this.auditLogsService.log({
+            userId: user.id,
+            action: 'RETURN_CREATED',
+            entityType: 'RETURN',
+            entityId: res?.id ? Number(res.id) : null,
+            metadataJson: {
+                returnNumber: res?.returnNumber,
+                invoiceNumber: dto.invoiceNumber,
+                refundTotal: dto.refundTotal,
+                itemsCount: dto.items.length,
+            },
+        });
+        return res;
     }
     async findAll(query) {
         const qb = this.returnsRepo.createQueryBuilder('r');
@@ -359,6 +374,7 @@ exports.ReturnsService = ReturnsService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        audit_logs_service_1.AuditLogsService])
 ], ReturnsService);
 //# sourceMappingURL=returns.service.js.map

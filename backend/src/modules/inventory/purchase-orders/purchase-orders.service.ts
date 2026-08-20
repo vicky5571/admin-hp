@@ -14,6 +14,7 @@ import { PurchaseOrder } from '../entities/purchase-order.entity';
 import { PurchaseOrderItem } from '../entities/purchase-order-item.entity';
 import { Supplier } from '../entities/supplier.entity';
 import { GoodsReceipt } from '../entities/goods-receipt.entity';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -23,6 +24,7 @@ export class PurchaseOrdersService {
     @InjectRepository(Supplier)
     private readonly supplierRepo: Repository<Supplier>,
     private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(query: ListPurchaseOrdersQueryDto) {
@@ -99,7 +101,22 @@ export class PurchaseOrdersService {
       items,
     });
 
-    return this.poRepo.save(po);
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId,
+      action: 'PO_CREATED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(saved.id),
+      metadataJson: {
+        poNumber: saved.poNumber,
+        supplierId: saved.supplierId,
+        supplierName: supplier.name,
+        itemsCount: saved.items.length,
+      },
+    });
+
+    return saved;
   }
 
   async update(id: number, dto: UpdatePurchaseOrderDto, userId: number) {
@@ -121,7 +138,7 @@ export class PurchaseOrdersService {
       throw new BadRequestException('PO must have at least one item');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       const poItemRepo = manager.getRepository(PurchaseOrderItem);
       const poRepoTx = manager.getRepository(PurchaseOrder);
 
@@ -145,19 +162,25 @@ export class PurchaseOrdersService {
       po.orderDate = dto.orderDate;
       po.expectedDate = dto.expectedDate ?? null;
       po.notes = dto.notes ?? null;
-      // If was REJECTED, editing keeps it in REJECTED or turns it to DRAFT
       if (po.status === PoStatus.REJECTED) {
         po.status = PoStatus.DRAFT;
       }
 
       await poRepoTx.save(po);
-      return id;
+    });
+
+    await this.auditLogsService.log({
+      userId,
+      action: 'PO_UPDATED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber, itemsCount: dto.items.length },
     });
 
     return this.findOne(id);
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId?: number) {
     const po = await this.findOne(id);
     if (po.status !== PoStatus.DRAFT && po.status !== PoStatus.REJECTED) {
       throw new BadRequestException(
@@ -175,10 +198,19 @@ export class PurchaseOrdersService {
     }
 
     await this.poRepo.delete(id);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PO_DELETED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber },
+    });
+
     return { success: true, message: 'Purchase order deleted successfully' };
   }
 
-  async submit(id: number) {
+  async submit(id: number, userId?: number) {
     const po = await this.findOne(id);
     if (po.status !== PoStatus.DRAFT && po.status !== PoStatus.REJECTED) {
       throw new BadRequestException(
@@ -186,10 +218,20 @@ export class PurchaseOrdersService {
       );
     }
     po.status = PoStatus.SUBMITTED;
-    return this.poRepo.save(po);
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PO_SUBMITTED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber },
+    });
+
+    return saved;
   }
 
-  async approve(id: number) {
+  async approve(id: number, userId?: number) {
     const po = await this.findOne(id);
     if (po.status !== PoStatus.SUBMITTED) {
       throw new BadRequestException(
@@ -197,10 +239,20 @@ export class PurchaseOrdersService {
       );
     }
     po.status = PoStatus.APPROVED;
-    return this.poRepo.save(po);
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PO_APPROVED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber },
+    });
+
+    return saved;
   }
 
-  async reject(id: number, reason?: string) {
+  async reject(id: number, reason?: string, userId?: number) {
     const po = await this.findOne(id);
     if (po.status !== PoStatus.SUBMITTED) {
       throw new BadRequestException(
@@ -212,10 +264,20 @@ export class PurchaseOrdersService {
       const rejectNote = `[Rejection Note: ${reason.trim()}]`;
       po.notes = po.notes ? `${po.notes}\n${rejectNote}` : rejectNote;
     }
-    return this.poRepo.save(po);
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PO_REJECTED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber, reason: reason?.trim() },
+    });
+
+    return saved;
   }
 
-  async cancel(id: number) {
+  async cancel(id: number, userId?: number) {
     const po = await this.findOne(id);
     if (
       po.status === PoStatus.COMPLETED ||
@@ -226,7 +288,17 @@ export class PurchaseOrdersService {
       );
     }
     po.status = PoStatus.CANCELLED;
-    return this.poRepo.save(po);
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId: userId ?? null,
+      action: 'PO_CANCELLED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: { poNumber: po.poNumber },
+    });
+
+    return saved;
   }
 
   private async generatePoNumber(): Promise<string> {
@@ -236,7 +308,6 @@ export class PurchaseOrdersService {
       (date.getMonth() + 1).toString().padStart(2, '0') +
       date.getDate().toString().padStart(2, '0');
 
-    // Count POs created today to generate a sequential number
     const todayPrefix = `PO-${ymd}-`;
     const count = await this.poRepo
       .createQueryBuilder('po')
@@ -246,12 +317,10 @@ export class PurchaseOrdersService {
     const seq = (count + 1).toString().padStart(3, '0');
     const candidate = `${todayPrefix}${seq}`;
 
-    // Ensure uniqueness
     const exists = await this.poRepo.findOne({
       where: { poNumber: candidate },
     });
     if (exists) {
-      // Fallback: append timestamp
       return `${todayPrefix}${Date.now().toString().slice(-6)}`;
     }
     return candidate;

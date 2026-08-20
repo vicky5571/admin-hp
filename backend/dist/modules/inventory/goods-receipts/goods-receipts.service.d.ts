@@ -6,6 +6,7 @@ import { GoodsReceipt } from '../entities/goods-receipt.entity';
 import { PurchaseOrderItem } from '../entities/purchase-order-item.entity';
 import { PurchaseOrder } from '../entities/purchase-order.entity';
 import { ImeiUnit } from '../../imei/entities/imei-unit.entity';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 export declare class GoodsReceiptsService {
     private readonly grRepo;
     private readonly poRepo;
@@ -13,7 +14,8 @@ export declare class GoodsReceiptsService {
     private readonly productRepo;
     private readonly imeiRepo;
     private readonly dataSource;
-    constructor(grRepo: Repository<GoodsReceipt>, poRepo: Repository<PurchaseOrder>, poItemRepo: Repository<PurchaseOrderItem>, productRepo: Repository<Product>, imeiRepo: Repository<ImeiUnit>, dataSource: DataSource);
+    private readonly auditLogsService;
+    constructor(grRepo: Repository<GoodsReceipt>, poRepo: Repository<PurchaseOrder>, poItemRepo: Repository<PurchaseOrderItem>, productRepo: Repository<Product>, imeiRepo: Repository<ImeiUnit>, dataSource: DataSource, auditLogsService: AuditLogsService);
     findAll(query: ListGoodsReceiptsQueryDto): Promise<{
         data: GoodsReceipt[];
         meta: {
