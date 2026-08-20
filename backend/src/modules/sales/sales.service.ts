@@ -181,28 +181,26 @@ export class SalesService {
       // Calculate change
       const change = paidTotal - dto.grandTotal;
 
+      await this.auditLogsService.log({
+        userId: user.id,
+        action: 'SALE_CREATED',
+        entityType: 'SALE',
+        entityId: result?.id ? Number(result.id) : null,
+        metadataJson: {
+          invoiceNumber: result?.invoiceNumber,
+          grandTotal: dto.grandTotal,
+          subtotal: dto.subtotal,
+          itemsCount: dto.items.length,
+          paymentMethods: dto.payments.map((p) => p.method),
+        },
+      });
+
       return {
         ...result,
         paidTotal: paidTotal.toFixed(2),
         change: change.toFixed(2),
       };
     });
-
-    await this.auditLogsService.log({
-      userId: user.id,
-      action: 'SALE_CREATED',
-      entityType: 'SALE',
-      entityId: saleRes?.id ? Number(saleRes.id) : null,
-      metadataJson: {
-        invoiceNumber: saleRes?.invoiceNumber,
-        grandTotal: dto.grandTotal,
-        subtotal: dto.subtotal,
-        itemsCount: dto.items.length,
-        paymentMethods: dto.payments.map((p) => p.method),
-      },
-    });
-
-    return saleRes;
   }
 
   async findAll(query: ListSalesQueryDto) {
@@ -314,21 +312,21 @@ export class SalesService {
       }
 
       sale.status = SaleStatus.VOIDED;
-      return manager.save(Sale, sale);
-    });
+      const voidedSale = await manager.save(Sale, sale);
 
-    await this.auditLogsService.log({
-      userId: user.id,
-      action: 'SALE_VOIDED',
-      entityType: 'SALE',
-      entityId: Number(sale.id),
-      metadataJson: {
-        invoiceNumber: sale.invoiceNumber,
-        grandTotal: sale.grandTotal,
-      },
-    });
+      await this.auditLogsService.log({
+        userId: user.id,
+        action: 'SALE_VOIDED',
+        entityType: 'SALE',
+        entityId: Number(sale.id),
+        metadataJson: {
+          invoiceNumber: sale.invoiceNumber,
+          grandTotal: sale.grandTotal,
+        },
+      });
 
-    return voidedSale;
+      return voidedSale;
+    });
   }
 
   private async generateInvoiceNumber(manager: import('typeorm').EntityManager): Promise<string> {

@@ -147,26 +147,25 @@ let SalesService = class SalesService {
                 relations: ['items', 'items.imeis', 'items.imeis.imeiUnit', 'payments', 'cashier', 'customer'],
             });
             const change = paidTotal - dto.grandTotal;
+            await this.auditLogsService.log({
+                userId: user.id,
+                action: 'SALE_CREATED',
+                entityType: 'SALE',
+                entityId: result?.id ? Number(result.id) : null,
+                metadataJson: {
+                    invoiceNumber: result?.invoiceNumber,
+                    grandTotal: dto.grandTotal,
+                    subtotal: dto.subtotal,
+                    itemsCount: dto.items.length,
+                    paymentMethods: dto.payments.map((p) => p.method),
+                },
+            });
             return {
                 ...result,
                 paidTotal: paidTotal.toFixed(2),
                 change: change.toFixed(2),
             };
         });
-        await this.auditLogsService.log({
-            userId: user.id,
-            action: 'SALE_CREATED',
-            entityType: 'SALE',
-            entityId: saleRes?.id ? Number(saleRes.id) : null,
-            metadataJson: {
-                invoiceNumber: saleRes?.invoiceNumber,
-                grandTotal: dto.grandTotal,
-                subtotal: dto.subtotal,
-                itemsCount: dto.items.length,
-                paymentMethods: dto.payments.map((p) => p.method),
-            },
-        });
-        return saleRes;
     }
     async findAll(query) {
         const qb = this.salesRepo.createQueryBuilder('sale');
@@ -260,19 +259,19 @@ let SalesService = class SalesService {
                 }
             }
             sale.status = sale_status_enum_1.SaleStatus.VOIDED;
-            return manager.save(sale_entity_1.Sale, sale);
+            const voidedSale = await manager.save(sale_entity_1.Sale, sale);
+            await this.auditLogsService.log({
+                userId: user.id,
+                action: 'SALE_VOIDED',
+                entityType: 'SALE',
+                entityId: Number(sale.id),
+                metadataJson: {
+                    invoiceNumber: sale.invoiceNumber,
+                    grandTotal: sale.grandTotal,
+                },
+            });
+            return voidedSale;
         });
-        await this.auditLogsService.log({
-            userId: user.id,
-            action: 'SALE_VOIDED',
-            entityType: 'SALE',
-            entityId: Number(sale.id),
-            metadataJson: {
-                invoiceNumber: sale.invoiceNumber,
-                grandTotal: sale.grandTotal,
-            },
-        });
-        return voidedSale;
     }
     async generateInvoiceNumber(manager) {
         const date = new Date();

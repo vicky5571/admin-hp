@@ -28,7 +28,7 @@ export declare class ReturnsService {
             reason?: string;
         }[];
     }>;
-    create(dto: CreateReturnDto, user: AuthUser): Promise<any>;
+    create(dto: CreateReturnDto, user: AuthUser): Promise<Return>;
     findAll(query: ListReturnsQueryDto): Promise<{
         data: Return[];
         meta: {

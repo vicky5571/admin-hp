@@ -17,7 +17,7 @@ export declare class ReturnsController {
             reason?: string;
         }[];
     }>;
-    create(dto: CreateReturnDto, user: AuthUser): Promise<any>;
+    create(dto: CreateReturnDto, user: AuthUser): Promise<import("./entities/return.entity").Return>;
     findAll(query: ListReturnsQueryDto): Promise<{
         data: import("./entities/return.entity").Return[];
         meta: {

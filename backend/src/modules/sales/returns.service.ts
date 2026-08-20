@@ -363,23 +363,23 @@ export class ReturnsService {
       }
       await manager.save(Sale, sale);
 
-      return this.findOne(savedReturn.id);
-    });
+      const savedReturnResult = await this.findOne(savedReturn.id);
 
-    await this.auditLogsService.log({
-      userId: user.id,
-      action: 'RETURN_CREATED',
-      entityType: 'RETURN',
-      entityId: res?.id ? Number(res.id) : null,
-      metadataJson: {
-        returnNumber: res?.returnNumber,
-        invoiceNumber: dto.invoiceNumber,
-        refundTotal: dto.refundTotal,
-        itemsCount: dto.items.length,
-      },
-    });
+      await this.auditLogsService.log({
+        userId: user.id,
+        action: 'RETURN_CREATED',
+        entityType: 'RETURN',
+        entityId: Number(savedReturn.id),
+        metadataJson: {
+          returnNumber: savedReturn.returnNumber,
+          invoiceNumber: sale.invoiceNumber,
+          refundTotal,
+          itemsCount: dto.items.length,
+        },
+      });
 
-    return res;
+      return savedReturnResult;
+    });
   }
 
   async findAll(query: ListReturnsQueryDto) {
