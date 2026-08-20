@@ -43,7 +43,7 @@ const PRODUCT_SPECS = [
         brand: 'Apple',
         productType: product_type_enum_1.ProductType.SERIALIZED,
         costPrice: '11000000.00',
-        sellingPrice: '13500000.00',
+        srp: '13500000.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 2,
         stock: 5,
@@ -56,7 +56,7 @@ const PRODUCT_SPECS = [
         brand: 'Apple',
         productType: product_type_enum_1.ProductType.SERIALIZED,
         costPrice: '13000000.00',
-        sellingPrice: '15999000.00',
+        srp: '15999000.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 2,
         stock: 3,
@@ -69,7 +69,7 @@ const PRODUCT_SPECS = [
         brand: 'Samsung',
         productType: product_type_enum_1.ProductType.SERIALIZED,
         costPrice: '12500000.00',
-        sellingPrice: '14999000.00',
+        srp: '14999000.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 2,
         stock: 4,
@@ -82,7 +82,7 @@ const PRODUCT_SPECS = [
         brand: 'Xiaomi',
         productType: product_type_enum_1.ProductType.SERIALIZED,
         costPrice: '2300000.00',
-        sellingPrice: '2799000.00',
+        srp: '2799000.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 3,
         stock: 8,
@@ -95,7 +95,7 @@ const PRODUCT_SPECS = [
         brand: 'Anker',
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
         costPrice: '350000.00',
-        sellingPrice: '499000.00',
+        srp: '499000.00',
         taxClass: 'NON_TAX',
         minStockAlert: 5,
         stock: 25,
@@ -108,7 +108,7 @@ const PRODUCT_SPECS = [
         brand: 'Baseus',
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
         costPrice: '45000.00',
-        sellingPrice: '89000.00',
+        srp: '89000.00',
         taxClass: 'NON_TAX',
         minStockAlert: 10,
         stock: 50,
@@ -121,7 +121,7 @@ const PRODUCT_SPECS = [
         brand: null,
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
         costPrice: '15000.00',
-        sellingPrice: '50000.00',
+        srp: '50000.00',
         taxClass: 'NON_TAX',
         minStockAlert: 10,
         stock: 40,
@@ -134,7 +134,7 @@ const PRODUCT_SPECS = [
         brand: null,
         productType: product_type_enum_1.ProductType.SERVICE,
         costPrice: '0.00',
-        sellingPrice: '25000.00',
+        srp: '25000.00',
         taxClass: 'NON_TAX',
         minStockAlert: 0,
         stock: 0,
@@ -265,7 +265,7 @@ async function seedDemoData(dataSource) {
             brandId: spec.brand ? brandIds.get(spec.brand) ?? null : null,
             productType: spec.productType,
             costPrice: spec.costPrice,
-            sellingPrice: spec.sellingPrice,
+            srp: spec.srp,
             taxClassId: spec.taxClass ? taxIds.get(spec.taxClass) ?? null : null,
             minStockAlert: spec.minStockAlert,
             isActive: true,
@@ -326,7 +326,7 @@ async function seedDemoData(dataSource) {
             const product = products.get(line.sku);
             if (!product)
                 throw new Error(`Unknown SKU ${line.sku}`);
-            const unitPrice = parseFloat(product.sellingPrice);
+            const unitPrice = parseFloat(product.srp);
             const lineTotal = unitPrice * line.qty;
             subtotal += lineTotal;
             lines.push({ product, qty: line.qty, lineTotal });
@@ -347,7 +347,7 @@ async function seedDemoData(dataSource) {
         const savedItems = [];
         for (const line of lines) {
             const productId = Number(line.product.id);
-            const unitPrice = parseFloat(line.product.sellingPrice);
+            const unitPrice = parseFloat(line.product.srp);
             const item = await saleItemRepo.save(saleItemRepo.create({
                 saleId,
                 productId,
@@ -412,7 +412,7 @@ async function seedDemoData(dataSource) {
         const saleItem = returnTarget.items[returnTarget.spec.lines.indexOf(returnItemSpec)];
         const product = products.get(returnItemSpec.sku);
         const productId = Number(product.id);
-        const unitRefund = parseFloat(product.sellingPrice);
+        const unitRefund = parseFloat(product.srp);
         const returnTime = daysAgo(1, 18);
         const returnNumber = `RET-${ymd(returnTime)}-0001`;
         const returnRepo = dataSource.getRepository(return_entity_1.Return);

@@ -47,9 +47,9 @@ __decorate([
     __metadata("design:type", String)
 ], Product.prototype, "costPrice", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ name: 'selling_price', type: 'numeric', precision: 14, scale: 2 }),
+    (0, typeorm_1.Column)({ name: 'srp', type: 'numeric', precision: 14, scale: 2 }),
     __metadata("design:type", String)
-], Product.prototype, "sellingPrice", void 0);
+], Product.prototype, "srp", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'tax_class_id', type: 'bigint', nullable: true }),
     __metadata("design:type", Object)

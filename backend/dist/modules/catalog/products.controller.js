@@ -19,6 +19,8 @@ const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const role_enum_1 = require("../../common/enums/role.enum");
 const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../common/guards/roles.guard");
+const create_brand_dto_1 = require("./dto/create-brand.dto");
+const create_category_dto_1 = require("./dto/create-category.dto");
 const create_product_dto_1 = require("./dto/create-product.dto");
 const list_products_query_dto_1 = require("./dto/list-products.query.dto");
 const update_product_dto_1 = require("./dto/update-product.dto");
@@ -33,14 +35,14 @@ let ProductsController = class ProductsController {
     findCategories() {
         return this.productsService.findCategories();
     }
-    createCategory(name, user) {
-        return this.productsService.createCategory(name, user.id);
+    createCategory(dto, user) {
+        return this.productsService.createCategory(dto.name, user.id);
     }
     findBrands() {
         return this.productsService.findBrands();
     }
-    createBrand(name, user) {
-        return this.productsService.createBrand(name, user.id);
+    createBrand(dto, user) {
+        return this.productsService.createBrand(dto.name, user.id);
     }
     findTaxClasses() {
         return this.productsService.findTaxClasses();
@@ -77,10 +79,10 @@ __decorate([
 __decorate([
     (0, common_1.Post)('categories'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
-    __param(0, (0, common_1.Body)('name')),
+    __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [create_category_dto_1.CreateCategoryDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "createCategory", null);
 __decorate([
@@ -93,10 +95,10 @@ __decorate([
 __decorate([
     (0, common_1.Post)('brands'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
-    __param(0, (0, common_1.Body)('name')),
+    __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [create_brand_dto_1.CreateBrandDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "createBrand", null);
 __decorate([

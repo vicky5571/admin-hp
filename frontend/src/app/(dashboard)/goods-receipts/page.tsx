@@ -802,8 +802,8 @@ export default function GoodsReceiptsPage() {
                             labelItems.push({
                               sku: grItem.product?.sku || `PROD-${grItem.productId}`,
                               name: grItem.product?.name || "Product",
-                              price: grItem.product?.sellingPrice
-                                ? parseFloat(grItem.product.sellingPrice)
+                              price: grItem.product?.srp
+                                ? parseFloat(grItem.product.srp)
                                 : undefined,
                               imei: imeiLink.imeiUnit?.imei,
                             });
@@ -812,8 +812,8 @@ export default function GoodsReceiptsPage() {
                           labelItems.push({
                             sku: grItem.product?.sku || `PROD-${grItem.productId}`,
                             name: grItem.product?.name || "Product",
-                            price: grItem.product?.sellingPrice
-                              ? parseFloat(grItem.product.sellingPrice)
+                            price: grItem.product?.srp
+                              ? parseFloat(grItem.product.srp)
                               : undefined,
                             quantity: grItem.receivedQty,
                           });

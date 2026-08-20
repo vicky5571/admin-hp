@@ -27,7 +27,7 @@ export class CreateProductDto {
 
   @IsNumber()
   @Min(0)
-  sellingPrice: number;
+  srp: number;
 
   @IsOptional()
   @IsInt()

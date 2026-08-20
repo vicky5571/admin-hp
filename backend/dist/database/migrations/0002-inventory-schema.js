@@ -29,7 +29,7 @@ class InventorySchema1700000000001 {
         "brand_id" BIGINT,
         "product_type" VARCHAR(20) NOT NULL,
         "cost_price" NUMERIC(14,2) NOT NULL CHECK ("cost_price" >= 0),
-        "selling_price" NUMERIC(14,2) NOT NULL CHECK ("selling_price" >= 0),
+        "srp" NUMERIC(14,2) NOT NULL CHECK ("srp" >= 0),
         "tax_class_id" BIGINT,
         "min_stock_alert" INTEGER NOT NULL DEFAULT 0,
         "is_active" BOOLEAN NOT NULL DEFAULT true,

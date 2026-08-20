@@ -10,7 +10,7 @@ export declare class Product {
     brandId: number | null;
     productType: ProductType;
     costPrice: string;
-    sellingPrice: string;
+    srp: string;
     taxClassId: number | null;
     minStockAlert: number;
     isActive: boolean;

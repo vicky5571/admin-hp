@@ -54,7 +54,7 @@ export default function ProductsPage() {
   const [formCategoryId, setFormCategoryId] = useState<string>("");
   const [formBrandId, setFormBrandId] = useState<string>("");
   const [formCostPrice, setFormCostPrice] = useState<string>("");
-  const [formSellingPrice, setFormSellingPrice] = useState<string>("");
+  const [formSrp, setFormSrp] = useState<string>("");
   const [formTaxClassId, setFormTaxClassId] = useState<string>("");
   const [formMinStockAlert, setFormMinStockAlert] = useState<string>("5");
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
@@ -63,10 +63,12 @@ export default function ProductsPage() {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
 
   const [showAddBrandModal, setShowAddBrandModal] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
   const [brandSubmitting, setBrandSubmitting] = useState(false);
+  const [brandError, setBrandError] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -102,7 +104,7 @@ export default function ProductsPage() {
     setFormCategoryId("");
     setFormBrandId("");
     setFormCostPrice("");
-    setFormSellingPrice("");
+    setFormSrp("");
     setFormTaxClassId("");
     setFormMinStockAlert("5");
     setFormIsActive(true);
@@ -119,7 +121,7 @@ export default function ProductsPage() {
     setFormCategoryId(p.categoryId ? String(p.categoryId) : "");
     setFormBrandId(p.brandId ? String(p.brandId) : "");
     setFormCostPrice(String(parseFloat(p.costPrice) || 0));
-    setFormSellingPrice(String(parseFloat(p.sellingPrice) || 0));
+    setFormSrp(String(parseFloat(p.srp) || 0));
     setFormTaxClassId(p.taxClassId ? String(p.taxClassId) : "");
     setFormMinStockAlert(String(p.minStockAlert ?? 0));
     setFormIsActive(p.isActive);
@@ -147,9 +149,9 @@ export default function ProductsPage() {
     }
 
     const costNum = parseFloat(formCostPrice) || 0;
-    const sellNum = parseFloat(formSellingPrice) || 0;
+    const srpNum = parseFloat(formSrp) || 0;
 
-    if (sellNum < 0 || costNum < 0) {
+    if (srpNum < 0 || costNum < 0) {
       setModalError("Prices cannot be negative");
       return;
     }
@@ -166,7 +168,7 @@ export default function ProductsPage() {
           categoryId: formCategoryId ? Number(formCategoryId) : null,
           brandId: formBrandId ? Number(formBrandId) : null,
           costPrice: costNum,
-          sellingPrice: sellNum,
+          srp: srpNum,
           taxClassId: formTaxClassId ? Number(formTaxClassId) : null,
           minStockAlert: Number(formMinStockAlert) || 0,
           isActive: formIsActive,
@@ -180,7 +182,7 @@ export default function ProductsPage() {
           categoryId: formCategoryId ? Number(formCategoryId) : undefined,
           brandId: formBrandId ? Number(formBrandId) : undefined,
           costPrice: costNum,
-          sellingPrice: sellNum,
+          srp: srpNum,
           taxClassId: formTaxClassId ? Number(formTaxClassId) : undefined,
           minStockAlert: Number(formMinStockAlert) || 0,
           isActive: formIsActive,
@@ -230,15 +232,19 @@ export default function ProductsPage() {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     setCategorySubmitting(true);
+    setCategoryError("");
     try {
       const res = await createCategory(newCategoryName.trim());
       const newCat = res.data;
-      setCategories((prev) => [...prev, newCat]);
+      setCategories((prev) => {
+        if (prev.some((c) => c.id === newCat.id)) return prev;
+        return [...prev, newCat];
+      });
       setFormCategoryId(String(newCat.id));
       setShowAddCategoryModal(false);
       setNewCategoryName("");
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Failed to add category");
+      setCategoryError(err instanceof Error ? err.message : "Failed to add category");
     } finally {
       setCategorySubmitting(false);
     }
@@ -249,15 +255,19 @@ export default function ProductsPage() {
     e.preventDefault();
     if (!newBrandName.trim()) return;
     setBrandSubmitting(true);
+    setBrandError("");
     try {
       const res = await createBrand(newBrandName.trim());
       const newB = res.data;
-      setBrands((prev) => [...prev, newB]);
+      setBrands((prev) => {
+        if (prev.some((b) => b.id === newB.id)) return prev;
+        return [...prev, newB];
+      });
       setFormBrandId(String(newB.id));
       setShowAddBrandModal(false);
       setNewBrandName("");
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Failed to add brand");
+      setBrandError(err instanceof Error ? err.message : "Failed to add brand");
     } finally {
       setBrandSubmitting(false);
     }
@@ -287,8 +297,8 @@ export default function ProductsPage() {
 
   // Real-time Margin Calculation in Form
   const formCostNum = parseFloat(formCostPrice) || 0;
-  const formSellNum = parseFloat(formSellingPrice) || 0;
-  const formProfit = formSellNum - formCostNum;
+  const formSrpNum = parseFloat(formSrp) || 0;
+  const formProfit = formSrpNum - formCostNum;
   const formMarginPercent = formCostNum > 0 ? ((formProfit / formCostNum) * 100).toFixed(1) : "0.0";
 
   // Summary Metrics
@@ -478,7 +488,7 @@ export default function ProductsPage() {
                 <th className="px-4 py-3.5">Category & Brand</th>
                 <th className="px-4 py-3.5">Type</th>
                 <th className="px-4 py-3.5 text-right">Cost Price</th>
-                <th className="px-4 py-3.5 text-right">Selling Price</th>
+                <th className="px-4 py-3.5 text-right">SRP</th>
                 <th className="px-4 py-3.5 text-center">Margin</th>
                 <th className="px-4 py-3.5 text-center">Min Stock</th>
                 <th className="px-4 py-3.5 text-center">Status</th>
@@ -505,8 +515,8 @@ export default function ProductsPage() {
               )}
               {filteredProducts.map((p) => {
                 const cost = parseFloat(p.costPrice) || 0;
-                const selling = parseFloat(p.sellingPrice) || 0;
-                const profit = selling - cost;
+                const srp = parseFloat(p.srp) || 0;
+                const profit = srp - cost;
                 const margin = cost > 0 ? ((profit / cost) * 100).toFixed(0) : "0";
 
                 const typeInfo = PRODUCT_TYPES.find((t) => t.value === p.productType) ?? {
@@ -558,9 +568,9 @@ export default function ProductsPage() {
                       IDR {cost.toLocaleString()}
                     </td>
 
-                    {/* Selling Price */}
+                    {/* SRP */}
                     <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-gray-900">
-                      IDR {selling.toLocaleString()}
+                      IDR {srp.toLocaleString()}
                     </td>
 
                     {/* Margin */}
@@ -803,7 +813,7 @@ export default function ProductsPage() {
 
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
-                      Selling Price (IDR) <span className="text-red-500">*</span>
+                      SRP (Suggested Retail Price) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -811,8 +821,8 @@ export default function ProductsPage() {
                       min={0}
                       step="1000"
                       placeholder="0"
-                      value={formSellingPrice}
-                      onChange={(e) => setFormSellingPrice(e.target.value)}
+                      value={formSrp}
+                      onChange={(e) => setFormSrp(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold text-blue-700 bg-white focus:border-blue-500 focus:outline-none"
                     />
                   </div>
@@ -917,13 +927,18 @@ export default function ProductsPage() {
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-gray-200">
             <h4 className="text-sm font-bold text-gray-900 mb-1">Add New Category</h4>
-            <p className="text-xs text-gray-500 mb-3">Create a new category for classification.</p>
+            <p className="text-xs text-gray-500 mb-3">Create a category (e.g. Smartphones - New, Smartphones - Second, Accessories).</p>
+            {categoryError && (
+              <div className="mb-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 border border-red-200">
+                {categoryError}
+              </div>
+            )}
             <form onSubmit={handleQuickAddCategory} className="space-y-3">
               <input
                 type="text"
                 required
                 autoFocus
-                placeholder="e.g. Smartphones, Audio, Power"
+                placeholder="e.g. Smartphones - Second"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none"
@@ -931,7 +946,10 @@ export default function ProductsPage() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddCategoryModal(false)}
+                  onClick={() => {
+                    setShowAddCategoryModal(false);
+                    setCategoryError("");
+                  }}
                   className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
                 >
                   Cancel
@@ -955,6 +973,11 @@ export default function ProductsPage() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-gray-200">
             <h4 className="text-sm font-bold text-gray-900 mb-1">Add New Brand</h4>
             <p className="text-xs text-gray-500 mb-3">Create a new brand or manufacturer.</p>
+            {brandError && (
+              <div className="mb-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 border border-red-200">
+                {brandError}
+              </div>
+            )}
             <form onSubmit={handleQuickAddBrand} className="space-y-3">
               <input
                 type="text"
@@ -968,7 +991,10 @@ export default function ProductsPage() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddBrandModal(false)}
+                  onClick={() => {
+                    setShowAddBrandModal(false);
+                    setBrandError("");
+                  }}
                   className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
                 >
                   Cancel

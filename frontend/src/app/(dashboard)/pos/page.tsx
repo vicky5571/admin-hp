@@ -21,6 +21,7 @@ interface CartItem {
   productType: string;
   qty: number;
   unitPrice: number;
+  srp: number;
   discountAmount: number;
   taxAmount: number;
   lineTotal: number;
@@ -64,6 +65,15 @@ export default function PosPage() {
   const [imeiModalItem, setImeiModalItem] = useState<CartItem | null>(null);
   const [availableImeis, setAvailableImeis] = useState<string[]>([]);
   const [imeiLoading, setImeiLoading] = useState(false);
+  const [priceEditModal, setPriceEditModal] = useState<{
+    isOpen: boolean;
+    targetItem: CartItem | null;
+    value: string;
+  }>({
+    isOpen: false,
+    targetItem: null,
+    value: "",
+  });
   const [customDiscountModal, setCustomDiscountModal] = useState<{
     isOpen: boolean;
     targetItemId: number | null; // null means global cart discount
@@ -156,7 +166,7 @@ export default function PosPage() {
     (product: Product, prefilledImei?: string) => {
       setCart((prev) => {
         const existing = prev.find((i) => i.productId === product.id);
-        const price = parseFloat(product.sellingPrice) || 0;
+        const price = parseFloat(product.srp) || 0;
 
         let updated: CartItem[];
         if (existing) {
@@ -182,6 +192,7 @@ export default function PosPage() {
             productType: product.productType,
             qty: 1,
             unitPrice: price,
+            srp: price,
             discountAmount: 0,
             taxAmount: 0,
             lineTotal: price,
@@ -198,6 +209,49 @@ export default function PosPage() {
     },
     [recalculateCart, taxEnabled, globalDiscountPercent],
   );
+
+  // Apply Negotiated Price on Cart Item
+  const handleApplyNegotiatedPrice = () => {
+    if (!priceEditModal.targetItem) return;
+    const newPrice = parseFloat(priceEditModal.value) || 0;
+    if (newPrice < 0) return;
+
+    setCart((prev) =>
+      recalculateCart(
+        prev.map((i) => {
+          if (i.productId === priceEditModal.targetItem!.productId) {
+            return { ...i, unitPrice: newPrice };
+          }
+          return i;
+        }),
+        taxEnabled,
+        globalDiscountPercent,
+      ),
+    );
+
+    setPriceEditModal({ isOpen: false, targetItem: null, value: "" });
+  };
+
+  // Reset Item Unit Price to SRP
+  const handleResetToSrp = () => {
+    if (!priceEditModal.targetItem) return;
+    const originalSrp = priceEditModal.targetItem.srp;
+
+    setCart((prev) =>
+      recalculateCart(
+        prev.map((i) => {
+          if (i.productId === priceEditModal.targetItem!.productId) {
+            return { ...i, unitPrice: originalSrp };
+          }
+          return i;
+        }),
+        taxEnabled,
+        globalDiscountPercent,
+      ),
+    );
+
+    setPriceEditModal({ isOpen: false, targetItem: null, value: "" });
+  };
 
   // Update item quantity
   const updateQty = (productId: number, qty: number) => {
@@ -712,7 +766,7 @@ export default function PosPage() {
                       </p>
                     </div>
                     <span className="font-mono font-bold text-xs text-blue-700">
-                      IDR {parseFloat(p.sellingPrice).toLocaleString()}
+                      SRP: IDR {parseFloat(p.srp).toLocaleString()}
                     </span>
                   </button>
                 ))}
@@ -791,8 +845,9 @@ export default function PosPage() {
                         </h4>
                       </div>
 
-                      <div className="mt-2.5 pt-1.5 border-t border-gray-100 font-mono font-bold text-xs text-blue-700">
-                        IDR {parseFloat(p.sellingPrice).toLocaleString()}
+                      <div className="mt-2.5 pt-1.5 border-t border-gray-100 flex items-center justify-between font-mono text-xs">
+                        <span className="text-[10px] text-gray-400 font-sans font-medium">SRP</span>
+                        <span className="font-bold text-blue-700">IDR {parseFloat(p.srp).toLocaleString()}</span>
                       </div>
                     </button>
                   );
@@ -846,6 +901,7 @@ export default function PosPage() {
                   const isSerialized = item.productType === "SERIALIZED";
                   const imeiAssignedCount = item.imeis?.length || 0;
                   const imeiReady = !isSerialized || imeiAssignedCount === item.qty;
+                  const isNegotiated = item.srp > 0 && item.unitPrice !== item.srp;
 
                   return (
                     <div key={item.productId} className="p-2.5 rounded-lg hover:bg-gray-50/80 space-y-1.5">
@@ -854,8 +910,16 @@ export default function PosPage() {
                           <div className="font-semibold text-xs text-gray-900">
                             {item.name}
                           </div>
-                          <div className="font-mono text-[11px] text-gray-500">
-                            IDR {item.unitPrice.toLocaleString()} &bull; SKU: {item.sku}
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="font-mono text-xs font-bold text-gray-900">
+                              IDR {item.unitPrice.toLocaleString()}
+                            </span>
+                            {isNegotiated && (
+                              <span className="font-mono text-[10px] text-gray-400 line-through">
+                                SRP: {item.srp.toLocaleString()}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400">&bull; {item.sku}</span>
                           </div>
                         </div>
 
@@ -888,20 +952,43 @@ export default function PosPage() {
                         </div>
                       </div>
 
-                      {/* Serialized IMEI Indicator & Assign Button */}
-                      {isSerialized && (
-                        <div className="flex items-center justify-between pt-1">
+                      {/* Item Action Buttons (Price Negotiation, Discounts, IMEI) */}
+                      <div className="flex items-center justify-between pt-1 text-[10px]">
+                        <div className="flex items-center gap-2">
+                          {isSerialized && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenImeiModal(item)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold ${
+                                imeiReady
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200 animate-pulse"
+                              }`}
+                            >
+                              <span>IMEI: {imeiAssignedCount}/{item.qty} assigned</span>
+                              <span>⚙️</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleOpenImeiModal(item)}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                              imeiReady
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-rose-50 text-rose-700 border border-rose-200 animate-pulse"
+                            onClick={() =>
+                              setPriceEditModal({
+                                isOpen: true,
+                                targetItem: item,
+                                value: String(item.unitPrice),
+                              })
+                            }
+                            className={`font-semibold px-1.5 py-0.5 rounded border transition-colors ${
+                              isNegotiated
+                                ? "bg-amber-50 text-amber-800 border-amber-300"
+                                : "text-blue-600 hover:text-blue-800 bg-blue-50 border-blue-200"
                             }`}
+                            title="Edit negotiated unit price"
                           >
-                            <span>IMEI: {imeiAssignedCount}/{item.qty} assigned</span>
-                            <span>⚙️</span>
+                            {isNegotiated ? "✏️ Negotiated" : "✏️ Edit Price"}
                           </button>
 
                           <button
@@ -914,12 +1001,12 @@ export default function PosPage() {
                                 value: "",
                               })
                             }
-                            className="text-[10px] text-blue-600 hover:underline font-semibold"
+                            className="text-blue-600 hover:underline font-semibold"
                           >
-                            + Item Discount
+                            + Discount
                           </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })
@@ -1268,6 +1355,75 @@ export default function PosPage() {
                 >
                   Apply Discount
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Negotiate Unit Price Modal */}
+      {priceEditModal.isOpen && priceEditModal.targetItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-gray-200">
+            <h3 className="text-sm font-bold text-gray-900 mb-0.5">
+              Negotiate Unit Price
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              {priceEditModal.targetItem.name} &bull; {priceEditModal.targetItem.sku}
+            </p>
+
+            <div className="space-y-3">
+              <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200 text-xs flex items-center justify-between">
+                <span className="text-gray-500">Suggested Retail Price (SRP):</span>
+                <span className="font-mono font-bold text-gray-700">
+                  IDR {priceEditModal.targetItem.srp.toLocaleString()}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
+                  Actual Negotiated Amount (IDR)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="1000"
+                  autoFocus
+                  placeholder="0"
+                  value={priceEditModal.value}
+                  onChange={(e) =>
+                    setPriceEditModal((prev) => ({ ...prev, value: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold text-blue-700 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleResetToSrp}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline font-medium"
+                >
+                  Reset to SRP
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPriceEditModal({ isOpen: false, targetItem: null, value: "" })
+                    }
+                    className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyNegotiatedPrice}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  >
+                    Set Price
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -35,8 +35,8 @@ export class Product {
   @Column({ name: 'cost_price', type: 'numeric', precision: 14, scale: 2 })
   costPrice: string;
 
-  @Column({ name: 'selling_price', type: 'numeric', precision: 14, scale: 2 })
-  sellingPrice: string;
+  @Column({ name: 'srp', type: 'numeric', precision: 14, scale: 2 })
+  srp: string;
 
   @Column({ name: 'tax_class_id', type: 'bigint', nullable: true })
   taxClassId: number | null;

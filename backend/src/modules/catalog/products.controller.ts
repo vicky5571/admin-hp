@@ -16,6 +16,8 @@ import { RoleName } from '../../common/enums/role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthUser } from '../../common/types/auth-user.type';
+import { CreateBrandDto } from './dto/create-brand.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -41,10 +43,10 @@ export class ProductsController {
   @Post('categories')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
   createCategory(
-    @Body('name') name: string,
+    @Body() dto: CreateCategoryDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.productsService.createCategory(name, user.id);
+    return this.productsService.createCategory(dto.name, user.id);
   }
 
   @Get('brands')
@@ -56,10 +58,10 @@ export class ProductsController {
   @Post('brands')
   @Roles(RoleName.OWNER, RoleName.ADMIN)
   createBrand(
-    @Body('name') name: string,
+    @Body() dto: CreateBrandDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.productsService.createBrand(name, user.id);
+    return this.productsService.createBrand(dto.name, user.id);
   }
 
   @Get('tax-classes')

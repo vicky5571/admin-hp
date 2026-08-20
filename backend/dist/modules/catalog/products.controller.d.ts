@@ -1,4 +1,6 @@
 import { AuthUser } from '../../common/types/auth-user.type';
+import { CreateBrandDto } from './dto/create-brand.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -16,9 +18,9 @@ export declare class ProductsController {
         };
     }>;
     findCategories(): Promise<import("./entities/category.entity").Category[]>;
-    createCategory(name: string, user: AuthUser): Promise<import("./entities/category.entity").Category>;
+    createCategory(dto: CreateCategoryDto, user: AuthUser): Promise<import("./entities/category.entity").Category>;
     findBrands(): Promise<import("./entities/brand.entity").Brand[]>;
-    createBrand(name: string, user: AuthUser): Promise<import("./entities/brand.entity").Brand>;
+    createBrand(dto: CreateBrandDto, user: AuthUser): Promise<import("./entities/brand.entity").Brand>;
     findTaxClasses(): Promise<import("./entities/tax-class.entity").TaxClass[]>;
     create(dto: CreateProductDto, user: AuthUser): Promise<import("./entities/product.entity").Product>;
     findOne(id: number): Promise<import("./entities/product.entity").Product>;

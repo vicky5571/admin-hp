@@ -213,7 +213,7 @@ let ReportsService = class ReportsService {
         COALESCE(sb.reserved_qty, 0)::int AS reserved_qty,
         p.min_stock_alert,
         p.cost_price,
-        p.selling_price,
+        p.srp,
         COALESCE(sb.on_hand_qty, 0) * p.cost_price AS stock_value
       FROM products p
       LEFT JOIN stock_balances sb ON sb.product_id = p.id
@@ -377,7 +377,7 @@ let ReportsService = class ReportsService {
     }
     async stockOnHandCsv(query) {
         const { data } = await this.stockOnHand(query);
-        return this.buildCsv(['id', 'sku', 'name', 'product_type', 'brand', 'on_hand_qty', 'reserved_qty', 'min_stock_alert', 'cost_price', 'selling_price', 'stock_value'], data);
+        return this.buildCsv(['id', 'sku', 'name', 'product_type', 'brand', 'on_hand_qty', 'reserved_qty', 'min_stock_alert', 'cost_price', 'srp', 'stock_value'], data);
     }
     async returnsSummaryCsv(query) {
         const { byDay } = await this.returnsSummary(query);

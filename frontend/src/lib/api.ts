@@ -97,7 +97,7 @@ export interface Product {
   brandId?: number | null;
   productType: "SERIALIZED" | "NON_SERIALIZED" | "SERVICE" | string;
   costPrice: string;
-  sellingPrice: string;
+  srp: string;
   taxClassId?: number | null;
   minStockAlert: number;
   isActive: boolean;
@@ -115,7 +115,7 @@ export interface CreateProductPayload {
   brandId?: number;
   productType: string;
   costPrice: number;
-  sellingPrice: number;
+  srp: number;
   taxClassId?: number;
   minStockAlert?: number;
   isActive?: boolean;
@@ -128,7 +128,7 @@ export interface UpdateProductPayload {
   brandId?: number | null;
   productType?: string;
   costPrice?: number;
-  sellingPrice?: number;
+  srp?: number;
   taxClassId?: number | null;
   minStockAlert?: number;
   isActive?: boolean;

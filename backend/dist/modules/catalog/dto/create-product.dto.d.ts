@@ -6,7 +6,7 @@ export declare class CreateProductDto {
     brandId?: number;
     productType: ProductType;
     costPrice: number;
-    sellingPrice: number;
+    srp: number;
     taxClassId?: number;
     minStockAlert?: number;
     isActive?: boolean;

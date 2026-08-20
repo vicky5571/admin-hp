@@ -77,7 +77,7 @@ let ProductsService = class ProductsService {
             brandId: dto.brandId ?? null,
             productType: dto.productType,
             costPrice: dto.costPrice.toFixed(2),
-            sellingPrice: dto.sellingPrice.toFixed(2),
+            srp: dto.srp.toFixed(2),
             taxClassId: dto.taxClassId ?? null,
             minStockAlert: dto.minStockAlert ?? 0,
             isActive: dto.isActive ?? true,
@@ -93,7 +93,7 @@ let ProductsService = class ProductsService {
                 sku: saved.sku,
                 name: saved.name,
                 productType: saved.productType,
-                sellingPrice: saved.sellingPrice,
+                srp: saved.srp,
             },
         });
         return result;
@@ -132,8 +132,8 @@ let ProductsService = class ProductsService {
             row.productType = dto.productType;
         if (dto.costPrice !== undefined)
             row.costPrice = dto.costPrice.toFixed(2);
-        if (dto.sellingPrice !== undefined)
-            row.sellingPrice = dto.sellingPrice.toFixed(2);
+        if (dto.srp !== undefined)
+            row.srp = dto.srp.toFixed(2);
         if (dto.taxClassId !== undefined)
             row.taxClassId = dto.taxClassId;
         if (dto.minStockAlert !== undefined)
