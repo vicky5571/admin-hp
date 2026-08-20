@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Category,
+  ImeiUnit,
   Product,
   createSale,
   downloadReceiptPdf,
@@ -63,7 +64,7 @@ export default function PosPage() {
   // Modals & Tools
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [imeiModalItem, setImeiModalItem] = useState<CartItem | null>(null);
-  const [availableImeis, setAvailableImeis] = useState<string[]>([]);
+  const [availableImeis, setAvailableImeis] = useState<ImeiUnit[]>([]);
   const [imeiLoading, setImeiLoading] = useState(false);
   const [priceEditModal, setPriceEditModal] = useState<{
     isOpen: boolean;
@@ -416,7 +417,7 @@ export default function PosPage() {
     setImeiLoading(true);
     try {
       const res = await fetchAvailableImeis(item.productId);
-      setAvailableImeis((res.data ?? []).map((u) => u.imei));
+      setAvailableImeis(res.data ?? []);
     } catch {
       setAvailableImeis([]);
     } finally {
@@ -1242,20 +1243,32 @@ export default function PosPage() {
               </div>
             ) : (
               <div className="space-y-1.5 max-h-56 overflow-y-auto mb-4">
-                {availableImeis.map((imei) => {
-                  const isSelected = (imeiModalItem.imeis || []).includes(imei);
+                {availableImeis.map((unit) => {
+                  const isSelected = (imeiModalItem.imeis || []).includes(unit.imei);
                   return (
                     <button
-                      key={imei}
+                      key={unit.id}
                       type="button"
-                      onClick={() => handleToggleImei(imei)}
-                      className={`w-full p-2 rounded-lg border text-left text-xs font-mono flex items-center justify-between transition-colors ${
+                      onClick={() => handleToggleImei(unit.imei)}
+                      className={`w-full p-2.5 rounded-lg border text-left text-xs font-mono flex items-center justify-between transition-colors ${
                         isSelected
                           ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-bold"
                           : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      <span>{imei}</span>
+                      <div className="flex items-center gap-2">
+                        <span>{unit.imei}</span>
+                        {unit.conditionGrade && (
+                          <span className="text-[10px] font-sans font-semibold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            {unit.conditionGrade}
+                          </span>
+                        )}
+                        {unit.batteryHealth != null && (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {unit.batteryHealth}% BH
+                          </span>
+                        )}
+                      </div>
                       <span>{isSelected ? "✓ Assigned" : "+ Select"}</span>
                     </button>
                   );

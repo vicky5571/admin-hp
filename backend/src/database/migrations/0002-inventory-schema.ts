@@ -63,6 +63,8 @@ export class InventorySchema1700000000001 implements MigrationInterface {
         "product_id" BIGINT NOT NULL,
         "status" VARCHAR(20) NOT NULL,
         "current_location" VARCHAR(30) NOT NULL DEFAULT 'STORE',
+        "condition_grade" VARCHAR(20),
+        "battery_health" INTEGER,
         "last_ref_type" VARCHAR(30),
         "last_ref_id" BIGINT,
         "created_at" TIMESTAMP NOT NULL DEFAULT now(),

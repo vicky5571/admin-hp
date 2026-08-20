@@ -37,6 +37,14 @@ __decorate([
     __metadata("design:type", String)
 ], ImeiUnit.prototype, "currentLocation", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'condition_grade', type: 'varchar', length: 20, nullable: true }),
+    __metadata("design:type", Object)
+], ImeiUnit.prototype, "conditionGrade", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'battery_health', type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], ImeiUnit.prototype, "batteryHealth", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'last_ref_type', type: 'varchar', length: 30, nullable: true }),
     __metadata("design:type", Object)
 ], ImeiUnit.prototype, "lastRefType", void 0);

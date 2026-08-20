@@ -6,6 +6,8 @@ export declare class ImeiUnit {
     productId: number;
     status: ImeiStatus;
     currentLocation: string;
+    conditionGrade: string | null;
+    batteryHealth: number | null;
     lastRefType: string | null;
     lastRefId: number | null;
     product: Product;

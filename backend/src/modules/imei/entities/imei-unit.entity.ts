@@ -27,6 +27,12 @@ export class ImeiUnit {
   @Column({ name: 'current_location', type: 'varchar', length: 30, default: 'STORE' })
   currentLocation: string;
 
+  @Column({ name: 'condition_grade', type: 'varchar', length: 20, nullable: true })
+  conditionGrade: string | null;
+
+  @Column({ name: 'battery_health', type: 'int', nullable: true })
+  batteryHealth: number | null;
+
   @Column({ name: 'last_ref_type', type: 'varchar', length: 30, nullable: true })
   lastRefType: string | null;
 

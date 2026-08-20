@@ -571,6 +571,8 @@ export interface ImeiUnit {
   productId: number;
   status: string;
   currentLocation: string;
+  conditionGrade?: string | null;
+  batteryHealth?: number | null;
   lastRefType: string | null;
   lastRefId: number | null;
   createdAt: string;
@@ -615,7 +617,12 @@ export function fetchAvailableImeis(productId: number) {
 
 export function updateImeiStatus(
   id: number,
-  payload: { status: string; location?: string },
+  payload: {
+    status?: string;
+    location?: string;
+    conditionGrade?: string;
+    batteryHealth?: number | null;
+  },
 ) {
   return apiFetch<ImeiUnit>(`/imei/${id}/status`, {
     method: "PATCH",

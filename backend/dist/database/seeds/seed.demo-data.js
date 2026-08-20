@@ -289,11 +289,15 @@ async function seedDemoData(dataSource) {
         }
         for (let i = 0; i < spec.imeiCount; i++) {
             const imei = `35693810${String(imeiSeq++).padStart(7, '0')}`;
+            const sampleGrades = ['Grade A', 'Grade A', 'Brand New', 'Grade B'];
+            const sampleBH = [100, 98, 92, 88];
             await imeiRepo.save(imeiRepo.create({
                 imei,
                 productId,
                 status: imei_status_enum_1.ImeiStatus.IN_STOCK,
                 currentLocation: 'STORE',
+                conditionGrade: sampleGrades[i % sampleGrades.length],
+                batteryHealth: sampleBH[i % sampleBH.length],
             }));
         }
     }

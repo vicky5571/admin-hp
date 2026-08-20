@@ -101,7 +101,7 @@ export class ImeiService {
   }
 
   async updateStatus(id: number, dto: UpdateImeiStatusDto) {
-    if (!MUTABLE_STATUSES.includes(dto.status)) {
+    if (dto.status && !MUTABLE_STATUSES.includes(dto.status)) {
       throw new BadRequestException(
         'Status can only be set to IN_STOCK, DEFECTIVE, or RESERVED',
       );
@@ -111,15 +111,26 @@ export class ImeiService {
     if (!unit) {
       throw new NotFoundException('IMEI not found');
     }
-    if (unit.status === ImeiStatus.SOLD) {
+    if (dto.status && unit.status === ImeiStatus.SOLD && dto.status !== ImeiStatus.SOLD) {
       throw new BadRequestException(
-        'Sold IMEI cannot be changed manually; process a return instead',
+        'Sold IMEI status cannot be changed manually; process a return instead',
       );
     }
 
-    unit.status = dto.status;
-    if (dto.location) {
-      unit.currentLocation = dto.location;
+    if (dto.status) {
+      unit.status = dto.status;
+    }
+    if (dto.location !== undefined) {
+      unit.currentLocation = dto.location.trim();
+    }
+    if (dto.conditionGrade !== undefined) {
+      unit.conditionGrade = dto.conditionGrade ? dto.conditionGrade.trim() : null;
+    }
+    if (dto.batteryHealth !== undefined) {
+      unit.batteryHealth =
+        dto.batteryHealth !== null && !isNaN(Number(dto.batteryHealth))
+          ? Number(dto.batteryHealth)
+          : null;
     }
     return this.imeiRepo.save(unit);
   }
