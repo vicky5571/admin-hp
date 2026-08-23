@@ -60,6 +60,14 @@ __decorate([
     __metadata("design:type", String)
 ], Sale.prototype, "status", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'idempotency_key', type: 'varchar', length: 100, nullable: true, unique: true }),
+    __metadata("design:type", Object)
+], Sale.prototype, "idempotencyKey", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'shift_id', type: 'bigint', nullable: true }),
+    __metadata("design:type", Object)
+], Sale.prototype, "shiftId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", Object)
 ], Sale.prototype, "notes", void 0);
@@ -73,6 +81,11 @@ __decorate([
     (0, typeorm_1.JoinColumn)({ name: 'customer_id' }),
     __metadata("design:type", Object)
 ], Sale.prototype, "customer", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)('CashierShift', 'sales', { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'shift_id' }),
+    __metadata("design:type", Object)
+], Sale.prototype, "shift", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => sale_item_entity_1.SaleItem, (item) => item.sale, { cascade: true }),
     __metadata("design:type", Array)

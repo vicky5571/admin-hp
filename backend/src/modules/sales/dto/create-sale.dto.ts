@@ -123,6 +123,14 @@ export class CreateSaleDto {
 
   @IsOptional()
   @IsString()
+  idempotencyKey?: string;
+
+  @IsOptional()
+  @IsInt()
+  shiftId?: number;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 

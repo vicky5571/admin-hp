@@ -86,6 +86,14 @@ let GoodsReceiptsService = class GoodsReceiptsService {
         return row;
     }
     async create(dto, userId) {
+        if (dto.idempotencyKey) {
+            const existing = await this.grRepo.findOne({
+                where: { idempotencyKey: dto.idempotencyKey },
+            });
+            if (existing) {
+                return this.findOne(existing.id);
+            }
+        }
         const po = await this.poRepo.findOne({
             where: { id: dto.purchaseOrderId },
             relations: ['items', 'items.product'],
@@ -145,6 +153,7 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                 supplierDoNumber: dto.supplierDoNumber ?? null,
                 carrierName: dto.carrierName ?? null,
                 trackingNumber: dto.trackingNumber ?? null,
+                idempotencyKey: dto.idempotencyKey ?? null,
             });
             const savedGr = await grRepo.save(gr);
             let fullyReceived = true;
@@ -250,6 +259,7 @@ let GoodsReceiptsService = class GoodsReceiptsService {
                 }
                 let balance = await balanceRepo.findOne({
                     where: { productId: dtoItem.productId },
+                    lock: { mode: 'pessimistic_write' },
                 });
                 if (!balance) {
                     balance = balanceRepo.create({

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CashierShift,
   Category,
   ImeiUnit,
   Product,
@@ -10,13 +11,16 @@ import {
   downloadReceiptPdf,
   fetchAvailableImeis,
   fetchCategories,
+  fetchCurrentShift,
   fetchProducts,
   fetchSaleReceipt,
+  generateIdempotencyKey,
   lookupImei,
   quoteSale,
 } from "@/lib/api";
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 import PrintReceiptModal from "@/components/PrintReceiptModal";
+import ShiftStatusModal from "@/components/ShiftStatusModal";
 
 interface CartItem {
   productId: number;
@@ -56,15 +60,23 @@ export default function PosPage() {
   const [taxEnabled, setTaxEnabled] = useState(false); // PPN 11% Toggle
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState<number | null>(null);
 
-  // Payment
+  // Payment & Multi-Tender State
   const [payMethod, setPayMethod] = useState("CASH");
   const [payAmount, setPayAmount] = useState("");
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<
+    { id: string; method: string; amount: number; referenceNo?: string }[]
+  >([]);
   const [submitting, setSubmitting] = useState(false);
   const [saleResult, setSaleResult] = useState<any>(null);
   const [receiptPayload, setReceiptPayload] = useState<ReceiptPayload | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Shift Drawer State
+  const [currentShift, setCurrentShift] = useState<CashierShift | null>(null);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
 
   // Modals & Tools
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -96,17 +108,19 @@ export default function PosPage() {
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [showHeldCartsModal, setShowHeldCartsModal] = useState(false);
 
-  // Load initial catalog & categories
+  // Load initial catalog & categories & shift
   useEffect(() => {
     const loadInit = async () => {
       setLoadingCatalog(true);
       try {
-        const [prodRes, catRes] = await Promise.all([
+        const [prodRes, catRes, shiftRes] = await Promise.all([
           fetchProducts({ limit: 40, isActive: true }),
           fetchCategories().catch(() => ({ success: true, data: [] })),
+          fetchCurrentShift().catch(() => ({ success: true, data: null })),
         ]);
         setQuickProducts(prodRes.data ?? []);
         setCategories(catRes.data ?? []);
+        setCurrentShift(shiftRes.data ?? null);
       } catch (err) {
         console.error("Failed to load POS catalog", err);
       } finally {
@@ -535,10 +549,60 @@ export default function PosPage() {
     return Array.from(presets).sort((a, b) => a - b).slice(0, 5);
   }, [grandTotal]);
 
+  // Split Payments Total Allocation
+  const splitTotalAllocated = useMemo(() => {
+    return splitPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [splitPayments]);
+
+  const splitRemainingToAllocate = Math.max(0, grandTotal - splitTotalAllocated);
+
+  // Initialize split payments when toggling split mode
+  const handleToggleSplitPayment = () => {
+    const next = !isSplitPayment;
+    setIsSplitPayment(next);
+    if (next && splitPayments.length === 0) {
+      setSplitPayments([
+        { id: "1", method: "CASH", amount: Math.round(grandTotal / 2) },
+        { id: "2", method: "E_WALLET", amount: grandTotal - Math.round(grandTotal / 2) },
+      ]);
+    }
+  };
+
+  const handleAddSplitLine = () => {
+    setSplitPayments((prev) => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        method: "BANK_TRANSFER",
+        amount: splitRemainingToAllocate,
+      },
+    ]);
+  };
+
+  const handleRemoveSplitLine = (id: string) => {
+    setSplitPayments((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handleUpdateSplitLine = (
+    id: string,
+    updates: Partial<{ method: string; amount: number; referenceNo: string }>,
+  ) => {
+    setSplitPayments((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    );
+  };
+
   // Checkout Execution
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setError("");
+
+    // Check shift status
+    if (!currentShift) {
+      setError("No register shift is currently open. Please open a shift first.");
+      setIsShiftModalOpen(true);
+      return;
+    }
 
     // Validate Serialized IMEI requirements
     for (const item of cart) {
@@ -552,9 +616,31 @@ export default function PosPage() {
       }
     }
 
-    if (payMethod === "CASH" && amountPaidNum < grandTotal) {
-      setError("Cash tendered is less than the grand total.");
-      return;
+    // Build & Validate Payments
+    let finalPayments: { method: string; amount: number; referenceNo?: string }[] = [];
+    if (!isSplitPayment) {
+      if (payMethod === "CASH" && amountPaidNum < grandTotal) {
+        setError("Cash tendered is less than the grand total.");
+        return;
+      }
+      finalPayments = [
+        {
+          method: payMethod,
+          amount: payMethod === "CASH" ? amountPaidNum : grandTotal,
+        },
+      ];
+    } else {
+      if (splitTotalAllocated < grandTotal) {
+        setError(
+          `Split payment total (IDR ${splitTotalAllocated.toLocaleString("id-ID")}) is less than grand total (IDR ${grandTotal.toLocaleString("id-ID")}).`,
+        );
+        return;
+      }
+      finalPayments = splitPayments.map((p) => ({
+        method: p.method,
+        amount: Number(p.amount),
+        referenceNo: p.referenceNo || undefined,
+      }));
     }
 
     setSubmitting(true);
@@ -573,25 +659,24 @@ export default function PosPage() {
       const quoteRes = await quoteSale(quotePayload);
       const quoted = quoteRes.data;
 
-      // 2. Submit sale with server-validated totals
+      // 2. Submit sale with idempotency protection and shift link
       const res = await createSale({
         items: quotePayload,
         subtotal: quoted ? quoted.subtotal : rawSubtotal,
         discountTotal: quoted ? quoted.discountTotal : discountTotal,
         taxTotal: quoted ? quoted.taxTotal : taxTotal,
         grandTotal: quoted ? quoted.grandTotal : grandTotal,
-        payments: [
-          {
-            method: payMethod,
-            amount: payMethod === "CASH" ? amountPaidNum : (quoted ? quoted.grandTotal : grandTotal),
-          },
-        ],
+        payments: finalPayments,
+        idempotencyKey: generateIdempotencyKey(),
+        shiftId: currentShift?.id,
       });
 
       setSaleResult(res.data);
       setCart([]);
       setPayAmount("");
       setGlobalDiscountPercent(null);
+      setIsSplitPayment(false);
+      setSplitPayments([]);
 
       // Preload complete receipt for thermal printing & review
       try {
@@ -714,6 +799,28 @@ export default function PosPage() {
 
         {/* Quick Toolbar */}
         <div className="flex items-center gap-2">
+          {/* Shift Status Button */}
+          <button
+            type="button"
+            onClick={() => setIsShiftModalOpen(true)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold border transition-colors shadow-2xs ${
+              currentShift
+                ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                : "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse"
+            }`}
+          >
+            <span
+              className={`flex h-2 w-2 rounded-full ${
+                currentShift ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            ></span>
+            <span>
+              {currentShift
+                ? `${currentShift.registerName} • Shift #${currentShift.id}`
+                : "⚠️ Open Register Shift"}
+            </span>
+          </button>
+
           {heldCarts.length > 0 && (
             <button
               type="button"
@@ -1133,76 +1240,230 @@ export default function PosPage() {
               </div>
             </div>
 
-            {/* Payment & Cash Tender Shortcuts */}
+            {/* Payment & Multi-Tender Controls */}
             <div className="p-4 bg-slate-50 border-t border-gray-200 space-y-3">
-              {/* Payment Method Selector */}
-              <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
-                {["CASH", "BANK_TRANSFER", "E_WALLET"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      setPayMethod(m);
-                      if (m !== "CASH") setPayAmount(String(grandTotal));
-                    }}
-                    className={`py-1.5 rounded-lg border transition-colors ${
-                      payMethod === m
-                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                    }`}
-                  >
-                    {m === "CASH" ? "💵 Cash" : m === "BANK_TRANSFER" ? "🏦 Transfer" : "📱 QRIS / E-Pay"}
-                  </button>
-                ))}
+              {/* Payment Mode Selector Tabs */}
+              <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                <span className="text-[11px] font-bold text-gray-700">
+                  Payment Method
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleSplitPayment}
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded transition-colors ${
+                    isSplitPayment
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                  }`}
+                >
+                  {isSplitPayment ? "✓ Split Tender Active" : "⮀ Split Payment"}
+                </button>
               </div>
 
-              {/* Cash Tender Input & Speed-Keys */}
-              {payMethod === "CASH" && (
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
-                      Cash Tendered (IDR):
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="1000"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      placeholder={grandTotal > 0 ? String(grandTotal) : "0"}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold bg-white focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Cash Tender Quick Preset Buttons */}
-                  <div className="flex flex-wrap gap-1">
-                    {cashPresets.map((amt) => (
+              {!isSplitPayment ? (
+                /* SINGLE TENDER MODE */
+                <div className="space-y-3">
+                  {/* Payment Method Buttons */}
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                    {[
+                      { id: "CASH", label: "💵 Cash" },
+                      { id: "E_WALLET", label: "📱 QRIS" },
+                      { id: "BANK_TRANSFER", label: "🏦 Transfer" },
+                      { id: "DEBIT_CARD", label: "💳 Debit" },
+                      { id: "CREDIT_CARD", label: "💳 Credit" },
+                    ].map((m) => (
                       <button
-                        key={amt}
+                        key={m.id}
                         type="button"
-                        onClick={() => setPayAmount(String(amt))}
-                        className="px-2 py-1 rounded bg-white text-[11px] font-mono font-bold text-slate-800 border border-slate-300 hover:bg-blue-50 hover:border-blue-400"
+                        onClick={() => {
+                          setPayMethod(m.id);
+                          if (m.id !== "CASH") setPayAmount(String(grandTotal));
+                        }}
+                        className={`py-1.5 rounded-lg border transition-colors ${
+                          payMethod === m.id
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                        }`}
                       >
-                        {amt === grandTotal ? "Exact" : `IDR ${amt.toLocaleString()}`}
+                        {m.label}
                       </button>
                     ))}
                   </div>
 
-                  {/* Change Due Display */}
-                  {amountPaidNum > 0 && (
-                    <div className="p-2.5 rounded-lg bg-white border border-gray-200 flex justify-between items-center text-xs">
-                      <span className="font-semibold text-gray-600">Kembalian / Change:</span>
-                      <span
-                        className={`font-mono font-black text-sm ${
-                          isPaymentSufficient ? "text-emerald-600" : "text-rose-600"
-                        }`}
-                      >
-                        {isPaymentSufficient
-                          ? `IDR ${changeDue.toLocaleString()}`
-                          : `Kurang IDR ${(grandTotal - amountPaidNum).toLocaleString()}`}
-                      </span>
+                  {/* Cash Tender Input & Speed-Keys */}
+                  {payMethod === "CASH" && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                          Cash Tendered (IDR):
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="1000"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          placeholder={grandTotal > 0 ? String(grandTotal) : "0"}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold bg-white focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Cash Tender Quick Preset Buttons */}
+                      <div className="flex flex-wrap gap-1">
+                        {cashPresets.map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setPayAmount(String(amt))}
+                            className="px-2 py-1 rounded bg-white text-[11px] font-mono font-bold text-slate-800 border border-slate-300 hover:bg-blue-50 hover:border-blue-400"
+                          >
+                            {amt === grandTotal ? "Exact" : `IDR ${amt.toLocaleString()}`}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Change Due Display */}
+                      {amountPaidNum > 0 && (
+                        <div className="p-2.5 rounded-lg bg-white border border-gray-200 flex justify-between items-center text-xs">
+                          <span className="font-semibold text-gray-600">
+                            Kembalian / Change:
+                          </span>
+                          <span
+                            className={`font-mono font-black text-sm ${
+                              isPaymentSufficient
+                                ? "text-emerald-600"
+                                : "text-rose-600"
+                            }`}
+                          >
+                            {isPaymentSufficient
+                              ? `IDR ${changeDue.toLocaleString()}`
+                              : `Kurang IDR ${(grandTotal - amountPaidNum).toLocaleString()}`}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
+                </div>
+              ) : (
+                /* SPLIT TENDER MODE */
+                <div className="space-y-2.5">
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {splitPayments.map((p, idx) => (
+                      <div
+                        key={p.id}
+                        className="p-2.5 rounded-xl border border-gray-200 bg-white space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-gray-600">
+                            Tender #{idx + 1}
+                          </span>
+                          {splitPayments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSplitLine(p.id)}
+                              className="text-rose-600 hover:text-rose-800 text-xs font-bold"
+                            >
+                              &times; Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-1.5">
+                          <div className="col-span-5">
+                            <select
+                              value={p.method}
+                              onChange={(e) =>
+                                handleUpdateSplitLine(p.id, {
+                                  method: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-lg border border-gray-300 p-1.5 text-xs font-bold bg-slate-50 focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="CASH">💵 Cash</option>
+                              <option value="E_WALLET">📱 QRIS</option>
+                              <option value="BANK_TRANSFER">🏦 Transfer</option>
+                              <option value="DEBIT_CARD">💳 Debit</option>
+                              <option value="CREDIT_CARD">💳 Credit</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-7">
+                            <input
+                              type="number"
+                              min={0}
+                              step={1000}
+                              value={p.amount || ""}
+                              onChange={(e) =>
+                                handleUpdateSplitLine(p.id, {
+                                  amount: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              placeholder="Amount"
+                              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-mono font-bold text-right focus:border-blue-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {p.method !== "CASH" && (
+                          <input
+                            type="text"
+                            value={p.referenceNo || ""}
+                            onChange={(e) =>
+                              handleUpdateSplitLine(p.id, {
+                                referenceNo: e.target.value,
+                              })
+                            }
+                            placeholder="Approval / Ref No (Optional)"
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1 text-[11px] font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Split Summary & Add Button */}
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddSplitLine}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-bold"
+                    >
+                      + Add Payment Method
+                    </button>
+
+                    {splitRemainingToAllocate > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (splitPayments.length > 0) {
+                            const last = splitPayments[splitPayments.length - 1];
+                            handleUpdateSplitLine(last.id, {
+                              amount: last.amount + splitRemainingToAllocate,
+                            });
+                          }
+                        }}
+                        className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold hover:bg-emerald-100"
+                      >
+                        Auto-fill Remaining (IDR {splitRemainingToAllocate.toLocaleString()})
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-gray-200 flex justify-between items-center text-xs font-mono">
+                    <span className="text-gray-600 font-sans font-semibold">
+                      Total Allocated:
+                    </span>
+                    <span
+                      className={`font-bold ${
+                        splitTotalAllocated >= grandTotal
+                          ? "text-emerald-700"
+                          : "text-rose-600"
+                      }`}
+                    >
+                      IDR {splitTotalAllocated.toLocaleString()} /{" "}
+                      {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -1210,7 +1471,14 @@ export default function PosPage() {
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || submitting || (payMethod === "CASH" && !isPaymentSufficient)}
+                disabled={
+                  cart.length === 0 ||
+                  submitting ||
+                  (!isSplitPayment &&
+                    payMethod === "CASH" &&
+                    !isPaymentSufficient) ||
+                  (isSplitPayment && splitTotalAllocated < grandTotal)
+                }
                 className="w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {submitting ? (
@@ -1520,6 +1788,13 @@ export default function PosPage() {
           </div>
         </div>
       )}
+
+      {/* Shift Drawer Management Modal */}
+      <ShiftStatusModal
+        isOpen={isShiftModalOpen}
+        onClose={() => setIsShiftModalOpen(false)}
+        onShiftUpdated={(s) => setCurrentShift(s)}
+      />
     </div>
   );
 }

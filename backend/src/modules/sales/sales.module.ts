@@ -4,6 +4,8 @@ import { Product } from '../catalog/entities/product.entity';
 import { ImeiUnit } from '../imei/entities/imei-unit.entity';
 import { StockBalance } from '../inventory/entities/stock-balance.entity';
 import { StockMovement } from '../inventory/entities/stock-movement.entity';
+import { CashierShift } from './entities/cashier-shift.entity';
+import { CashMovement } from './entities/cash-movement.entity';
 import { Customer } from './entities/customer.entity';
 import { Payment } from './entities/payment.entity';
 import { ReturnItemImei } from './entities/return-item-imei.entity';
@@ -18,6 +20,8 @@ import { ReturnsController } from './returns.controller';
 import { ReturnsService } from './returns.service';
 import { SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
+import { ShiftsController } from './shifts.controller';
+import { ShiftsService } from './shifts.service';
 
 @Module({
   imports: [
@@ -34,10 +38,18 @@ import { SalesService } from './sales.service';
       ImeiUnit,
       StockBalance,
       StockMovement,
+      CashierShift,
+      CashMovement,
     ]),
   ],
-  controllers: [SalesController, ReturnsController],
-  providers: [SalesService, PricingService, ReceiptService, ReturnsService],
-  exports: [SalesService, ReturnsService],
+  controllers: [SalesController, ReturnsController, ShiftsController],
+  providers: [
+    SalesService,
+    PricingService,
+    ReceiptService,
+    ReturnsService,
+    ShiftsService,
+  ],
+  exports: [SalesService, ReturnsService, ShiftsService],
 })
 export class SalesModule {}

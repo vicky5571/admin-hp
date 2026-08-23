@@ -54,6 +54,10 @@ __decorate([
     __metadata("design:type", Object)
 ], GoodsReceipt.prototype, "trackingNumber", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'idempotency_key', type: 'varchar', length: 100, nullable: true, unique: true }),
+    __metadata("design:type", Object)
+], GoodsReceipt.prototype, "idempotencyKey", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], GoodsReceipt.prototype, "createdAt", void 0);

@@ -98,6 +98,10 @@ export class CreateGoodsReceiptDto {
   @IsString()
   trackingNumber?: string;
 
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReceiveGrItemDto)

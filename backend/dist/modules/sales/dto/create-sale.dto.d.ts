@@ -30,6 +30,8 @@ export declare class CreateSaleDto {
     taxTotal: number;
     grandTotal: number;
     payments: CreatePaymentDto[];
+    idempotencyKey?: string;
+    shiftId?: number;
     notes?: string;
 }
 export declare class QuoteSaleDto {

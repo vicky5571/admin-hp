@@ -246,6 +246,8 @@ export interface CreateSalePayload {
   taxTotal: number;
   grandTotal: number;
   payments: PaymentDto[];
+  idempotencyKey?: string;
+  shiftId?: number;
   notes?: string;
 }
 
@@ -903,4 +905,118 @@ export function fetchAuditLogs(params?: {
   if (params?.limit) query.set("limit", String(params.limit));
   return apiFetch<AuditLogItem[]>(`/audit-logs?${query.toString()}`);
 }
+
+// ── Shifts & Cash Drawer ───────────────────────────────────────────
+export interface CashMovement {
+  id: number;
+  shiftId: number;
+  userId: number;
+  movementType: "CASH_IN" | "CASH_OUT";
+  amount: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface CashierShift {
+  id: number;
+  userId: number;
+  registerName: string;
+  status: "OPEN" | "CLOSED";
+  openedAt: string;
+  closedAt: string | null;
+  openingBalance: string;
+  totalCashSales: string;
+  totalCashRefunds: string;
+  totalCashIn: string;
+  totalCashOut: string;
+  expectedEndingCash: string;
+  actualEndingCash: string | null;
+  cashDifference: string | null;
+  notes: string | null;
+  user?: { id: number; fullName: string; username: string };
+  movements?: CashMovement[];
+  createdAt: string;
+}
+
+export interface ShiftReport {
+  shift: {
+    id: number;
+    registerName: string;
+    status: string;
+    openedAt: string;
+    closedAt: string | null;
+    cashier?: { id: number; fullName: string; username: string } | null;
+    notes?: string | null;
+  };
+  cashSummary: {
+    openingBalance: string;
+    totalCashSales: string;
+    totalCashRefunds: string;
+    totalCashIn: string;
+    totalCashOut: string;
+    expectedEndingCash: string;
+    actualEndingCash: string | null;
+    cashDifference: string | null;
+  };
+  salesSummary: {
+    totalTransactions: number;
+    grossSales: string;
+    totalDiscounts: string;
+    totalTax: string;
+  };
+  paymentBreakdown: {
+    method: string;
+    count: number;
+    total: string;
+  }[];
+  movements: CashMovement[];
+  reportType: "X_REPORT" | "Z_REPORT";
+}
+
+export function generateIdempotencyKey(): string {
+  return "txn-" + Date.now().toString(36) + "-" + Math.random().toString(36).substring(2, 9);
+}
+
+export function fetchCurrentShift() {
+  return apiFetch<CashierShift | null>("/sales/shifts/current");
+}
+
+export function openShift(payload: { registerName?: string; openingBalance: number; notes?: string }) {
+  return apiFetch<CashierShift>("/sales/shifts/open", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function recordCashMovement(payload: {
+  movementType: "CASH_IN" | "CASH_OUT";
+  amount: number;
+  reason: string;
+}) {
+  return apiFetch<CashMovement>("/sales/shifts/cash-movement", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function closeShift(payload: { actualEndingCash: number; notes?: string }) {
+  return apiFetch<CashierShift>("/sales/shifts/close", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchShiftReport(shiftId: number) {
+  return apiFetch<ShiftReport>(`/sales/shifts/${shiftId}/report`);
+}
+
+export function fetchShifts(params?: { userId?: number; status?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.userId) query.set("userId", String(params.userId));
+  if (params?.status) query.set("status", params.status);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  return apiFetch<CashierShift[]>(`/sales/shifts?${query.toString()}`);
+}
+
 

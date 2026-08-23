@@ -11,6 +11,7 @@ export declare class GoodsReceipt {
     supplierDoNumber: string | null;
     carrierName: string | null;
     trackingNumber: string | null;
+    idempotencyKey: string | null;
     createdAt: Date;
     purchaseOrder: PurchaseOrder;
     receiver: User;

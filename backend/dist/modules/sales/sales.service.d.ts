@@ -33,9 +33,12 @@ export declare class SalesService {
         taxTotal?: string | undefined;
         grandTotal?: string | undefined;
         status?: SaleStatus | undefined;
+        idempotencyKey?: string | null | undefined;
+        shiftId?: number | null | undefined;
         notes?: string | null | undefined;
         cashier?: import("../users/entities/user.entity").User | undefined;
         customer?: Customer | null | undefined;
+        shift?: any;
         items?: SaleItem[] | undefined;
         payments?: Payment[] | undefined;
         createdAt?: Date | undefined;

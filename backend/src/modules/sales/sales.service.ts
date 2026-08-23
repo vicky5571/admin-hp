@@ -19,6 +19,7 @@ import { StockMovement } from '../inventory/entities/stock-movement.entity';
 import { AuthUser } from '../../common/types/auth-user.type';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { ListSalesQueryDto } from './dto/list-sales.query.dto';
+import { CashierShift, ShiftStatus } from './entities/cashier-shift.entity';
 import { Customer } from './entities/customer.entity';
 import { Payment } from './entities/payment.entity';
 import { SaleItemImei } from './entities/sale-item-imei.entity';
@@ -45,6 +46,35 @@ export class SalesService {
   ) {}
 
   async create(dto: CreateSaleDto, user: AuthUser) {
+    // 1. Idempotency check
+    if (dto.idempotencyKey) {
+      const existing = await this.salesRepo.findOne({
+        where: { idempotencyKey: dto.idempotencyKey },
+        relations: [
+          'items',
+          'items.imeis',
+          'items.imeis.imeiUnit',
+          'payments',
+          'cashier',
+          'customer',
+        ],
+      });
+      if (existing) {
+        const paidTotal = sumAmounts(
+          existing.payments?.map((p) => parseFloat(p.amount)) || [],
+        );
+        const change = Math.max(
+          0,
+          paidTotal - parseFloat(existing.grandTotal || '0'),
+        );
+        return {
+          ...existing,
+          paidTotal: paidTotal.toFixed(2),
+          change: change.toFixed(2),
+        };
+      }
+    }
+
     this.pricingService.validateClientTotals(dto);
 
     const paidTotal = sumAmounts(dto.payments.map((p) => p.amount));
@@ -65,11 +95,24 @@ export class SalesService {
     return this.dataSource.transaction(async (manager) => {
       const invoiceNumber = await this.generateInvoiceNumber(manager);
 
+      // Find cashier's active shift if available
+      let shiftId = dto.shiftId ?? null;
+      if (!shiftId) {
+        const activeShift = await manager.findOne(CashierShift, {
+          where: { userId: user.id, status: ShiftStatus.OPEN },
+        });
+        if (activeShift) {
+          shiftId = activeShift.id;
+        }
+      }
+
       const sale = manager.create(Sale, {
         invoiceNumber,
         saleTime: new Date(),
         cashierId: user.id,
         customerId: dto.customerId ?? null,
+        shiftId,
+        idempotencyKey: dto.idempotencyKey ?? null,
         subtotal: dto.subtotal.toFixed(2),
         discountTotal: dto.discountTotal.toFixed(2),
         taxTotal: dto.taxTotal.toFixed(2),
@@ -94,12 +137,16 @@ export class SalesService {
           }
         }
 
+        // Pessimistic write lock to serialize concurrent stock deductions
         const stock = await manager.findOne(StockBalance, {
           where: { productId: line.productId },
+          lock: { mode: 'pessimistic_write' },
         });
 
         if (!stock || stock.onHandQty < line.qty) {
-          throw new ConflictException('STOCK_NOT_ENOUGH');
+          throw new ConflictException(
+            `STOCK_NOT_ENOUGH for product "${product.name}"`,
+          );
         }
 
         const saleItem = await manager.save(
@@ -135,14 +182,18 @@ export class SalesService {
 
         if (product.productType === ProductType.SERIALIZED && line.imeis) {
           for (const imeiValue of line.imeis) {
+            // Pessimistic write lock on IMEI unit
             const imei = await manager.findOne(ImeiUnit, {
               where: { imei: imeiValue, productId: line.productId },
+              lock: { mode: 'pessimistic_write' },
             });
             if (!imei) {
-              throw new NotFoundException('IMEI_NOT_FOUND');
+              throw new NotFoundException(`IMEI "${imeiValue}" NOT_FOUND`);
             }
             if (imei.status !== ImeiStatus.IN_STOCK) {
-              throw new ConflictException('IMEI_NOT_AVAILABLE');
+              throw new ConflictException(
+                `IMEI "${imeiValue}" is not available (status: ${imei.status})`,
+              );
             }
 
             imei.status = ImeiStatus.SOLD;
@@ -173,9 +224,47 @@ export class SalesService {
         );
       }
 
+      // Update shift cash totals in transaction if shift is active
+      if (shiftId) {
+        const cashAmount = dto.payments
+          .filter((p) => p.method === 'CASH')
+          .reduce((sum, p) => sum + p.amount, 0);
+
+        if (cashAmount > 0) {
+          const shift = await manager.findOne(CashierShift, {
+            where: { id: shiftId },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (shift) {
+            const currentCash = parseFloat(shift.totalCashSales) || 0;
+            const newCash = currentCash + cashAmount;
+            shift.totalCashSales = newCash.toFixed(2);
+            const openBal = parseFloat(shift.openingBalance) || 0;
+            const cashIn = parseFloat(shift.totalCashIn) || 0;
+            const cashOut = parseFloat(shift.totalCashOut) || 0;
+            const refunds = parseFloat(shift.totalCashRefunds) || 0;
+            shift.expectedEndingCash = (
+              openBal +
+              newCash +
+              cashIn -
+              cashOut -
+              refunds
+            ).toFixed(2);
+            await manager.save(CashierShift, shift);
+          }
+        }
+      }
+
       const result = await manager.findOne(Sale, {
         where: { id: savedSale.id },
-        relations: ['items', 'items.imeis', 'items.imeis.imeiUnit', 'payments', 'cashier', 'customer'],
+        relations: [
+          'items',
+          'items.imeis',
+          'items.imeis.imeiUnit',
+          'payments',
+          'cashier',
+          'customer',
+        ],
       });
 
       // Calculate change
@@ -192,6 +281,7 @@ export class SalesService {
           subtotal: dto.subtotal,
           itemsCount: dto.items.length,
           paymentMethods: dto.payments.map((p) => p.method),
+          shiftId,
         },
       });
 

@@ -27,6 +27,8 @@ const return_entity_1 = require("../modules/sales/entities/return.entity");
 const return_item_entity_1 = require("../modules/sales/entities/return-item.entity");
 const return_item_imei_entity_1 = require("../modules/sales/entities/return-item-imei.entity");
 const audit_log_entity_1 = require("../modules/audit-logs/entities/audit-log.entity");
+const cashier_shift_entity_1 = require("../modules/sales/entities/cashier-shift.entity");
+const cash_movement_entity_1 = require("../modules/sales/entities/cash-movement.entity");
 (0, dotenv_1.config)();
 const AppDataSource = new typeorm_1.DataSource({
     type: 'postgres',
@@ -61,6 +63,8 @@ const AppDataSource = new typeorm_1.DataSource({
         return_item_entity_1.ReturnItem,
         return_item_imei_entity_1.ReturnItemImei,
         audit_log_entity_1.AuditLog,
+        cashier_shift_entity_1.CashierShift,
+        cash_movement_entity_1.CashMovement,
     ],
     migrations: ['src/database/migrations/*.ts'],
 });

@@ -40,6 +40,9 @@ export class GoodsReceipt {
   @Column({ name: 'tracking_number', type: 'varchar', length: 120, nullable: true })
   trackingNumber: string | null;
 
+  @Column({ name: 'idempotency_key', type: 'varchar', length: 100, nullable: true, unique: true })
+  idempotencyKey: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -45,6 +45,12 @@ export class Sale {
   @Column({ type: 'varchar', length: 20 })
   status: SaleStatus;
 
+  @Column({ name: 'idempotency_key', type: 'varchar', length: 100, nullable: true, unique: true })
+  idempotencyKey: string | null;
+
+  @Column({ name: 'shift_id', type: 'bigint', nullable: true })
+  shiftId: number | null;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
@@ -55,6 +61,10 @@ export class Sale {
   @ManyToOne(() => Customer, (customer) => customer.sales)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer | null;
+
+  @ManyToOne('CashierShift', 'sales', { nullable: true })
+  @JoinColumn({ name: 'shift_id' })
+  shift: any;
 
   @OneToMany(() => SaleItem, (item) => item.sale, { cascade: true })
   items: SaleItem[];

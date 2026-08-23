@@ -25,6 +25,8 @@ import { Return } from '../modules/sales/entities/return.entity';
 import { ReturnItem } from '../modules/sales/entities/return-item.entity';
 import { ReturnItemImei } from '../modules/sales/entities/return-item-imei.entity';
 import { AuditLog } from '../modules/audit-logs/entities/audit-log.entity';
+import { CashierShift } from '../modules/sales/entities/cashier-shift.entity';
+import { CashMovement } from '../modules/sales/entities/cash-movement.entity';
 
 config();
 
@@ -61,6 +63,8 @@ const AppDataSource = new DataSource({
     ReturnItem,
     ReturnItemImei,
     AuditLog,
+    CashierShift,
+    CashMovement,
   ],
   migrations: ['src/database/migrations/*.ts'],
 });

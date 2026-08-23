@@ -13,6 +13,8 @@ const product_entity_1 = require("../catalog/entities/product.entity");
 const imei_unit_entity_1 = require("../imei/entities/imei-unit.entity");
 const stock_balance_entity_1 = require("../inventory/entities/stock-balance.entity");
 const stock_movement_entity_1 = require("../inventory/entities/stock-movement.entity");
+const cashier_shift_entity_1 = require("./entities/cashier-shift.entity");
+const cash_movement_entity_1 = require("./entities/cash-movement.entity");
 const customer_entity_1 = require("./entities/customer.entity");
 const payment_entity_1 = require("./entities/payment.entity");
 const return_item_imei_entity_1 = require("./entities/return-item-imei.entity");
@@ -27,6 +29,8 @@ const returns_controller_1 = require("./returns.controller");
 const returns_service_1 = require("./returns.service");
 const sales_controller_1 = require("./sales.controller");
 const sales_service_1 = require("./sales.service");
+const shifts_controller_1 = require("./shifts.controller");
+const shifts_service_1 = require("./shifts.service");
 let SalesModule = class SalesModule {
 };
 exports.SalesModule = SalesModule;
@@ -46,11 +50,19 @@ exports.SalesModule = SalesModule = __decorate([
                 imei_unit_entity_1.ImeiUnit,
                 stock_balance_entity_1.StockBalance,
                 stock_movement_entity_1.StockMovement,
+                cashier_shift_entity_1.CashierShift,
+                cash_movement_entity_1.CashMovement,
             ]),
         ],
-        controllers: [sales_controller_1.SalesController, returns_controller_1.ReturnsController],
-        providers: [sales_service_1.SalesService, pricing_service_1.PricingService, receipt_service_1.ReceiptService, returns_service_1.ReturnsService],
-        exports: [sales_service_1.SalesService, returns_service_1.ReturnsService],
+        controllers: [sales_controller_1.SalesController, returns_controller_1.ReturnsController, shifts_controller_1.ShiftsController],
+        providers: [
+            sales_service_1.SalesService,
+            pricing_service_1.PricingService,
+            receipt_service_1.ReceiptService,
+            returns_service_1.ReturnsService,
+            shifts_service_1.ShiftsService,
+        ],
+        exports: [sales_service_1.SalesService, returns_service_1.ReturnsService, shifts_service_1.ShiftsService],
     })
 ], SalesModule);
 //# sourceMappingURL=sales.module.js.map

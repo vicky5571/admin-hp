@@ -37,9 +37,12 @@ export declare class SalesController {
         taxTotal?: string | undefined;
         grandTotal?: string | undefined;
         status?: import("../../common/enums/sale-status.enum").SaleStatus | undefined;
+        idempotencyKey?: string | null | undefined;
+        shiftId?: number | null | undefined;
         notes?: string | null | undefined;
         cashier?: import("../users/entities/user.entity").User | undefined;
         customer?: import("./entities/customer.entity").Customer | null | undefined;
+        shift?: any;
         items?: import("./entities/sale-item.entity").SaleItem[] | undefined;
         payments?: import("./entities/payment.entity").Payment[] | undefined;
         createdAt?: Date | undefined;

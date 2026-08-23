@@ -21,5 +21,6 @@ export declare class CreateGoodsReceiptDto {
     supplierDoNumber?: string;
     carrierName?: string;
     trackingNumber?: string;
+    idempotencyKey?: string;
     items: ReceiveGrItemDto[];
 }

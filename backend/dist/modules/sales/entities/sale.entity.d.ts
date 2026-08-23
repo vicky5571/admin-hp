@@ -14,9 +14,12 @@ export declare class Sale {
     taxTotal: string;
     grandTotal: string;
     status: SaleStatus;
+    idempotencyKey: string | null;
+    shiftId: number | null;
     notes: string | null;
     cashier: User;
     customer: Customer | null;
+    shift: any;
     items: SaleItem[];
     payments: Payment[];
     createdAt: Date;
