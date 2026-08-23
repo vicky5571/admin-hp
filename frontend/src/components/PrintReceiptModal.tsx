@@ -138,16 +138,16 @@ export default function PrintReceiptModal({
                   <div className="flex justify-between font-semibold text-gray-900">
                     <span className="line-clamp-1">{item.productName}</span>
                     <span className="font-mono shrink-0 ml-2">
-                      IDR {parseFloat(item.lineTotal).toLocaleString("id-ID")}
+                      IDR {(parseFloat(String(item.lineTotal || 0)) || 0).toLocaleString("id-ID")}
                     </span>
                   </div>
                   <div className="flex justify-between text-[11px] text-gray-500 font-mono">
                     <span>
-                      {item.qty} x IDR {parseFloat(item.unitPrice).toLocaleString("id-ID")}
+                      {item.qty} x IDR {(parseFloat(String(item.unitPrice || 0)) || 0).toLocaleString("id-ID")}
                     </span>
-                    {parseFloat(item.discountAmount) > 0 && (
+                    {parseFloat(String(item.discountAmount || 0)) > 0 && (
                       <span className="text-amber-600">
-                        disc -IDR {parseFloat(item.discountAmount).toLocaleString("id-ID")}
+                        disc -IDR {(parseFloat(String(item.discountAmount || 0)) || 0).toLocaleString("id-ID")}
                       </span>
                     )}
                   </div>

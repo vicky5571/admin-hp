@@ -30,21 +30,38 @@ export async function apiFetch<T>(
 ): Promise<ApiEnvelope<T>> {
   const token = getToken();
 
-  const res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (netErr) {
+    throw new ApiError(
+      0,
+      `Cannot connect to backend server (${API_BASE_URL}). Please verify backend is running.`,
+      netErr,
+    );
+  }
 
   const json = await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+
     throw new ApiError(
       res.status,
-      json?.error?.message ?? "Request failed",
+      json?.error?.message ?? `Request failed with status ${res.status}`,
       json,
     );
   }
@@ -244,11 +261,69 @@ export function quoteSale(items: SaleItemDto[]) {
   });
 }
 
+export interface ReceiptItemImei {
+  id?: number;
+  imeiUnitId?: number;
+  imei: string;
+  conditionGrade?: string | null;
+  batteryHealth?: number | null;
+}
+
+export interface ReceiptItem {
+  id?: number;
+  productId?: number;
+  productName: string;
+  sku?: string;
+  productType?: string;
+  qty: number;
+  unitPrice: string;
+  discountAmount?: string;
+  taxAmount?: string;
+  lineTotal: string;
+  imeis?: ReceiptItemImei[];
+}
+
+export interface ReceiptPayment {
+  id?: number;
+  method: string;
+  amount: string | number;
+  referenceNumber?: string | null;
+}
+
+export interface ReceiptPayload {
+  id: number;
+  invoiceNumber: string;
+  saleTime: string;
+  subtotal: string;
+  discountTotal: string;
+  taxTotal: string;
+  grandTotal: string;
+  notes?: string | null;
+  cashier?: { id: number; fullName: string } | null;
+  customer?: {
+    id: number;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
+  items?: ReceiptItem[];
+  payments?: ReceiptPayment[];
+  warrantyPolicy?: {
+    secondHandDays: number;
+    newWarranty: string;
+    conditions: string[];
+  };
+}
+
 export function createSale(payload: CreateSalePayload) {
   return apiFetch<any>("/sales", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function fetchSaleReceipt(saleId: number) {
+  return apiFetch<ReceiptPayload>(`/sales/${saleId}/receipt`);
 }
 
 // ── Reports ─────────────────────────────────────────────────────────
@@ -728,51 +803,6 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export interface ReceiptPayload {
-  id: number;
-  invoiceNumber: string;
-  saleTime: string;
-  subtotal: string;
-  discountTotal: string;
-  taxTotal: string;
-  grandTotal: string;
-  notes?: string | null;
-  cashier?: { id: number; fullName: string } | null;
-  customer?: { id: number; name: string; phone?: string | null; email?: string | null } | null;
-  items: {
-    id: number;
-    productId: number;
-    productName: string;
-    sku: string;
-    productType?: string;
-    qty: number;
-    unitPrice: string;
-    discountAmount: string;
-    lineTotal: string;
-    imeis?: {
-      id: number;
-      imeiUnitId: number;
-      imei: string;
-      conditionGrade?: string | null;
-      batteryHealth?: number | null;
-    }[];
-  }[];
-  payments: {
-    id: number;
-    method: string;
-    amount: string | number;
-    referenceNumber?: string | null;
-  }[];
-  warrantyPolicy?: {
-    secondHandDays: number;
-    newWarranty: string;
-    conditions: string[];
-  };
-}
-
-export function fetchSaleReceipt(saleId: number) {
-  return apiFetch<ReceiptPayload>(`/sales/${saleId}/receipt`);
-}
 
 export async function downloadReceiptPdf(saleId: number) {
   const res = await fetch(
