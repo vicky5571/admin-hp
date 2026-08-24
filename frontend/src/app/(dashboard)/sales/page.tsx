@@ -475,6 +475,11 @@ function TrendChart({
   );
 }
 
+function formatMethodLabel(m: string): string {
+  const map: Record<string, string> = { CASH: "Cash", TRANSFER: "Transfer", CARD: "Card", QRIS: "QRIS", E_WALLET: "E-Wallet", CREDIT: "Credit" };
+  return map[m?.toUpperCase()] ?? m ?? "-";
+}
+
 export default function SalesPage() {
   // ── filters / KPI state ─────────────────────────────────────
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
@@ -508,6 +513,12 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptPayload | null>(null);
   const [fetchingReceiptId, setFetchingReceiptId] = useState<number | null>(null);
+
+  // ── richer rows — expandable drawer (items + imeis + change) ──
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [receiptCache, setReceiptCache] = useState<Record<number, ReceiptPayload>>({});
+  const [drawerLoadingId, setDrawerLoadingId] = useState<number | null>(null);
+  const [drawerErrors, setDrawerErrors] = useState<Record<number, string>>({});
 
   // ── cashiers for dropdown ───────────────────────────────────
   useEffect(() => {
@@ -636,6 +647,35 @@ export default function SalesPage() {
     }
   };
 
+  const toggleExpand = async (sale: any) => {
+    const id = Number(sale.id);
+    const isOpen = expandedIds.has(id);
+    if (isOpen) {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+    setExpandedIds((prev) => new Set(prev).add(id));
+    if (receiptCache[id] || drawerLoadingId === id) return;
+    setDrawerLoadingId(id);
+    setDrawerErrors((prev) => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+    try {
+      const res = await fetchSaleReceipt(id);
+      setReceiptCache((prev) => ({ ...prev, [id]: res.data }));
+    } catch (e: any) {
+      setDrawerErrors((prev) => ({ ...prev, [id]: e?.message || "Failed to load details" }));
+    } finally {
+      setDrawerLoadingId(null);
+    }
+  };
+
   const applyQuick = (range: (typeof QUICK_RANGES)[number]) => {
     const from = range.from();
     const to = range.to();
@@ -668,6 +708,8 @@ export default function SalesPage() {
     if (!r) return "no previous period";
     return `${r.dateFrom} → ${r.dateTo}`;
   })();
+
+  const COLSPAN = 10;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -949,82 +991,258 @@ export default function SalesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                <th className="w-8 px-2 py-3" />
                 <th className="px-3 sm:px-4 py-3 font-medium whitespace-nowrap">Invoice</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Cashier</th>
-                <th className="px-4 py-3 font-medium">Items</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-2 sm:px-3 py-3 font-medium whitespace-nowrap">Date</th>
+                <th className="px-2 sm:px-3 py-3 font-medium">Cashier</th>
+                <th className="px-2 sm:px-3 py-3 font-medium">Customer</th>
+                <th className="px-2 sm:px-3 py-3 font-medium text-center">Items</th>
+                <th className="px-2 sm:px-3 py-3 font-medium">Payment</th>
+                <th className="px-2 sm:px-4 py-3 font-medium whitespace-nowrap">Total</th>
+                <th className="px-2 sm:px-3 py-3 font-medium">Status</th>
+                <th className="px-2 sm:px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={COLSPAN} className="px-4 py-8 text-center text-gray-400">
                     Loading...
                   </td>
                 </tr>
               )}
               {!loading && sales.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={COLSPAN} className="px-4 py-8 text-center text-gray-400">
                     No sales for {rangeLabel}{hasActiveFilters ? " with current filters" : ""}
                   </td>
                 </tr>
               )}
-              {sales.map((s: any) => (
-                <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium font-mono text-blue-700">{s.invoiceNumber}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600">
-                    {new Date(s.saleTime).toLocaleString("id-ID")}
-                  </td>
-                  <td className="px-4 py-3 text-xs">{s.cashier?.fullName ?? "-"}</td>
-                  <td className="px-4 py-3 text-xs font-semibold">{s.items?.length ?? 0}</td>
-                  <td className="px-4 py-3 font-medium font-mono">
-                    IDR {parseFloat(s.grandTotal).toLocaleString("id-ID")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                        s.status === "COMPLETED"
-                          ? "bg-green-100 text-green-700"
-                          : s.status === "VOIDED"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {s.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenReceipt(s.id)}
-                        disabled={fetchingReceiptId === s.id}
-                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        <span>{fetchingReceiptId === s.id ? "Loading..." : "Receipt"}</span>
-                      </button>
+              {sales.map((s: any) => {
+                const isExpanded = expandedIds.has(Number(s.id));
+                const disc = parseFloat(s.discountTotal ?? s.discount_total ?? 0);
+                const hasDiscount = disc > 0.005;
+                const payments: any[] = s.payments ?? [];
+                const primaryPay = payments[0]?.method ?? payments[0]?.method ?? null;
+                const extraPays = payments.length > 1 ? `+${payments.length - 1}` : "";
+                const customerName: string | null = s.customer?.name ?? s.customerName ?? null;
+                return (
+                  <>
+                    <tr key={s.id} className={`border-b ${isExpanded ? "bg-blue-50/40 border-blue-100" : "border-gray-100 hover:bg-gray-50"}`}>
+                      <td className="px-2 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(s)}
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? "Collapse" : "Expand details"}
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-md border transition-colors ${isExpanded ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
+                        >
+                          <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </td>
+                      <td className="px-3 sm:px-4 py-2.5 font-medium font-mono text-blue-700 whitespace-nowrap text-xs sm:text-sm">{s.invoiceNumber}</td>
+                      <td className="px-2 sm:px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                        {new Date(s.saleTime).toLocaleString("id-ID", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2.5 text-xs whitespace-nowrap max-w-[110px] truncate">{s.cashier?.fullName ?? s.cashierName ?? "-"}</td>
+                      <td className="px-2 sm:px-3 py-2.5">
+                        {customerName ? (
+                          <span className="inline-flex max-w-[130px] items-center gap-1 truncate rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 border border-violet-200" title={customerName}>
+                            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            <span className="truncate">{customerName}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Walk-in</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2.5 text-center">
+                        <span className="inline-flex items-center justify-center rounded-full bg-gray-900 text-white text-xs font-semibold px-2 py-0.5 min-w-[1.5rem]">
+                          {s.items?.length ?? s.itemCount ?? 0}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-3 py-2.5 whitespace-nowrap">
+                        {primaryPay ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-xs font-medium text-sky-700">
+                            {formatMethodLabel(String(primaryPay))}
+                            {extraPays && <span className="rounded-full bg-sky-600 text-white px-1 py-0 text-[10px] font-bold">{extraPays}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-4 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium font-mono text-xs sm:text-sm">IDR {parseFloat(s.grandTotal ?? s.grand_total ?? 0).toLocaleString("id-ID")}</span>
+                          {hasDiscount && (
+                            <span title={`Discount ${fmtIDR(Math.round(disc))}`} className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 border border-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6a2 2 0 110-4 2 2 0 010 4z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
+                              −{fmtCompactIDR(Math.round(disc)).replace("IDR ", "")}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 sm:px-3 py-2.5">
+                        <span
+                          className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                            s.status === "COMPLETED"
+                              ? "bg-green-100 text-green-700"
+                              : s.status === "VOIDED"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-4 py-2.5 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReceipt(s.id)}
+                            disabled={fetchingReceiptId === Number(s.id)}
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            <span>{fetchingReceiptId === Number(s.id) ? "..." : "Receipt"}</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => downloadReceiptPdf(s.id)}
-                        className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-300 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        <span>PDF</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          <button
+                            type="button"
+                            onClick={() => downloadReceiptPdf(s.id)}
+                            className="hidden sm:inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-300 transition-colors"
+                          >
+                            PDF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${s.id}-drawer`} className="bg-gray-50/70">
+                        <td colSpan={COLSPAN} className="p-0">
+                          {drawerLoadingId === Number(s.id) && (
+                            <div className="px-4 py-6 flex items-center gap-3 text-sm text-gray-500">
+                              <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                              Loading items, IMEIs, payments… <span className="text-xs text-gray-400">(GET /sales/{s.id}/receipt)</span>
+                            </div>
+                          )}
+                          {drawerErrors[Number(s.id)] && drawerLoadingId !== Number(s.id) && (
+                            <div className="px-4 py-4 flex items-center justify-between bg-red-50 border-y border-red-200">
+                              <span className="text-sm text-red-700">{drawerErrors[Number(s.id)]}</span>
+                              <button onClick={() => toggleExpand(s)} className="text-xs font-semibold text-red-700 underline">Retry</button>
+                            </div>
+                          )}
+                          {receiptCache[Number(s.id)] && drawerLoadingId !== Number(s.id) && !drawerErrors[Number(s.id)] && (() => {
+                            const r = receiptCache[Number(s.id)]!;
+                            const paidTotal = (r.payments ?? []).reduce((acc: number, p: any) => acc + parseFloat(String(p.amount ?? 0)), 0);
+                            const grand = parseFloat(String(r.grandTotal ?? 0));
+                            const change = Math.max(0, paidTotal - grand);
+                            return (
+                              <div className="px-3 sm:px-4 py-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                  {/* Items + IMEIs */}
+                                  <div className="lg:col-span-2 rounded-xl bg-white border border-gray-200 overflow-hidden">
+                                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-gray-700">Items · {r.items?.length ?? 0}</span>
+                                      <span className="text-xs text-gray-500 font-mono">{r.invoiceNumber}</span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="bg-white text-gray-500 border-b border-gray-100">
+                                            <th className="text-left px-3 py-2 font-medium">Product</th>
+                                            <th className="text-center px-2 py-2 font-medium">Qty</th>
+                                            <th className="text-right px-2 py-2 font-medium">Unit</th>
+                                            <th className="text-right px-2 py-2 font-medium">Disc.</th>
+                                            <th className="text-right px-3 py-2 font-medium">Line Total</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(r.items ?? []).map((it: any, idx: number) => (
+                                            <tr key={it.id ?? idx} className="border-b border-gray-100 last:border-0">
+                                              <td className="px-3 py-2.5 align-top">
+                                                <div className="font-medium text-gray-900 leading-tight">{it.productName}</div>
+                                                {it.sku && <div className="font-mono text-[11px] text-gray-400">{it.sku} · {it.productType ?? ""}</div>}
+                                                {it.imeis && it.imeis.length > 0 && (
+                                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                                    {it.imeis.map((im: any, j: number) => (
+                                                      <span key={im.imei ?? j} className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.5 font-mono text-[11px] text-amber-800" title={`${im.imei}${im.conditionGrade ? " · " + im.conditionGrade : ""}${im.batteryHealth ? " · " + im.batteryHealth + "%" : ""}`}>
+                                                        <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                                        {im.imei}
+                                                      </span>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </td>
+                                              <td className="px-2 py-2.5 text-center font-semibold">×{it.qty}</td>
+                                              <td className="px-2 py-2.5 text-right font-mono">IDR {parseFloat(String(it.unitPrice ?? 0)).toLocaleString("id-ID")}</td>
+                                              <td className="px-2 py-2.5 text-right font-mono text-amber-700">{parseFloat(String(it.discountAmount ?? 0)) > 0 ? `−IDR ${parseFloat(String(it.discountAmount)).toLocaleString("id-ID")}` : "—"}</td>
+                                              <td className="px-3 py-2.5 text-right font-mono font-semibold">IDR {parseFloat(String(it.lineTotal ?? 0)).toLocaleString("id-ID")}</td>
+                                            </tr>
+                                          ))}
+                                          {(!r.items || r.items.length === 0) && (
+                                            <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No items</td></tr>
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+
+                                  {/* Totals + payments + change */}
+                                  <div className="rounded-xl bg-white border border-gray-200 p-3 sm:p-4 space-y-3">
+                                    <h4 className="text-xs font-semibold text-gray-900">Summary</h4>
+                                    <div className="space-y-1.5 text-xs">
+                                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-mono font-medium">IDR {parseFloat(String(r.subtotal ?? 0)).toLocaleString("id-ID")}</span></div>
+                                      <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="font-mono font-medium text-amber-700">−IDR {parseFloat(String(r.discountTotal ?? 0)).toLocaleString("id-ID")}</span></div>
+                                      <div className="flex justify-between"><span className="text-gray-500">Tax</span><span className="font-mono font-medium">IDR {parseFloat(String(r.taxTotal ?? 0)).toLocaleString("id-ID")}</span></div>
+                                      <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold"><span>Grand Total</span><span className="font-mono">IDR {parseFloat(String(r.grandTotal ?? 0)).toLocaleString("id-ID")}</span></div>
+                                    </div>
+
+                                    <div className="border-t border-gray-100 pt-3">
+                                      <h5 className="text-xs font-semibold text-gray-700 mb-1.5">Payments</h5>
+                                      <div className="space-y-1.5">
+                                        {(r.payments ?? []).map((p: any, i: number) => (
+                                          <div key={p.id ?? i} className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-1.5">
+                                            <span className="inline-flex items-center rounded-full bg-sky-100 border border-sky-200 px-2 py-0.5 text-xs font-semibold text-sky-700">{formatMethodLabel(String(p.method))}</span>
+                                            <span className="font-mono text-xs font-medium">IDR {parseFloat(String(p.amount ?? 0)).toLocaleString("id-ID")}</span>
+                                          </div>
+                                        ))}
+                                        {(!r.payments || r.payments.length === 0) && <p className="text-xs text-gray-400">No payments recorded</p>}
+                                      </div>
+                                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5">
+                                          <div className="text-[11px] text-emerald-700 font-medium">Paid</div>
+                                          <div className="font-mono text-xs font-bold text-emerald-800">IDR {paidTotal.toLocaleString("id-ID")}</div>
+                                        </div>
+                                        <div className={`rounded-lg border px-2.5 py-1.5 ${change > 0 ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200"}`}>
+                                          <div className={`text-[11px] font-medium ${change > 0 ? "text-amber-700" : "text-gray-500"}`}>Change</div>
+                                          <div className={`font-mono text-xs font-bold ${change > 0 ? "text-amber-800" : "text-gray-700"}`}>IDR {change.toLocaleString("id-ID")}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {r.customer && (
+                                      <div className="border-t border-gray-100 pt-3">
+                                        <h5 className="text-xs font-semibold text-gray-700">Customer</h5>
+                                        <p className="text-sm font-medium text-gray-900 mt-1">{r.customer.name}</p>
+                                        {(r.customer.phone || r.customer.email) && <p className="text-xs text-gray-500">{[r.customer.phone, r.customer.email].filter(Boolean).join(" · ")}</p>}
+                                      </div>
+                                    )}
+                                    {r.notes && <p className="text-xs text-gray-500 border-t border-gray-100 pt-3"><span className="font-medium text-gray-700">Notes:</span> {r.notes}</p>}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
