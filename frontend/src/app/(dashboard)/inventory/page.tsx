@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchStockOnHand } from "@/lib/api";
+import { Brand, Category, fetchBrands, fetchCategories, fetchStockOnHand } from "@/lib/api";
 
 interface StockItem {
   id: number;
   sku: string;
   name: string;
   product_type: string;
+  category_id?: number | null;
+  brand_id?: number | null;
   brand?: string | null;
+  category?: string | null;
   on_hand_qty: number;
   reserved_qty: number;
   min_stock_alert: number;
@@ -17,19 +20,43 @@ interface StockItem {
   stock_value: string;
 }
 
+type StatusFilter = "ALL" | "LOW_STOCK" | "OUT_OF_STOCK" | "IN_STOCK";
+type ProductTypeFilter = "ALL" | "SERIALIZED" | "NON_SERIALIZED";
+type SortOption =
+  | "QTY_ASC"
+  | "QTY_DESC"
+  | "VALUE_DESC"
+  | "NAME_ASC"
+  | "NAME_DESC"
+  | "SKU_ASC";
+
 export default function InventoryPage() {
   const [data, setData] = useState<StockItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "LOW_STOCK" | "OUT_OF_STOCK" | "IN_STOCK">("ALL");
+
+  // Filters State
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
+  const [productTypeFilter, setProductTypeFilter] = useState<ProductTypeFilter>("ALL");
+  const [sortBy, setSortBy] = useState<SortOption>("QTY_ASC");
 
   const loadStockData = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetchStockOnHand();
-      setData(res.data?.data ?? []);
+      const [stockRes, catRes, brandRes] = await Promise.all([
+        fetchStockOnHand(),
+        fetchCategories().catch(() => ({ success: true, data: [] })),
+        fetchBrands().catch(() => ({ success: true, data: [] })),
+      ]);
+      setData(stockRes.data?.data ?? []);
+      setCategories(catRes.data ?? []);
+      setBrands(brandRes.data ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inventory");
     } finally {
@@ -41,25 +68,38 @@ export default function InventoryPage() {
     loadStockData();
   }, []);
 
-  // Compute Executive KPIs
+  // Compute Executive Overall KPIs
   const kpis = useMemo(() => {
     const totalSkus = data.length;
-    const totalUnitsOnHand = data.reduce((sum, item) => sum + (Number(item.on_hand_qty) || 0), 0);
-    const totalUnitsReserved = data.reduce((sum, item) => sum + (Number(item.reserved_qty) || 0), 0);
-    const totalCostValuation = data.reduce((sum, item) => sum + (parseFloat(item.stock_value) || 0), 0);
+    const totalUnitsOnHand = data.reduce(
+      (sum, item) => sum + (Number(item.on_hand_qty) || 0),
+      0,
+    );
+    const totalUnitsReserved = data.reduce(
+      (sum, item) => sum + (Number(item.reserved_qty) || 0),
+      0,
+    );
+    const totalCostValuation = data.reduce(
+      (sum, item) => sum + (parseFloat(item.stock_value) || 0),
+      0,
+    );
     const totalRetailValuation = data.reduce(
-      (sum, item) => sum + (Number(item.on_hand_qty) || 0) * (parseFloat(item.srp) || 0),
+      (sum, item) =>
+        sum + (Number(item.on_hand_qty) || 0) * (parseFloat(item.srp) || 0),
       0,
     );
 
-    const outOfStockCount = data.filter((item) => (Number(item.on_hand_qty) || 0) === 0).length;
+    const outOfStockCount = data.filter(
+      (item) => (Number(item.on_hand_qty) || 0) === 0,
+    ).length;
     const lowStockCount = data.filter(
       (item) =>
         (Number(item.on_hand_qty) || 0) > 0 &&
         (Number(item.on_hand_qty) || 0) <= (Number(item.min_stock_alert) || 0),
     ).length;
     const inStockCount = data.filter(
-      (item) => (Number(item.on_hand_qty) || 0) > (Number(item.min_stock_alert) || 0),
+      (item) =>
+        (Number(item.on_hand_qty) || 0) > (Number(item.min_stock_alert) || 0),
     ).length;
 
     return {
@@ -74,29 +114,122 @@ export default function InventoryPage() {
     };
   }, [data]);
 
-  // Filter Data
-  const filteredData = useMemo(() => {
-    return data.filter((item) => {
-      // Status Filter
+  // Filter & Sort Data
+  const filteredAndSortedData = useMemo(() => {
+    const filtered = data.filter((item) => {
       const qty = Number(item.on_hand_qty) || 0;
       const minAlert = Number(item.min_stock_alert) || 0;
 
+      // 1. Status Filter
       if (statusFilter === "OUT_OF_STOCK" && qty !== 0) return false;
-      if (statusFilter === "LOW_STOCK" && (qty === 0 || qty > minAlert)) return false;
+      if (statusFilter === "LOW_STOCK" && (qty === 0 || qty > minAlert))
+        return false;
       if (statusFilter === "IN_STOCK" && qty <= minAlert) return false;
 
-      // Search Term
+      // 2. Category Filter
+      if (selectedCategory !== "ALL") {
+        if (
+          String(item.category_id) !== selectedCategory &&
+          item.category !== selectedCategory
+        ) {
+          return false;
+        }
+      }
+
+      // 3. Brand Filter
+      if (selectedBrand !== "ALL") {
+        if (
+          String(item.brand_id) !== selectedBrand &&
+          item.brand !== selectedBrand
+        ) {
+          return false;
+        }
+      }
+
+      // 4. Product Type Filter
+      if (
+        productTypeFilter !== "ALL" &&
+        item.product_type !== productTypeFilter
+      ) {
+        return false;
+      }
+
+      // 5. Search Term (SKU, Name, Brand, Category)
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const skuMatch = item.sku?.toLowerCase().includes(q);
         const nameMatch = item.name?.toLowerCase().includes(q);
         const brandMatch = item.brand?.toLowerCase().includes(q);
-        if (!skuMatch && !nameMatch && !brandMatch) return false;
+        const catMatch = item.category?.toLowerCase().includes(q);
+        if (!skuMatch && !nameMatch && !brandMatch && !catMatch) return false;
       }
 
       return true;
     });
-  }, [data, statusFilter, searchTerm]);
+
+    // Sort
+    return filtered.sort((a, b) => {
+      const qtyA = Number(a.on_hand_qty) || 0;
+      const qtyB = Number(b.on_hand_qty) || 0;
+      const valA = parseFloat(a.stock_value) || 0;
+      const valB = parseFloat(b.stock_value) || 0;
+
+      switch (sortBy) {
+        case "QTY_ASC":
+          return qtyA - qtyB;
+        case "QTY_DESC":
+          return qtyB - qtyA;
+        case "VALUE_DESC":
+          return valB - valA;
+        case "NAME_ASC":
+          return a.name.localeCompare(b.name);
+        case "NAME_DESC":
+          return b.name.localeCompare(a.name);
+        case "SKU_ASC":
+          return a.sku.localeCompare(b.sku);
+        default:
+          return 0;
+      }
+    });
+  }, [
+    data,
+    statusFilter,
+    selectedCategory,
+    selectedBrand,
+    productTypeFilter,
+    searchTerm,
+    sortBy,
+  ]);
+
+  // Filtered Summary KPIs
+  const filteredSummary = useMemo(() => {
+    const count = filteredAndSortedData.length;
+    const units = filteredAndSortedData.reduce(
+      (sum, item) => sum + (Number(item.on_hand_qty) || 0),
+      0,
+    );
+    const value = filteredAndSortedData.reduce(
+      (sum, item) => sum + (parseFloat(item.stock_value) || 0),
+      0,
+    );
+    return { count, units, value };
+  }, [filteredAndSortedData]);
+
+  const hasActiveFilters =
+    statusFilter !== "ALL" ||
+    selectedCategory !== "ALL" ||
+    selectedBrand !== "ALL" ||
+    productTypeFilter !== "ALL" ||
+    searchTerm.trim().length > 0;
+
+  const handleResetFilters = () => {
+    setStatusFilter("ALL");
+    setSelectedCategory("ALL");
+    setSelectedBrand("ALL");
+    setProductTypeFilter("ALL");
+    setSearchTerm("");
+    setSortBy("QTY_ASC");
+  };
 
   return (
     <div className="space-y-6">
@@ -112,6 +245,17 @@ export default function InventoryPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition-colors"
+            >
+              <span>✕</span>
+              <span>Reset Filters</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={loadStockData}
@@ -161,7 +305,9 @@ export default function InventoryPage() {
           <div className="mt-3">
             <p className="text-2xl font-extrabold text-gray-900 font-mono tracking-tight">
               {kpis.totalUnitsOnHand.toLocaleString("id-ID")}{" "}
-              <span className="text-sm font-semibold text-gray-500 font-sans">units</span>
+              <span className="text-sm font-semibold text-gray-500 font-sans">
+                units
+              </span>
             </p>
             <div className="flex items-center justify-between text-[11px] text-gray-500 mt-1">
               <span>Across {kpis.totalSkus} SKUs</span>
@@ -177,7 +323,9 @@ export default function InventoryPage() {
         {/* Low Stock Warning */}
         <button
           type="button"
-          onClick={() => setStatusFilter(statusFilter === "LOW_STOCK" ? "ALL" : "LOW_STOCK")}
+          onClick={() =>
+            setStatusFilter(statusFilter === "LOW_STOCK" ? "ALL" : "LOW_STOCK")
+          }
           className={`rounded-2xl border p-5 shadow-xs text-left transition-all ${
             statusFilter === "LOW_STOCK"
               ? "bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/30"
@@ -195,7 +343,9 @@ export default function InventoryPage() {
           <div className="mt-3">
             <p className="text-2xl font-extrabold text-amber-900 font-mono tracking-tight">
               {kpis.lowStockCount}{" "}
-              <span className="text-sm font-semibold text-amber-700 font-sans">SKUs</span>
+              <span className="text-sm font-semibold text-amber-700 font-sans">
+                SKUs
+              </span>
             </p>
             <p className="text-[11px] text-amber-700 font-medium mt-1">
               {kpis.lowStockCount > 0
@@ -208,7 +358,11 @@ export default function InventoryPage() {
         {/* Out of Stock Alert */}
         <button
           type="button"
-          onClick={() => setStatusFilter(statusFilter === "OUT_OF_STOCK" ? "ALL" : "OUT_OF_STOCK")}
+          onClick={() =>
+            setStatusFilter(
+              statusFilter === "OUT_OF_STOCK" ? "ALL" : "OUT_OF_STOCK",
+            )
+          }
           className={`rounded-2xl border p-5 shadow-xs text-left transition-all ${
             statusFilter === "OUT_OF_STOCK"
               ? "bg-rose-50/80 border-rose-400 ring-2 ring-rose-400/30"
@@ -226,7 +380,9 @@ export default function InventoryPage() {
           <div className="mt-3">
             <p className="text-2xl font-extrabold text-rose-900 font-mono tracking-tight">
               {kpis.outOfStockCount}{" "}
-              <span className="text-sm font-semibold text-rose-700 font-sans">SKUs</span>
+              <span className="text-sm font-semibold text-rose-700 font-sans">
+                SKUs
+              </span>
             </p>
             <p className="text-[11px] text-rose-700 font-medium mt-1">
               {kpis.outOfStockCount > 0
@@ -237,23 +393,27 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {/* Filter Tabs & Search Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+      {/* 🔍 Enhanced Search, Filter Toolbar & Status Tabs */}
+      <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-xs space-y-3">
+        {/* Status Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {[
-            { id: "ALL", label: `All Items (${kpis.totalSkus})` },
+            { id: "ALL", label: `All Stock (${kpis.totalSkus})` },
             { id: "LOW_STOCK", label: `⚠️ Low Stock (${kpis.lowStockCount})` },
-            { id: "OUT_OF_STOCK", label: `🔴 Out of Stock (${kpis.outOfStockCount})` },
+            {
+              id: "OUT_OF_STOCK",
+              label: `🔴 Out of Stock (${kpis.outOfStockCount})`,
+            },
             { id: "IN_STOCK", label: `🟢 Healthy (${kpis.inStockCount})` },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setStatusFilter(tab.id as any)}
+              onClick={() => setStatusFilter(tab.id as StatusFilter)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shadow-2xs ${
                 statusFilter === tab.id
                   ? "bg-slate-900 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                  : "bg-slate-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
               }`}
             >
               {tab.label}
@@ -261,25 +421,125 @@ export default function InventoryPage() {
           ))}
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search SKU, name, or brand..."
-            className="w-full rounded-xl border border-gray-300 bg-white px-3 py-1.5 pl-8 text-xs font-semibold placeholder:text-gray-400 focus:border-blue-500 focus:outline-none shadow-2xs"
-          />
-          <span className="absolute left-2.5 top-2 text-gray-400 text-xs">
-            🔍
-          </span>
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm("")}
-              className="absolute right-2.5 top-1.5 text-gray-400 hover:text-gray-600 font-bold text-xs"
+        {/* Search, Categories, Brand, Product Type & Sort Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-2.5 pt-1">
+          {/* Search Input */}
+          <div className="lg:col-span-4 relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search SKU, name, brand, or category..."
+              className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 pl-9 text-xs font-semibold placeholder:text-gray-400 focus:border-blue-500 focus:outline-none shadow-2xs"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400 text-xs">
+              🔍
+            </span>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 font-bold text-xs"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {/* Category Dropdown */}
+          <div className="lg:col-span-2">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-blue-500 focus:outline-none shadow-2xs"
             >
-              &times;
-            </button>
+              <option value="ALL">📁 All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={String(cat.id)}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Brand Dropdown */}
+          <div className="lg:col-span-2">
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-blue-500 focus:outline-none shadow-2xs"
+            >
+              <option value="ALL">🏷️ All Brands</option>
+              {brands.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Product Type Filter */}
+          <div className="lg:col-span-2">
+            <select
+              value={productTypeFilter}
+              onChange={(e) =>
+                setProductTypeFilter(e.target.value as ProductTypeFilter)
+              }
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-blue-500 focus:outline-none shadow-2xs"
+            >
+              <option value="ALL">📦 All Types</option>
+              <option value="SERIALIZED">📱 Serialized (IMEI)</option>
+              <option value="NON_SERIALIZED">📦 Standard Stock</option>
+            </select>
+          </div>
+
+          {/* Sort By Dropdown */}
+          <div className="lg:col-span-2">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-blue-500 focus:outline-none shadow-2xs"
+            >
+              <option value="QTY_ASC">Qty (Lowest First)</option>
+              <option value="QTY_DESC">Qty (Highest First)</option>
+              <option value="VALUE_DESC">Valuation (Highest)</option>
+              <option value="NAME_ASC">Name (A → Z)</option>
+              <option value="NAME_DESC">Name (Z → A)</option>
+              <option value="SKU_ASC">SKU (A → Z)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Filter Summary Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-500 font-medium">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing{" "}
+              <strong className="text-gray-900 font-mono font-bold">
+                {filteredSummary.count}
+              </strong>{" "}
+              of {kpis.totalSkus} SKUs
+            </span>
+            <span>&bull;</span>
+            <span>
+              Physical Units:{" "}
+              <strong className="text-blue-700 font-mono font-bold">
+                {filteredSummary.units.toLocaleString("id-ID")}
+              </strong>
+            </span>
+            <span>&bull;</span>
+            <span>
+              Valuation:{" "}
+              <strong className="text-gray-900 font-mono font-bold">
+                IDR {filteredSummary.value.toLocaleString("id-ID")}
+              </strong>
+            </span>
+          </div>
+
+          {hasActiveFilters && (
+            <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              ⚡ Filter Active
+            </span>
           )}
         </div>
       </div>
@@ -295,9 +555,18 @@ export default function InventoryPage() {
           <div className="p-8 text-center text-xs text-rose-600 font-medium">
             ⚠️ {error}
           </div>
-        ) : filteredData.length === 0 ? (
-          <div className="p-12 text-center text-xs text-gray-500">
-            No products matching this filter or search query.
+        ) : filteredAndSortedData.length === 0 ? (
+          <div className="p-12 text-center text-xs text-gray-500 space-y-2">
+            <span>No products matching your search or active filters.</span>
+            <div>
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-bold text-blue-600 hover:underline"
+              >
+                Clear all filters
+              </button>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -305,8 +574,10 @@ export default function InventoryPage() {
               <thead className="border-b border-gray-200 bg-slate-50 text-[11px] font-bold text-gray-600 uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-3">Product / SKU</th>
+                  <th className="px-4 py-3">Category & Brand</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3 text-right">On Hand</th>
+                  <th className="px-4 py-3 text-left pl-6">Stock Health Bar</th>
                   <th className="px-4 py-3 text-right">Reserved</th>
                   <th className="px-4 py-3 text-right">Min Alert</th>
                   <th className="px-4 py-3 text-right">Unit Cost</th>
@@ -316,28 +587,49 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-mono">
-                {filteredData.map((item) => {
+                {filteredAndSortedData.map((item) => {
                   const qty = Number(item.on_hand_qty) || 0;
                   const minAlert = Number(item.min_stock_alert) || 0;
                   const isDepleted = qty === 0;
                   const isLow = qty > 0 && qty <= minAlert;
+                  const isModerate = qty > minAlert && qty <= minAlert * 2;
+
+                  // Health bar percentage calculation (0 to 100%)
+                  const maxRef = Math.max(minAlert * 3, 10);
+                  const healthPercent = Math.min(100, Math.round((qty / maxRef) * 100));
 
                   return (
                     <tr
                       key={item.id}
                       className={`hover:bg-slate-50/70 transition-colors ${
-                        isDepleted ? "bg-rose-50/40" : isLow ? "bg-amber-50/40" : ""
+                        isDepleted
+                          ? "bg-rose-50/30"
+                          : isLow
+                            ? "bg-amber-50/30"
+                            : ""
                       }`}
                     >
+                      {/* Product Name & SKU */}
                       <td className="px-4 py-3 font-sans">
                         <div className="font-bold text-gray-900 leading-tight">
                           {item.name}
                         </div>
                         <div className="text-[11px] text-gray-400 font-mono mt-0.5">
-                          {item.sku} {item.brand ? `• ${item.brand}` : ""}
+                          {item.sku}
                         </div>
                       </td>
 
+                      {/* Category & Brand */}
+                      <td className="px-4 py-3 font-sans text-gray-600 text-[11px]">
+                        <div className="font-medium text-gray-800">
+                          {item.category ?? "-"}
+                        </div>
+                        <div className="text-gray-400">
+                          {item.brand ?? "-"}
+                        </div>
+                      </td>
+
+                      {/* Product Type */}
                       <td className="px-4 py-3 font-sans">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
@@ -346,10 +638,13 @@ export default function InventoryPage() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {item.product_type === "SERIALIZED" ? "📱 IMEI" : "Standard"}
+                          {item.product_type === "SERIALIZED"
+                            ? "📱 IMEI"
+                            : "Standard"}
                         </span>
                       </td>
 
+                      {/* On Hand Qty */}
                       <td className="px-4 py-3 text-right font-bold text-sm">
                         <span
                           className={`${
@@ -364,6 +659,32 @@ export default function InventoryPage() {
                         </span>
                       </td>
 
+                      {/* Stock Health Bar */}
+                      <td className="px-4 py-3 pl-6">
+                        <div className="w-28 space-y-1">
+                          <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              style={{ width: `${isDepleted ? 0 : Math.max(8, healthPercent)}%` }}
+                              className={`h-full rounded-full transition-all ${
+                                isDepleted
+                                  ? "bg-rose-500"
+                                  : isLow
+                                    ? "bg-amber-500"
+                                    : isModerate
+                                      ? "bg-blue-500"
+                                      : "bg-emerald-500"
+                              }`}
+                            ></div>
+                          </div>
+                          <span className="text-[9px] text-gray-400 font-sans block">
+                            {isDepleted
+                              ? "0% Depleted"
+                              : `${qty} of ~${maxRef} target`}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Reserved */}
                       <td className="px-4 py-3 text-right text-gray-500">
                         {item.reserved_qty > 0 ? (
                           <span className="font-semibold text-amber-700">
@@ -374,37 +695,53 @@ export default function InventoryPage() {
                         )}
                       </td>
 
+                      {/* Min Stock Alert */}
                       <td className="px-4 py-3 text-right text-gray-400">
                         {item.min_stock_alert}
                       </td>
 
+                      {/* Unit Cost */}
                       <td className="px-4 py-3 text-right text-gray-600">
-                        IDR {parseFloat(item.cost_price || "0").toLocaleString("id-ID")}
+                        IDR{" "}
+                        {parseFloat(item.cost_price || "0").toLocaleString(
+                          "id-ID",
+                        )}
                       </td>
 
+                      {/* Retail SRP */}
                       <td className="px-4 py-3 text-right text-blue-700 font-semibold">
-                        IDR {parseFloat(item.srp || "0").toLocaleString("id-ID")}
+                        IDR{" "}
+                        {parseFloat(item.srp || "0").toLocaleString("id-ID")}
                       </td>
 
+                      {/* Total Stock Value */}
                       <td className="px-4 py-3 text-right font-bold text-gray-900">
-                        IDR {parseFloat(item.stock_value || "0").toLocaleString("id-ID")}
+                        IDR{" "}
+                        {parseFloat(item.stock_value || "0").toLocaleString(
+                          "id-ID",
+                        )}
                       </td>
 
+                      {/* Status Badge */}
                       <td className="px-4 py-3 text-center font-sans">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                             isDepleted
                               ? "bg-rose-100 text-rose-800"
                               : isLow
                                 ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-100 text-emerald-800"
+                                : isModerate
+                                  ? "bg-blue-50 text-blue-800 border border-blue-200"
+                                  : "bg-emerald-100 text-emerald-800"
                           }`}
                         >
                           {isDepleted
                             ? "🔴 Out of Stock"
                             : isLow
                               ? "⚠️ Low Stock"
-                              : "🟢 Healthy"}
+                              : isModerate
+                                ? "🟡 Moderate"
+                                : "🟢 Healthy"}
                         </span>
                       </td>
                     </tr>

@@ -243,7 +243,10 @@ export class ReportsService {
         p.sku,
         p.name,
         p.product_type,
+        p.category_id,
+        p.brand_id,
         b.name AS brand,
+        c.name AS category,
         COALESCE(sb.on_hand_qty, 0)::int AS on_hand_qty,
         COALESCE(sb.reserved_qty, 0)::int AS reserved_qty,
         p.min_stock_alert,
@@ -253,6 +256,7 @@ export class ReportsService {
       FROM products p
       LEFT JOIN stock_balances sb ON sb.product_id = p.id
       LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN categories c ON c.id = p.category_id
       ${whereClause}
       AND p.is_active = true
       ORDER BY p.name ASC
