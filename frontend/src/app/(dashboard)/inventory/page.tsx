@@ -14,6 +14,7 @@ import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 import StockAdjustmentModal from "./components/StockAdjustmentModal";
 import StockAdjustmentsHistoryModal from "./components/StockAdjustmentsHistoryModal";
 import ProductImeisModal from "./components/ProductImeisModal";
+import PrintStocktakeSheetModal from "./components/PrintStocktakeSheetModal";
 
 interface StockItem {
   id: number;
@@ -58,9 +59,10 @@ export default function InventoryPage() {
   const [productTypeFilter, setProductTypeFilter] = useState<ProductTypeFilter>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("QTY_ASC");
 
-  // Adjustment & IMEI Modals State
+  // Adjustment & IMEI & Stocktake Modals State
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isStocktakeModalOpen, setIsStocktakeModalOpen] = useState(false);
   const [adjustTargetProductId, setAdjustTargetProductId] = useState<number | null>(null);
   const [adjustTargetOnHand, setAdjustTargetOnHand] = useState<number | undefined>(undefined);
 
@@ -340,6 +342,60 @@ export default function InventoryPage() {
     setIsAdjustmentModalOpen(true);
   };
 
+  // Export to CSV Function
+  const handleExportCsv = () => {
+    if (filteredAndSortedData.length === 0) return;
+
+    const headers = [
+      "SKU",
+      "Product Name",
+      "Category",
+      "Brand",
+      "Product Type",
+      "On Hand Qty",
+      "Reserved Qty",
+      "Min Stock Alert",
+      "Unit Cost (IDR)",
+      "Retail SRP (IDR)",
+      "Total Valuation (IDR)",
+      "Status",
+    ];
+
+    const rows = filteredAndSortedData.map((item) => {
+      const qty = Number(item.on_hand_qty) || 0;
+      const minAlert = Number(item.min_stock_alert) || 0;
+      const status =
+        qty === 0 ? "Out of Stock" : qty <= minAlert ? "Low Stock" : "In Stock";
+
+      return [
+        `"${item.sku}"`,
+        `"${item.name.replace(/"/g, '""')}"`,
+        `"${(item.category ?? "").replace(/"/g, '""')}"`,
+        `"${(item.brand ?? "").replace(/"/g, '""')}"`,
+        `"${item.product_type}"`,
+        qty,
+        item.reserved_qty || 0,
+        item.min_stock_alert || 0,
+        parseFloat(item.cost_price || "0"),
+        parseFloat(item.srp || "0"),
+        parseFloat(item.stock_value || "0"),
+        `"${status}"`,
+      ].join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `smartstore-inventory-${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -374,6 +430,28 @@ export default function InventoryPage() {
           >
             <span>📷</span>
             <span>Scan IMEI / SKU</span>
+          </button>
+
+          {/* Export CSV */}
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-2xs transition-colors"
+            title="Download CSV spreadsheet of current inventory"
+          >
+            <span>📥</span>
+            <span>Export CSV</span>
+          </button>
+
+          {/* Print Physical Stocktake Sheet */}
+          <button
+            type="button"
+            onClick={() => setIsStocktakeModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 shadow-2xs transition-colors"
+            title="Print printable physical stocktake count sheet (Stock Opname)"
+          >
+            <span>🖨️</span>
+            <span>Stocktake Sheet</span>
           </button>
 
           <button
@@ -986,6 +1064,22 @@ export default function InventoryPage() {
         onClose={() => setSelectedImeiProduct(null)}
         product={selectedImeiProduct}
         onUnitUpdated={() => loadStockData()}
+      />
+
+      {/* 🖨️ Physical Stocktake Sheet Modal */}
+      <PrintStocktakeSheetModal
+        isOpen={isStocktakeModalOpen}
+        onClose={() => setIsStocktakeModalOpen(false)}
+        items={filteredAndSortedData}
+        filterTitle={
+          statusFilter !== "ALL"
+            ? `Status: ${statusFilter}`
+            : selectedCategory !== "ALL"
+              ? `Category: ${selectedCategory}`
+              : selectedBrand !== "ALL"
+                ? `Brand: ${selectedBrand}`
+                : "Full Store Stock"
+        }
       />
 
       {/* 📷 Barcode / IMEI Camera Scanner */}
