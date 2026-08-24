@@ -6,6 +6,8 @@ import {
   fetchSalesSummary,
   fetchGrossProfit,
   fetchReturnsSummary,
+  fetchPaymentBreakdown,
+  fetchSalesByCashier,
 } from "@/lib/api";
 
 // Returns today's date as YYYY-MM-DD in local time
@@ -290,6 +292,152 @@ function TrendChart({
   );
 }
 
+function formatMethodLabel(m: string): string {
+  const map: Record<string, string> = { CASH: "Cash", TRANSFER: "Transfer", CARD: "Card", QRIS: "QRIS", E_WALLET: "E-Wallet", CREDIT: "Credit" };
+  return map[m?.toUpperCase()] ?? m ?? "-";
+}
+
+// ── Payment Mix Card ──────────────────────────────────────────
+function PaymentBreakdownCard({
+  data,
+  loading,
+}: {
+  data: any[];
+  loading: boolean;
+}) {
+  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const total = useMemo(
+    () => items.reduce((acc, row) => acc + parseFloat(row.total_amount || 0), 0),
+    [items]
+  );
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">Payment Mix</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Revenue breakdown by payment method</p>
+        </div>
+        <span className="text-sm font-bold text-gray-900">
+          {loading ? "..." : fmtIDR(Math.round(total))}
+        </span>
+      </div>
+      {loading ? (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-gray-400 py-4 text-center">No payment data for this period</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => {
+            const amount = parseFloat(item.total_amount || 0);
+            const pct = total > 0 ? (amount / total) * 100 : 0;
+            return (
+              <div key={item.method} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="font-medium text-gray-700">
+                    {formatMethodLabel(item.method)}
+                    <span className="text-gray-400 font-normal ml-1.5 text-xs">
+                      ({item.transaction_count} tx)
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-gray-900 font-semibold">
+                      {fmtCompactIDR(Math.round(amount))}
+                    </span>
+                    <span className="text-gray-400 font-mono text-xs w-12 text-right">
+                      {pct.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Cashier Leaderboard Card ───────────────────────────────────
+function CashierLeaderboardCard({
+  data,
+  loading,
+}: {
+  data: any[];
+  loading: boolean;
+}) {
+  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const topCashiers = useMemo(() => items.slice(0, 8), [items]);
+  const maxSales = useMemo(
+    () => Math.max(...items.map((c) => parseFloat(c.total_sales || 0)), 1),
+    [items]
+  );
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">Cashier Leaderboard</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Top performing sales cashiers</p>
+        </div>
+        <span className="text-xs font-medium text-gray-500">{items.length} cashiers</span>
+      </div>
+      {loading ? (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+        </div>
+      ) : topCashiers.length === 0 ? (
+        <p className="text-xs text-gray-400 py-4 text-center">No cashier data for this period</p>
+      ) : (
+        <div className="space-y-3">
+          {topCashiers.map((c, idx) => {
+            const sales = parseFloat(c.total_sales || 0);
+            const pct = (sales / maxSales) * 100;
+            return (
+              <div key={c.cashier_id ?? idx} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <div className="flex items-center gap-2 truncate max-w-[65%]">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-xs font-bold text-gray-700 shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span className="font-medium text-gray-800 truncate">
+                      {c.full_name || "Unknown"}
+                    </span>
+                    <span className="text-gray-400 font-normal text-xs whitespace-nowrap">
+                      · {c.transaction_count} tx
+                    </span>
+                  </div>
+                  <span className="font-mono text-gray-900 font-semibold">
+                    {fmtCompactIDR(Math.round(sales))}
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
@@ -297,6 +445,8 @@ export default function ReportsPage() {
 
   const [salesData, setSalesData] = useState<any[]>([]);
   const [trendData, setTrendData] = useState<any[]>([]);
+  const [paymentData, setPaymentData] = useState<any[]>([]);
+  const [cashierData, setCashierData] = useState<any[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
   const [trendLoading, setTrendLoading] = useState(false);
   const [profitData, setProfitData] = useState<any>(null);
@@ -314,15 +464,22 @@ export default function ReportsPage() {
           dateFrom: from || undefined,
           dateTo: to || undefined,
         };
-        const [sales, profit, returns] = await Promise.all([
+        const [sales, profit, returns, payments, cashiers] = await Promise.all([
           fetchSalesSummary({ period, ...params }),
           fetchGrossProfit(params),
           fetchReturnsSummary(params),
+          fetchPaymentBreakdown(params),
+          fetchSalesByCashier(params),
         ]);
         const sRows = (sales as any)?.data?.data ?? (sales as any)?.data ?? [];
         const safeRows = Array.isArray(sRows) ? sRows : [];
+        const pRows = (payments as any)?.data?.data ?? (payments as any)?.data ?? [];
+        const cRows = (cashiers as any)?.data?.data ?? (cashiers as any)?.data ?? [];
+
         setSalesData(safeRows);
         setTrendData(safeRows);
+        setPaymentData(Array.isArray(pRows) ? pRows : []);
+        setCashierData(Array.isArray(cRows) ? cRows : []);
         setProfitData(profit.data);
         setReturnsData(returns.data);
       } catch (err: any) {
@@ -582,6 +739,12 @@ export default function ReportsPage() {
               </div>
             </div>
           )}
+
+          {/* Payment Breakdown & Cashier Leaderboard */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PaymentBreakdownCard data={paymentData} loading={loading} />
+            <CashierLeaderboardCard data={cashierData} loading={loading} />
+          </div>
 
           {/* Daily Sales */}
           <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
