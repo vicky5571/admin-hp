@@ -439,24 +439,47 @@ function CashierLeaderboardCard({
   );
 }
 
-// ── Product Insight Card (Top Products by Revenue & Volume) ──
+// ── Product Insight Card (Top Products by Revenue, Profit & Volume) ──
 function ProductInsightCard({
-  data,
+  productData,
+  profitData,
   loading,
 }: {
-  data: any[];
+  productData: any[];
+  profitData: any[];
   loading: boolean;
 }) {
-  const [metric, setMetric] = useState<"revenue" | "volume">("revenue");
-  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const [metric, setMetric] = useState<"revenue" | "profit" | "volume">("revenue");
+
+  const mergedItems = useMemo(() => {
+    const pMap = new Map<string, any>();
+    for (const p of Array.isArray(profitData) ? profitData : []) {
+      const key = String(p.product_id ?? p.sku ?? p.product_name);
+      pMap.set(key, p);
+    }
+
+    const prList = Array.isArray(productData) ? productData : [];
+    return prList.map((it) => {
+      const key = String(it.product_id ?? it.sku ?? it.product_name);
+      const match = pMap.get(key);
+      return {
+        ...it,
+        gross_profit: match ? parseFloat(match.gross_profit || 0) : 0,
+        margin_percent: match ? parseFloat(match.margin_percent || 0) : 0,
+      };
+    });
+  }, [productData, profitData]);
 
   const sorted = useMemo(() => {
-    const list = [...items];
+    const list = [...mergedItems];
     if (metric === "volume") {
       return list.sort((a, b) => Number(b.qty_sold || 0) - Number(a.qty_sold || 0));
     }
+    if (metric === "profit") {
+      return list.sort((a, b) => parseFloat(b.gross_profit || 0) - parseFloat(a.gross_profit || 0));
+    }
     return list.sort((a, b) => parseFloat(b.net_sales || 0) - parseFloat(a.net_sales || 0));
-  }, [items, metric]);
+  }, [mergedItems, metric]);
 
   const topItems = useMemo(() => sorted.slice(0, 5), [sorted]);
 
@@ -464,14 +487,21 @@ function ProductInsightCard({
     if (metric === "volume") {
       return Math.max(...topItems.map((it) => Number(it.qty_sold || 0)), 1);
     }
+    if (metric === "profit") {
+      return Math.max(...topItems.map((it) => Math.max(0, parseFloat(it.gross_profit || 0))), 1);
+    }
     return Math.max(...topItems.map((it) => parseFloat(it.net_sales || 0)), 1);
   }, [topItems, metric]);
 
   const totals = useMemo(() => {
-    const totalUnits = items.reduce((acc, it) => acc + Number(it.qty_sold || 0), 0);
-    const totalNet = items.reduce((acc, it) => acc + parseFloat(it.net_sales || 0), 0);
-    return { totalUnits, totalNet };
-  }, [items]);
+    const totalUnits = mergedItems.reduce((acc, it) => acc + Number(it.qty_sold || 0), 0);
+    const totalNet = mergedItems.reduce((acc, it) => acc + parseFloat(it.net_sales || 0), 0);
+    const totalProfit = mergedItems.reduce((acc, it) => acc + parseFloat(it.gross_profit || 0), 0);
+    return { totalUnits, totalNet, totalProfit };
+  }, [mergedItems]);
+
+  const barColor = metric === "profit" ? "bg-indigo-600" : metric === "volume" ? "bg-amber-600" : "bg-emerald-600";
+  const badgeColor = metric === "profit" ? "bg-indigo-50 text-indigo-700 border-indigo-200" : metric === "volume" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
 
   return (
     <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -479,7 +509,7 @@ function ProductInsightCard({
         <div>
           <h3 className="text-base font-semibold text-gray-900">Product Insights</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            {items.length} products sold · {totals.totalUnits} units · {fmtIDR(Math.round(totals.totalNet))}
+            {mergedItems.length} products sold · {totals.totalUnits} units · {fmtIDR(Math.round(totals.totalNet))} rev · {fmtIDR(Math.round(totals.totalProfit))} profit
           </p>
         </div>
         <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
@@ -493,6 +523,17 @@ function ProductInsightCard({
             }`}
           >
             Top Revenue
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetric("profit")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "profit"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Top Profit
           </button>
           <button
             type="button"
@@ -520,14 +561,15 @@ function ProductInsightCard({
         <div className="space-y-3.5">
           {topItems.map((it, idx) => {
             const net = parseFloat(it.net_sales || 0);
+            const profit = parseFloat(it.gross_profit || 0);
             const qty = Number(it.qty_sold || 0);
-            const val = metric === "volume" ? qty : net;
+            const val = metric === "volume" ? qty : metric === "profit" ? Math.max(0, profit) : net;
             const pct = (val / maxVal) * 100;
             return (
               <div key={it.product_id ?? idx} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <div className="flex items-center gap-2 truncate max-w-[65%]">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-xs font-bold text-emerald-700 border border-emerald-200 shrink-0">
+                  <div className="flex items-center gap-2 truncate max-w-[60%]">
+                    <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold border shrink-0 ${badgeColor}`}>
                       {idx + 1}
                     </span>
                     <div className="truncate">
@@ -540,17 +582,24 @@ function ProductInsightCard({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-right">
-                    <span className="text-xs text-gray-500 font-normal">
-                      {qty} pcs
-                    </span>
+                    {metric === "profit" && (
+                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                        {it.margin_percent ? `${it.margin_percent.toFixed(1)}% margin` : "0.0%"}
+                      </span>
+                    )}
+                    {metric !== "profit" && (
+                      <span className="text-xs text-gray-500 font-normal">
+                        {qty} pcs
+                      </span>
+                    )}
                     <span className="font-semibold text-gray-900">
-                      {fmtCompactIDR(Math.round(net))}
+                      {fmtCompactIDR(Math.round(metric === "profit" ? profit : net))}
                     </span>
                   </div>
                 </div>
                 <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
                   <div
-                    className="h-full bg-emerald-600 rounded-full transition-all"
+                    className={`h-full rounded-full transition-all ${barColor}`}
                     style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
                   />
                 </div>
@@ -870,7 +919,7 @@ export default function ReportsPage() {
           )}
 
           {/* Product Insights */}
-          <ProductInsightCard data={productData} loading={loading} />
+          <ProductInsightCard productData={productData} profitData={profitData?.data ?? []} loading={loading} />
 
           {/* Payment Breakdown & Cashier Leaderboard */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
