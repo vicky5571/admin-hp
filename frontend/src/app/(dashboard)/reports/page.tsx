@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  apiFetch,
   downloadReportCsv,
   fetchSalesSummary,
   fetchGrossProfit,
@@ -9,6 +10,8 @@ import {
   fetchPaymentBreakdown,
   fetchSalesByCashier,
   fetchSalesByProduct,
+  fetchAuditLogs,
+  AuditLogItem,
 } from "@/lib/api";
 
 // Returns today's date as YYYY-MM-DD in local time
@@ -500,8 +503,8 @@ function ProductInsightCard({
     return { totalUnits, totalNet, totalProfit };
   }, [mergedItems]);
 
-  const barColor = metric === "revenue" ? "bg-emerald-600" : metric === "volume" ? "bg-amber-600" : "bg-indigo-600";
-  const badgeColor = metric === "revenue" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : metric === "volume" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-indigo-50 text-indigo-700 border-indigo-200";
+  const barColor = metric === "profit" ? "bg-emerald-600" : metric === "volume" ? "bg-amber-600" : "bg-blue-600";
+  const badgeColor = metric === "profit" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : metric === "volume" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200";
 
   return (
     <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -583,7 +586,7 @@ function ProductInsightCard({
                   </div>
                   <div className="flex items-center gap-2 font-mono text-right">
                     {metric === "profit" && (
-                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                         {it.margin_percent ? `${it.margin_percent.toFixed(1)}% margin` : "0.0%"}
                       </span>
                     )}
@@ -612,6 +615,179 @@ function ProductInsightCard({
   );
 }
 
+// ── Void & Return Analytics Card ──────────────────────────────
+function VoidAndReturnsCard({
+  returnsData,
+  voidStats,
+  auditLogs,
+  loading,
+}: {
+  returnsData: any;
+  voidStats: {
+    voidCount: number;
+    voidRate: number;
+    totalVoidedAmount: number;
+    completedCount: number;
+  };
+  auditLogs: AuditLogItem[];
+  loading: boolean;
+}) {
+  const totalReturns = Number(returnsData?.summary?.totalReturns || 0);
+  const totalRefunded = parseFloat(returnsData?.summary?.totalRefunded || 0);
+  const returnRate = voidStats.completedCount > 0 ? (totalReturns / voidStats.completedCount) * 100 : 0;
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">
+            Void & Return Analytics
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Audit lost revenue, refund methods, and cashier void frequency
+          </p>
+        </div>
+      </div>
+
+      {/* 4-KPI Metric Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 sm:p-4">
+          <p className="text-xs font-semibold text-rose-700">Total Voids</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-rose-900">
+            {loading ? "..." : voidStats.voidCount} <span className="text-xs font-normal text-rose-600">tx</span>
+          </p>
+          <p className="mt-1 text-xs text-rose-700 font-mono font-medium">
+            {loading ? "..." : fmtIDR(Math.round(voidStats.totalVoidedAmount))}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 sm:p-4">
+          <p className="text-xs font-semibold text-amber-700">Void Rate</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-amber-900">
+            {loading ? "..." : `${voidStats.voidRate.toFixed(1)}%`}
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            of all transactions
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-orange-50 border border-orange-200 p-3.5 sm:p-4">
+          <p className="text-xs font-semibold text-orange-700">Total Returns</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-orange-900">
+            {loading ? "..." : totalReturns} <span className="text-xs font-normal text-orange-600">returns</span>
+          </p>
+          <p className="mt-1 text-xs text-orange-700 font-mono font-medium">
+            {loading ? "..." : fmtIDR(Math.round(totalRefunded))}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-purple-50 border border-purple-200 p-3.5 sm:p-4">
+          <p className="text-xs font-semibold text-purple-700">Return Rate</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-purple-900">
+            {loading ? "..." : `${returnRate.toFixed(1)}%`}
+          </p>
+          <p className="mt-1 text-xs text-purple-700">
+            vs completed sales
+          </p>
+        </div>
+      </div>
+
+      {/* 2-Column Detail */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+        {/* Left: Returns by Refund Method */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-800">Returns by Refund Method</h4>
+          {loading ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-9 rounded bg-gray-100" />
+              <div className="h-9 rounded bg-gray-100" />
+            </div>
+          ) : !returnsData?.byMethod || returnsData.byMethod.length === 0 ? (
+            <p className="text-xs text-gray-400 py-6 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
+              No returns recorded for this period
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {returnsData.byMethod.map((m: any, i: number) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs"
+                >
+                  <span className="font-medium text-gray-700">{formatMethodLabel(m.refund_method)}</span>
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="text-gray-500">{m.return_count} tx</span>
+                    <span className="font-semibold text-gray-900">
+                      {fmtIDR(Math.round(parseFloat(m.total_refunded || 0)))}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Void Audit Trail */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-800">Void Audit Trail</h4>
+            <span className="text-xs text-gray-400 font-mono">{auditLogs.length} recent logs</span>
+          </div>
+
+          {loading ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-9 rounded bg-gray-100" />
+              <div className="h-9 rounded bg-gray-100" />
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <p className="text-xs text-gray-400 py-6 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
+              No void audit logs recorded for this period
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {auditLogs.map((log) => {
+                const inv = log.metadataJson?.invoiceNumber;
+                const total = log.metadataJson?.grandTotal;
+                return (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50/40 px-3 py-2 text-xs hover:bg-rose-50 transition-colors"
+                  >
+                    <div className="truncate max-w-[65%]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-semibold text-rose-700">
+                          {inv || `Sale #${log.entityId || log.id}`}
+                        </span>
+                        <span className="text-gray-400 text-[10px]">·</span>
+                        <span className="text-gray-700 truncate font-medium">
+                          {log.user?.fullName || log.user?.username || `User #${log.userId}`}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">
+                        {new Date(log.eventTime).toLocaleString("id-ID", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {log.ipAddress && ` · ${log.ipAddress}`}
+                      </div>
+                    </div>
+                    {total && (
+                      <span className="font-mono text-xs font-semibold text-rose-800 shrink-0">
+                        {fmtIDR(Math.round(parseFloat(String(total))))}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
@@ -622,6 +798,13 @@ export default function ReportsPage() {
   const [paymentData, setPaymentData] = useState<any[]>([]);
   const [cashierData, setCashierData] = useState<any[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
+  const [voidStats, setVoidStats] = useState({
+    voidCount: 0,
+    voidRate: 0,
+    totalVoidedAmount: 0,
+    completedCount: 0,
+  });
+  const [voidAuditLogs, setVoidAuditLogs] = useState<AuditLogItem[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
   const [trendLoading, setTrendLoading] = useState(false);
   const [profitData, setProfitData] = useState<any>(null);
@@ -639,19 +822,42 @@ export default function ReportsPage() {
           dateFrom: from || undefined,
           dateTo: to || undefined,
         };
-        const [sales, profit, returns, payments, cashiers, products] = await Promise.all([
+        const [sales, profit, returns, payments, cashiers, products, voidedSalesRes, auditLogsRes] = await Promise.all([
           fetchSalesSummary({ period, ...params }),
           fetchGrossProfit(params),
           fetchReturnsSummary(params),
           fetchPaymentBreakdown(params),
           fetchSalesByCashier(params),
           fetchSalesByProduct(params),
+          apiFetch<any[]>(
+            `/sales?status=VOIDED${params.dateFrom ? `&dateFrom=${params.dateFrom}` : ""}${params.dateTo ? `&dateTo=${params.dateTo}` : ""}&limit=100`
+          ).catch(() => ({ data: [], meta: { total: 0 } })),
+          fetchAuditLogs({
+            entityType: "SALE",
+            action: "SALE_VOIDED",
+            dateFrom: params.dateFrom,
+            dateTo: params.dateTo,
+            limit: 30,
+          }).catch(() => ({ data: [] as AuditLogItem[], total: 0 })),
         ]);
         const sRows = (sales as any)?.data?.data ?? (sales as any)?.data ?? [];
         const safeRows = Array.isArray(sRows) ? sRows : [];
         const pRows = (payments as any)?.data?.data ?? (payments as any)?.data ?? [];
         const cRows = (cashiers as any)?.data?.data ?? (cashiers as any)?.data ?? [];
         const prRows = (products as any)?.data?.data ?? (products as any)?.data ?? [];
+
+        const voidRows = Array.isArray(voidedSalesRes.data) ? voidedSalesRes.data : [];
+        const voidCount = Number((voidedSalesRes as any)?.meta?.total ?? voidRows.length);
+        const totalVoidedAmount = voidRows.reduce(
+          (acc: number, s: any) => acc + parseFloat(s.grandTotal || s.grand_total || 0),
+          0
+        );
+        const completedCount = safeRows.reduce(
+          (acc: number, r: any) => acc + Number(r.transaction_count || 0),
+          0
+        );
+        const totalAll = completedCount + voidCount;
+        const voidRate = totalAll > 0 ? (voidCount / totalAll) * 100 : 0;
 
         setSalesData(safeRows);
         setTrendData(safeRows);
@@ -660,6 +866,13 @@ export default function ReportsPage() {
         setProductData(Array.isArray(prRows) ? prRows : []);
         setProfitData(profit.data);
         setReturnsData(returns.data);
+        setVoidStats({
+          voidCount,
+          voidRate,
+          totalVoidedAmount,
+          completedCount,
+        });
+        setVoidAuditLogs(Array.isArray(auditLogsRes.data) ? auditLogsRes.data : []);
       } catch (err: any) {
         setError(err?.message || "Failed to load report data. Please try again.");
       } finally {
@@ -978,48 +1191,13 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {/* Returns Summary */}
-          {returnsData && (
-            <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Returns Summary
-              </h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-sm text-gray-500">Total Returns</p>
-                  <p className="text-xl font-bold">
-                    {returnsData.summary.totalReturns}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Refunded</p>
-                  <p className="text-xl font-bold text-red-600">
-                    IDR {parseFloat(returnsData.summary.totalRefunded).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {returnsData.byMethod?.length > 0 && (
-                <>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">By Method</h3>
-                  <div className="space-y-2">
-                    {returnsData.byMethod.map((m: any, i: number) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2"
-                      >
-                        <span className="font-medium">{m.refund_method}</span>
-                        <span className="text-sm">
-                          {m.return_count} returns, IDR{" "}
-                          {parseFloat(m.total_refunded).toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {/* Void & Return Analytics */}
+          <VoidAndReturnsCard
+            returnsData={returnsData}
+            voidStats={voidStats}
+            auditLogs={voidAuditLogs}
+            loading={loading}
+          />
         </>
       )}
     </div>
