@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiFetch,
   downloadReceiptPdf,
+  downloadReportCsv,
   fetchSaleReceipt,
   fetchSalesSummary,
   fetchUsers,
@@ -503,6 +504,7 @@ export default function SalesPage() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // ── table state ─────────────────────────────────────────────
   const [sales, setSales] = useState<any[]>([]);
@@ -684,6 +686,21 @@ export default function SalesPage() {
     setActiveQuick(range.label);
   };
 
+  // ponytail: single CSV path (sales-summary); add per-report menu if more exports needed
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const q = new URLSearchParams({ period: chartPeriod });
+      if (dateFrom) q.set("dateFrom", dateFrom);
+      if (dateTo) q.set("dateTo", dateTo);
+      await downloadReportCsv(`/reports/sales-summary/csv?${q.toString()}`, `sales-summary-${dateFrom || "all"}-${dateTo || "all"}-${chartPeriod}.csv`);
+    } catch (e: any) {
+      alert(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const hasActiveFilters = Boolean(statusFilter || invoiceQuery || invoiceInput || cashierId);
   const clearFilters = () => {
     setStatusFilter("");
@@ -713,7 +730,7 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Sales Transactions</h1>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -725,6 +742,15 @@ export default function SalesPage() {
             vs prev: <span className="font-medium text-gray-600">{prevLabel}</span>
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50"
+        >
+          {exporting ? <span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
       </div>
 
       {/* ── Filters: date range + status + invoice + cashier ── */}
@@ -978,12 +1004,6 @@ export default function SalesPage() {
         </div>
 
         <TrendChart data={chartData} period={chartPeriod} loading={chartLoading} error={chartError} />
-
-        <p className="text-[11px] text-gray-400 mt-3">
-          Source: <code className="font-mono">GET /reports/sales-summary?period={chartPeriod}</code> &amp;{` `}
-          <code className="font-mono">date_trunc('{chartPeriod === "monthly" ? "month" : chartPeriod === "weekly" ? "week" : "day"}', sale_time)</code>
-          {` `}— no table scanning, one aggregated query per toggle.
-        </p>
       </div>
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
@@ -1027,8 +1047,8 @@ export default function SalesPage() {
                 const extraPays = payments.length > 1 ? `+${payments.length - 1}` : "";
                 const customerName: string | null = s.customer?.name ?? s.customerName ?? null;
                 return (
-                  <>
-                    <tr key={s.id} className={`border-b ${isExpanded ? "bg-blue-50/40 border-blue-100" : "border-gray-100 hover:bg-gray-50"}`}>
+                  <Fragment key={s.id}>
+                    <tr className={`border-b ${isExpanded ? "bg-blue-50/40 border-blue-100" : "border-gray-100 hover:bg-gray-50"}`}>
                       <td className="px-2 py-2.5 text-center">
                         <button
                           type="button"
@@ -1240,7 +1260,7 @@ export default function SalesPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
