@@ -7,10 +7,13 @@ import {
   fetchBrands,
   fetchCategories,
   fetchStockOnHand,
+  lookupImei,
   Product,
 } from "@/lib/api";
+import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
 import StockAdjustmentModal from "./components/StockAdjustmentModal";
 import StockAdjustmentsHistoryModal from "./components/StockAdjustmentsHistoryModal";
+import ProductImeisModal from "./components/ProductImeisModal";
 
 interface StockItem {
   id: number;
@@ -55,11 +58,20 @@ export default function InventoryPage() {
   const [productTypeFilter, setProductTypeFilter] = useState<ProductTypeFilter>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("QTY_ASC");
 
-  // Adjustment Modals State
+  // Adjustment & IMEI Modals State
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [adjustTargetProductId, setAdjustTargetProductId] = useState<number | null>(null);
   const [adjustTargetOnHand, setAdjustTargetOnHand] = useState<number | undefined>(undefined);
+
+  const [selectedImeiProduct, setSelectedImeiProduct] = useState<{
+    id: number;
+    name: string;
+    sku: string;
+    on_hand_qty: number;
+  } | null>(null);
+
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const loadStockData = async () => {
     setLoading(true);
@@ -118,6 +130,12 @@ export default function InventoryPage() {
         (Number(item.on_hand_qty) || 0) > (Number(item.min_stock_alert) || 0),
     ).length;
 
+    const serializedSkus = data.filter((item) => item.product_type === "SERIALIZED");
+    const serializedUnits = serializedSkus.reduce(
+      (sum, item) => sum + (Number(item.on_hand_qty) || 0),
+      0,
+    );
+
     return {
       totalSkus,
       totalUnitsOnHand,
@@ -127,6 +145,8 @@ export default function InventoryPage() {
       outOfStockCount,
       lowStockCount,
       inStockCount,
+      serializedSkusCount: serializedSkus.length,
+      serializedUnitsCount: serializedUnits,
     };
   }, [data]);
 
@@ -145,6 +165,51 @@ export default function InventoryPage() {
       brandId: d.brand_id,
     }));
   }, [data]);
+
+  // Handle Barcode / Phone Camera Scan
+  const handleBarcodeScanned = async (scannedCode: string) => {
+    const clean = scannedCode.trim();
+    if (!clean) return;
+
+    // 1. Direct SKU match in inventory
+    const matched = data.find(
+      (item) => item.sku.toLowerCase() === clean.toLowerCase(),
+    );
+
+    if (matched) {
+      setSearchTerm(matched.sku);
+      setSuccessMsg(`Found product: ${matched.name}`);
+      if (matched.product_type === "SERIALIZED") {
+        setSelectedImeiProduct(matched);
+      }
+      setTimeout(() => setSuccessMsg(""), 3000);
+      return;
+    }
+
+    // 2. Remote IMEI Lookup
+    try {
+      const imeiRes = await lookupImei(clean);
+      const unit = imeiRes.data?.unit;
+      if (unit && unit.product) {
+        const prod = data.find((d) => d.id === unit.productId) || {
+          id: unit.product.id,
+          name: unit.product.name,
+          sku: unit.product.sku,
+          on_hand_qty: 1,
+        };
+        setSearchTerm(unit.product.sku);
+        setSelectedImeiProduct(prod as any);
+        setSuccessMsg(
+          `Identified Serialized Phone: ${unit.product.name} (IMEI: ${unit.imei})`,
+        );
+        setTimeout(() => setSuccessMsg(""), 3500);
+      } else {
+        setError(`Barcode / IMEI "${clean}" not recognized.`);
+      }
+    } catch {
+      setError(`Barcode "${clean}" not found in system.`);
+    }
+  };
 
   // Filter & Sort Data
   const filteredAndSortedData = useMemo(() => {
@@ -284,7 +349,7 @@ export default function InventoryPage() {
             Inventory & Stock On Hand
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Real-time warehouse stock tracking, valuation, and low stock threshold alerts.
+            Real-time smartphone IMEI tracking, warehouse valuations, and stock adjustments.
           </p>
         </div>
 
@@ -299,6 +364,17 @@ export default function InventoryPage() {
               <span>Reset Filters</span>
             </button>
           )}
+
+          {/* Barcode / IMEI Camera Scanner */}
+          <button
+            type="button"
+            onClick={() => setIsScannerOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-300 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-800 hover:bg-purple-100 shadow-2xs transition-colors"
+            title="Scan phone packaging barcode or IMEI with camera"
+          >
+            <span>📷</span>
+            <span>Scan IMEI / SKU</span>
+          </button>
 
           <button
             type="button"
@@ -329,7 +405,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Success Notification Banner */}
+      {/* Notifications */}
       {successMsg && (
         <div className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800 border border-emerald-200 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2">
@@ -340,6 +416,22 @@ export default function InventoryPage() {
             type="button"
             onClick={() => setSuccessMsg("")}
             className="font-bold text-emerald-600 hover:text-emerald-800"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700 border border-rose-200 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <span className="font-semibold">{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="font-bold text-rose-600 hover:text-rose-800"
           >
             &times;
           </button>
@@ -399,6 +491,41 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* Serialized Phones Summary / Filter */}
+        <button
+          type="button"
+          onClick={() =>
+            setProductTypeFilter(
+              productTypeFilter === "SERIALIZED" ? "ALL" : "SERIALIZED",
+            )
+          }
+          className={`rounded-2xl border p-5 shadow-xs text-left transition-all ${
+            productTypeFilter === "SERIALIZED"
+              ? "bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/30"
+              : "bg-white border-gray-200 hover:border-purple-300"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-900">
+              📱 Serialized Phones
+            </span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-800 text-sm font-bold shadow-2xs">
+              📱
+            </span>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-extrabold text-purple-950 font-mono tracking-tight">
+              {kpis.serializedUnitsCount}{" "}
+              <span className="text-sm font-semibold text-purple-700 font-sans">
+                units
+              </span>
+            </p>
+            <p className="text-[11px] text-purple-700 font-medium mt-1">
+              Across {kpis.serializedSkusCount} smartphone models with IMEI tracking
+            </p>
+          </div>
+        </button>
+
         {/* Low Stock Warning */}
         <button
           type="button"
@@ -430,43 +557,6 @@ export default function InventoryPage() {
               {kpis.lowStockCount > 0
                 ? "At or below minimum alert threshold"
                 : "All stock levels healthy"}
-            </p>
-          </div>
-        </button>
-
-        {/* Out of Stock Alert */}
-        <button
-          type="button"
-          onClick={() =>
-            setStatusFilter(
-              statusFilter === "OUT_OF_STOCK" ? "ALL" : "OUT_OF_STOCK",
-            )
-          }
-          className={`rounded-2xl border p-5 shadow-xs text-left transition-all ${
-            statusFilter === "OUT_OF_STOCK"
-              ? "bg-rose-50/80 border-rose-400 ring-2 ring-rose-400/30"
-              : "bg-white border-gray-200 hover:border-rose-300"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
-              Out of Stock
-            </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-100 text-rose-700 text-sm font-bold shadow-2xs">
-              🔴
-            </span>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-extrabold text-rose-900 font-mono tracking-tight">
-              {kpis.outOfStockCount}{" "}
-              <span className="text-sm font-semibold text-rose-700 font-sans">
-                SKUs
-              </span>
-            </p>
-            <p className="text-[11px] text-rose-700 font-medium mt-1">
-              {kpis.outOfStockCount > 0
-                ? "Items depleted (0 units on hand)"
-                : "No depleted items"}
             </p>
           </div>
         </button>
@@ -673,6 +763,7 @@ export default function InventoryPage() {
                   const isDepleted = qty === 0;
                   const isLow = qty > 0 && qty <= minAlert;
                   const isModerate = qty > minAlert && qty <= minAlert * 2;
+                  const isSerialized = item.product_type === "SERIALIZED";
 
                   // Health bar percentage calculation (0 to 100%)
                   const maxRef = Math.max(minAlert * 3, 10);
@@ -709,19 +800,23 @@ export default function InventoryPage() {
                         </div>
                       </td>
 
-                      {/* Product Type */}
+                      {/* Product Type (Clickable for Serialized IMEI) */}
                       <td className="px-4 py-3 font-sans">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            item.product_type === "SERIALIZED"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {item.product_type === "SERIALIZED"
-                            ? "📱 IMEI"
-                            : "Standard"}
-                        </span>
+                        {isSerialized ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedImeiProduct(item)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors shadow-2xs"
+                            title="Click to view all in-stock IMEI physical units"
+                          >
+                            <span>📱 IMEI</span>
+                            <span>({qty}) ↗</span>
+                          </button>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-700">
+                            Standard
+                          </span>
+                        )}
                       </td>
 
                       {/* On Hand Qty */}
@@ -744,7 +839,13 @@ export default function InventoryPage() {
                         <div className="w-28 space-y-1">
                           <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
                             <div
-                              style={{ width: `${isDepleted ? 0 : Math.max(8, healthPercent)}%` }}
+                              style={{
+                                width: `${
+                                  isDepleted
+                                    ? 0
+                                    : Math.max(8, healthPercent)
+                                }%`,
+                              }}
                               className={`h-full rounded-full transition-all ${
                                 isDepleted
                                   ? "bg-rose-500"
@@ -827,15 +928,28 @@ export default function InventoryPage() {
 
                       {/* Actions */}
                       <td className="px-4 py-3 text-right font-sans">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRowAdjust(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 rounded-lg transition-colors shadow-2xs"
-                          title="Record Stock Adjustment / Damage"
-                        >
-                          <span>⚙️</span>
-                          <span>Adjust</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isSerialized && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedImeiProduct(item)}
+                              className="px-2 py-1 text-[11px] font-bold text-purple-700 hover:bg-purple-100 bg-purple-50 border border-purple-200 rounded-lg transition-colors shadow-2xs"
+                              title="View IMEIs list"
+                            >
+                              📱 IMEIs
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRowAdjust(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 rounded-lg transition-colors shadow-2xs"
+                            title="Record Stock Adjustment / Damage"
+                          >
+                            <span>⚙️</span>
+                            <span>Adjust</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -865,6 +979,28 @@ export default function InventoryPage() {
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
       />
+
+      {/* 📱 Serialized IMEI Units Breakdown Modal */}
+      <ProductImeisModal
+        isOpen={selectedImeiProduct !== null}
+        onClose={() => setSelectedImeiProduct(null)}
+        product={selectedImeiProduct}
+        onUnitUpdated={() => loadStockData()}
+      />
+
+      {/* 📷 Barcode / IMEI Camera Scanner */}
+      {isScannerOpen && (
+        <CameraBarcodeScanner
+          isOpen={true}
+          onClose={() => setIsScannerOpen(false)}
+          onScan={(code) => {
+            handleBarcodeScanned(code);
+            setIsScannerOpen(false);
+          }}
+          title="Scan Smartphone IMEI or SKU"
+          subtitle="Point camera at retail box barcode or smartphone device screen"
+        />
+      )}
     </div>
   );
 }
