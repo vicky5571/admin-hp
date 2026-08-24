@@ -33,6 +33,12 @@ export class ImeiUnit {
   @Column({ name: 'battery_health', type: 'int', nullable: true })
   batteryHealth: number | null;
 
+  @Column({ name: 'cost_price', type: 'numeric', precision: 14, scale: 2, nullable: true })
+  costPrice: string | null;
+
+  @Column({ name: 'selling_price', type: 'numeric', precision: 14, scale: 2, nullable: true })
+  sellingPrice: string | null;
+
   @Column({ name: 'last_ref_type', type: 'varchar', length: 30, nullable: true })
   lastRefType: string | null;
 

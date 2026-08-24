@@ -32,7 +32,7 @@ export function usePosCart() {
         return updated;
       }
 
-      const unitPrice = parseFloat(product.srp) || 0;
+      const unitPrice = parseFloat(product.srp || "0") || 0;
       const srp = unitPrice;
       const newItem: CartItem = {
         productId: product.id,
@@ -115,10 +115,21 @@ export function usePosCart() {
     );
   };
 
-  // Assign IMEI list to serialized product
-  const assignImeis = (productId: number, imeis: string[]) => {
+  // Update IMEIs assigned to a cart line
+  const setItemImeis = (productId: number, imeis: string[], unitPrice?: number) => {
     setCart((prev) =>
-      prev.map((i) => (i.productId === productId ? { ...i, imeis } : i)),
+      prev.map((i) => {
+        if (i.productId !== productId) return i;
+        const newPrice = unitPrice !== undefined ? unitPrice : i.unitPrice;
+        const lineTotal = i.qty * newPrice - i.discountAmount + i.taxAmount;
+        return {
+          ...i,
+          imeis,
+          unitPrice: newPrice,
+          srp: unitPrice !== undefined ? newPrice : i.srp,
+          lineTotal: Math.max(0, lineTotal),
+        };
+      }),
     );
   };
 
@@ -214,7 +225,8 @@ export function usePosCart() {
     clearCart,
     setItemPrice,
     setItemDiscount,
-    assignImeis,
+    assignImeis: setItemImeis,
+    setItemImeis,
     applyGlobalDiscount,
     clearDiscounts,
     toggleTax,

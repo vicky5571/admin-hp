@@ -8,6 +8,8 @@ export declare class ImeiUnit {
     currentLocation: string;
     conditionGrade: string | null;
     batteryHealth: number | null;
+    costPrice: string | null;
+    sellingPrice: string | null;
     lastRefType: string | null;
     lastRefId: number | null;
     product: Product;

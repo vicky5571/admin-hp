@@ -34,6 +34,8 @@ export default function ProductImeisModal({
   const [editLocation, setEditLocation] = useState<string>("STORE");
   const [editGrade, setEditGrade] = useState<string>("");
   const [editBattery, setEditBattery] = useState<string>("");
+  const [editCostPrice, setEditCostPrice] = useState<string>("");
+  const [editSellingPrice, setEditSellingPrice] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -84,6 +86,10 @@ export default function ProductImeisModal({
     setEditLocation(unit.currentLocation || "STORE");
     setEditGrade(unit.conditionGrade || "NEW");
     setEditBattery(unit.batteryHealth ? String(unit.batteryHealth) : "100");
+    setEditCostPrice(unit.costPrice ? String(parseFloat(unit.costPrice)) : "");
+    setEditSellingPrice(
+      unit.sellingPrice ? String(parseFloat(unit.sellingPrice)) : "",
+    );
     setEditError("");
   };
 
@@ -99,6 +105,8 @@ export default function ProductImeisModal({
         location: editLocation.trim() || undefined,
         conditionGrade: editGrade.trim() || undefined,
         batteryHealth: editBattery ? parseInt(editBattery, 10) : null,
+        costPrice: editCostPrice ? parseFloat(editCostPrice) : null,
+        sellingPrice: editSellingPrice ? parseFloat(editSellingPrice) : null,
       });
 
       setEditingUnit(null);
@@ -113,7 +121,7 @@ export default function ProductImeisModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[88vh] flex flex-col">
+      <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[88vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
@@ -194,12 +202,15 @@ export default function ProductImeisModal({
               const isDefective = u.status === "DEFECTIVE";
               const isReserved = u.status === "RESERVED";
 
+              const costNum = u.costPrice ? parseFloat(u.costPrice) : null;
+              const srpNum = u.sellingPrice ? parseFloat(u.sellingPrice) : null;
+
               return (
                 <div
                   key={u.id}
                   className="p-3.5 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-black text-gray-900 text-sm tracking-wide">
                         {u.imei}
@@ -236,10 +247,27 @@ export default function ProductImeisModal({
                           🔋 {u.batteryHealth}%
                         </span>
                       )}
+
+                      {/* Unit Pricing Badges */}
+                      {costNum !== null && (
+                        <span className="inline-flex items-center font-mono text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
+                          Modal: IDR {costNum.toLocaleString("id-ID")}
+                        </span>
+                      )}
+
+                      {srpNum !== null ? (
+                        <span className="inline-flex items-center font-mono font-bold text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          Jual: IDR {srpNum.toLocaleString("id-ID")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center font-sans text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                          ⚠️ No SRP Set
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 font-sans">
+                  <div className="flex items-center gap-2 font-sans shrink-0">
                     {/* Status Badge */}
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
@@ -270,7 +298,7 @@ export default function ProductImeisModal({
                       type="button"
                       onClick={() => handleStartEdit(u)}
                       className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-700 hover:text-purple-700 bg-gray-100 hover:bg-purple-50 border border-gray-200 transition-colors"
-                      title="Edit location, grade, or battery health"
+                      title="Edit pricing, location, grade, or battery health"
                     >
                       ✏️ Edit
                     </button>
@@ -298,7 +326,7 @@ export default function ProductImeisModal({
           >
             <div className="flex items-center justify-between">
               <span className="font-bold text-purple-900">
-                Update Serialized Unit ({editingUnit.imei})
+                Update Device Unit ({editingUnit.imei})
               </span>
               <button
                 type="button"
@@ -315,7 +343,7 @@ export default function ProductImeisModal({
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-purple-900 mb-1">
                   Status:
@@ -351,7 +379,7 @@ export default function ProductImeisModal({
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-purple-900 mb-1">
-                  Condition Grade:
+                  Grade:
                 </label>
                 <select
                   value={editGrade}
@@ -368,7 +396,7 @@ export default function ProductImeisModal({
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-purple-900 mb-1">
-                  Battery Health (%):
+                  Battery (%):
                 </label>
                 <input
                   type="number"
@@ -378,6 +406,36 @@ export default function ProductImeisModal({
                   onChange={(e) => setEditBattery(e.target.value)}
                   placeholder="e.g. 100"
                   className="w-full rounded-lg border border-purple-300 bg-white p-1.5 text-xs font-mono font-bold text-gray-900 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-purple-900 mb-1">
+                  Cost (Modal IDR):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={editCostPrice}
+                  onChange={(e) => setEditCostPrice(e.target.value)}
+                  placeholder="e.g. 7000000"
+                  className="w-full rounded-lg border border-purple-300 bg-white p-1.5 text-xs font-mono font-bold text-gray-900 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-purple-900 mb-1">
+                  Selling Price (SRP):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={editSellingPrice}
+                  onChange={(e) => setEditSellingPrice(e.target.value)}
+                  placeholder="e.g. 8500000"
+                  className="w-full rounded-lg border border-purple-300 bg-white p-1.5 text-xs font-mono font-bold text-blue-700 focus:outline-none"
                 />
               </div>
             </div>

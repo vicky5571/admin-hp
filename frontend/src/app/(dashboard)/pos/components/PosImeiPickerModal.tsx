@@ -8,7 +8,7 @@ interface PosImeiPickerModalProps {
   item: CartItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onSaveImeis: (productId: number, imeis: string[]) => void;
+  onSaveImeis: (productId: number, imeis: string[], unitPrice?: number) => void;
 }
 
 export default function PosImeiPickerModal({
@@ -85,21 +85,31 @@ export default function PosImeiPickerModal({
       );
       return;
     }
-    onSaveImeis(item.productId, selectedImeis);
+
+    // If selecting single IMEI unit with specific price, adopt unit price
+    let targetPrice: number | undefined = undefined;
+    if (selectedImeis.length === 1) {
+      const matchedUnit = availableImeis.find((u) => u.imei === selectedImeis[0]);
+      if (matchedUnit?.sellingPrice) {
+        targetPrice = parseFloat(matchedUnit.sellingPrice);
+      }
+    }
+
+    onSaveImeis(item.productId, selectedImeis, targetPrice);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-gray-200 space-y-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl border border-gray-200 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 className="text-sm font-bold text-gray-900">
-              Assign Serialized IMEIs
+              Assign Device IMEI
             </h3>
             <p className="text-[11px] text-gray-500 font-mono">
-              {item.name} &bull; Qty: {item.qty}
+              {item.name} &bull; Required Units: {item.qty}
             </p>
           </div>
           <button
@@ -140,7 +150,7 @@ export default function PosImeiPickerModal({
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
             Available In Stock:
           </label>
-          <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl border border-gray-200 p-2 bg-slate-50">
+          <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-xl border border-gray-200 p-2 bg-slate-50">
             {loading ? (
               <div className="text-center py-4 text-xs text-gray-400">
                 Loading available IMEIs...
@@ -152,21 +162,52 @@ export default function PosImeiPickerModal({
             ) : (
               availableImeis.map((u) => {
                 const isSelected = selectedImeis.includes(u.imei);
+                const srpNum = u.sellingPrice ? parseFloat(u.sellingPrice) : null;
+
                 return (
                   <button
                     key={u.id}
                     type="button"
                     onClick={() => handleToggleImei(u.imei)}
-                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-mono transition-colors text-left ${
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-mono transition-colors text-left border ${
                       isSelected
-                        ? "bg-blue-600 text-white font-bold"
-                        : "bg-white text-gray-700 hover:bg-blue-50 border border-gray-200"
+                        ? "bg-blue-600 text-white font-bold border-blue-600 shadow-xs"
+                        : "bg-white text-gray-800 hover:bg-blue-50 border-gray-200"
                     }`}
                   >
-                    <span>{u.imei}</span>
-                    <span className="text-[10px] opacity-80">
-                      {isSelected ? "✓ Selected" : "+ Pick"}
-                    </span>
+                    <div className="space-y-0.5">
+                      <div className="font-bold font-mono tracking-wide">
+                        {u.imei}
+                      </div>
+                      <div
+                        className={`text-[10px] font-sans flex items-center gap-1.5 ${
+                          isSelected ? "text-blue-100" : "text-gray-500"
+                        }`}
+                      >
+                        <span>📍 {u.currentLocation || "STORE"}</span>
+                        {u.conditionGrade && <span>• ✨ {u.conditionGrade}</span>}
+                        {u.batteryHealth && <span>• 🔋 {u.batteryHealth}%</span>}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      {srpNum !== null && (
+                        <div
+                          className={`font-mono font-bold text-xs ${
+                            isSelected ? "text-white" : "text-blue-700"
+                          }`}
+                        >
+                          IDR {srpNum.toLocaleString("id-ID")}
+                        </div>
+                      )}
+                      <span
+                        className={`text-[10px] font-sans ${
+                          isSelected ? "text-blue-100 font-bold" : "text-gray-400"
+                        }`}
+                      >
+                        {isSelected ? "✓ Selected" : "+ Pick"}
+                      </span>
+                    </div>
                   </button>
                 );
               })
@@ -185,48 +226,28 @@ export default function PosImeiPickerModal({
           />
           <button
             type="submit"
-            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl border border-gray-300"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-colors shrink-0"
           >
             + Add
           </button>
         </form>
 
-        {/* Selected List Chips */}
-        {selectedImeis.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {selectedImeis.map((imei) => (
-              <span
-                key={imei}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-blue-50 text-blue-800 border border-blue-200"
-              >
-                <span>{imei}</span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleImei(imei)}
-                  className="text-blue-500 hover:text-rose-600 font-bold"
-                >
-                  &times;
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Modal Actions */}
+        {/* Action Buttons */}
         <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition-colors"
+            disabled={!isSatisfied}
+            className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 shadow-xs transition-colors"
           >
-            Confirm IMEIs
+            Confirm Selection
           </button>
         </div>
       </div>

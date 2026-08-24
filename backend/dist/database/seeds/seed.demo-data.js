@@ -38,59 +38,84 @@ function daysAgo(n, hour = 10) {
 const PRODUCT_SPECS = [
     {
         sku: 'IP15-128-BLK',
-        name: 'iPhone 15 128GB Black',
+        name: 'iPhone 15 128GB Black (Second)',
         category: 'Smartphones',
         brand: 'Apple',
         productType: product_type_enum_1.ProductType.SERIALIZED,
-        costPrice: '11000000.00',
-        srp: '13500000.00',
+        costPrice: '0.00',
+        srp: '0.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 2,
         stock: 5,
-        imeiCount: 5,
+        imeiUnits: [
+            { grade: 'Like New', battery: 100, cost: '11500000.00', srp: '13800000.00', location: 'STORE' },
+            { grade: 'Grade A', battery: 96, cost: '10800000.00', srp: '13200000.00', location: 'DISPLAY' },
+            { grade: 'Grade A', battery: 94, cost: '10500000.00', srp: '12900000.00', location: 'STORE' },
+            { grade: 'Grade B', battery: 86, cost: '9800000.00', srp: '11900000.00', location: 'WAREHOUSE' },
+            { grade: 'Brand New', battery: 100, cost: '12200000.00', srp: '14500000.00', location: 'STORE' },
+        ],
     },
     {
-        sku: 'IP15-256-BLU',
-        name: 'iPhone 15 256GB Blue',
+        sku: 'IP13-128-BLU',
+        name: 'iPhone 13 128GB Blue (Second)',
         category: 'Smartphones',
         brand: 'Apple',
         productType: product_type_enum_1.ProductType.SERIALIZED,
-        costPrice: '13000000.00',
-        srp: '15999000.00',
-        taxClass: 'VAT11_EXCLUSIVE',
-        minStockAlert: 2,
-        stock: 3,
-        imeiCount: 3,
-    },
-    {
-        sku: 'S24-256-BLK',
-        name: 'Samsung Galaxy S24 256GB Black',
-        category: 'Smartphones',
-        brand: 'Samsung',
-        productType: product_type_enum_1.ProductType.SERIALIZED,
-        costPrice: '12500000.00',
-        srp: '14999000.00',
+        costPrice: '0.00',
+        srp: '0.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 2,
         stock: 4,
-        imeiCount: 4,
+        imeiUnits: [
+            { grade: 'Like New', battery: 98, cost: '7800000.00', srp: '9200000.00', location: 'STORE' },
+            { grade: 'Grade A', battery: 91, cost: '7200000.00', srp: '8600000.00', location: 'STORE' },
+            { grade: 'Grade B', battery: 84, cost: '6500000.00', srp: '7800000.00', location: 'WAREHOUSE' },
+            { grade: 'Grade B', battery: 82, cost: '6300000.00', srp: '7600000.00', location: 'STORE' },
+        ],
+    },
+    {
+        sku: 'S24-256-BLK',
+        name: 'Samsung Galaxy S24 256GB Black (Second)',
+        category: 'Smartphones',
+        brand: 'Samsung',
+        productType: product_type_enum_1.ProductType.SERIALIZED,
+        costPrice: '0.00',
+        srp: '0.00',
+        taxClass: 'VAT11_EXCLUSIVE',
+        minStockAlert: 2,
+        stock: 4,
+        imeiUnits: [
+            { grade: 'Like New', battery: 100, cost: '12500000.00', srp: '14800000.00', location: 'DISPLAY' },
+            { grade: 'Grade A', battery: 97, cost: '11800000.00', srp: '13900000.00', location: 'STORE' },
+            { grade: 'Grade A', battery: 95, cost: '11500000.00', srp: '13600000.00', location: 'WAREHOUSE' },
+            { grade: 'Grade B', battery: 88, cost: '10500000.00', srp: '12400000.00', location: 'STORE' },
+        ],
     },
     {
         sku: 'RN13-128',
-        name: 'Xiaomi Redmi Note 13 128GB',
+        name: 'Xiaomi Redmi Note 13 128GB (New)',
         category: 'Smartphones',
         brand: 'Xiaomi',
         productType: product_type_enum_1.ProductType.SERIALIZED,
-        costPrice: '2300000.00',
-        srp: '2799000.00',
+        costPrice: '0.00',
+        srp: '0.00',
         taxClass: 'VAT11_EXCLUSIVE',
         minStockAlert: 3,
         stock: 8,
-        imeiCount: 8,
+        imeiUnits: [
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'STORE' },
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'STORE' },
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'STORE' },
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'WAREHOUSE' },
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'WAREHOUSE' },
+            { grade: 'Brand New', battery: 100, cost: '2250000.00', srp: '2699000.00', location: 'WAREHOUSE' },
+            { grade: 'Like New', battery: 99, cost: '2000000.00', srp: '2450000.00', location: 'STORE' },
+            { grade: 'Grade A', battery: 93, cost: '1850000.00', srp: '2250000.00', location: 'STORE' },
+        ],
     },
     {
         sku: 'ANKER-65W',
-        name: 'Anker 65W USB-C Charger',
+        name: 'Anker 65W GaN Fast Charger USB-C',
         category: 'Accessories',
         brand: 'Anker',
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
@@ -99,11 +124,10 @@ const PRODUCT_SPECS = [
         taxClass: 'NON_TAX',
         minStockAlert: 5,
         stock: 25,
-        imeiCount: 0,
     },
     {
         sku: 'BASEUS-CBL-C',
-        name: 'Baseus USB-C Cable 100W 1m',
+        name: 'Baseus USB-C to USB-C 100W 1m',
         category: 'Accessories',
         brand: 'Baseus',
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
@@ -112,11 +136,10 @@ const PRODUCT_SPECS = [
         taxClass: 'NON_TAX',
         minStockAlert: 10,
         stock: 50,
-        imeiCount: 0,
     },
     {
         sku: 'SS-GLASS',
-        name: 'Tempered Glass Screen Protector',
+        name: 'Premium 9D Tempered Glass Shield',
         category: 'Accessories',
         brand: null,
         productType: product_type_enum_1.ProductType.NON_SERIALIZED,
@@ -125,11 +148,10 @@ const PRODUCT_SPECS = [
         taxClass: 'NON_TAX',
         minStockAlert: 10,
         stock: 40,
-        imeiCount: 0,
     },
     {
         sku: 'SVC-INSTALL',
-        name: 'Screen Protector Installation',
+        name: 'Hydrogel / Screen Protector Application',
         category: 'Services',
         brand: null,
         productType: product_type_enum_1.ProductType.SERVICE,
@@ -138,7 +160,18 @@ const PRODUCT_SPECS = [
         taxClass: 'NON_TAX',
         minStockAlert: 0,
         stock: 0,
-        imeiCount: 0,
+    },
+    {
+        sku: 'SVC-BATTERY',
+        name: 'Battery Replacement & Testing Service',
+        category: 'Services',
+        brand: null,
+        productType: product_type_enum_1.ProductType.SERVICE,
+        costPrice: '0.00',
+        srp: '150000.00',
+        taxClass: 'NON_TAX',
+        minStockAlert: 0,
+        stock: 0,
     },
 ];
 const SALE_SPECS = [
@@ -190,7 +223,7 @@ const SALE_SPECS = [
         daysAgo: 1,
         hour: 10,
         customer: null,
-        lines: [{ sku: 'IP15-256-BLU', qty: 1 }],
+        lines: [{ sku: 'IP13-128-BLU', qty: 1 }],
         method: payment_method_enum_1.PaymentMethod.BANK_TRANSFER,
     },
     {
@@ -218,7 +251,33 @@ async function seedDemoData(dataSource) {
     const productRepo = dataSource.getRepository(product_entity_1.Product);
     const exists = await productRepo.findOneBy({ sku: 'IP15-128-BLK' });
     if (exists) {
-        console.log('[seed] demo data already exists — skipped');
+        await dataSource.query(`
+      UPDATE products 
+      SET cost_price = 0, srp = 0 
+      WHERE product_type = 'SERIALIZED';
+
+      UPDATE imei_units iu
+      SET 
+        cost_price = CASE 
+          WHEN iu.cost_price IS NOT NULL THEN iu.cost_price
+          WHEN p.name ILIKE '%iPhone 15%' THEN 11200000.00
+          WHEN p.name ILIKE '%iPhone 13%' THEN 7400000.00
+          WHEN p.name ILIKE '%Samsung%S24%' THEN 11900000.00
+          WHEN p.name ILIKE '%Redmi%' THEN 2100000.00
+          ELSE 5000000.00
+        END,
+        selling_price = CASE 
+          WHEN iu.selling_price IS NOT NULL THEN iu.selling_price
+          WHEN p.name ILIKE '%iPhone 15%' THEN 13500000.00
+          WHEN p.name ILIKE '%iPhone 13%' THEN 8800000.00
+          WHEN p.name ILIKE '%Samsung%S24%' THEN 14200000.00
+          WHEN p.name ILIKE '%Redmi%' THEN 2650000.00
+          ELSE 6200000.00
+        END
+      FROM products p
+      WHERE iu.product_id = p.id AND (iu.cost_price IS NULL OR iu.selling_price IS NULL);
+    `);
+        console.log('[seed] demo data exists — backfilled and updated IMEI unit prices & catalog schema');
         return;
     }
     const owner = await dataSource
@@ -287,18 +346,20 @@ async function seedDemoData(dataSource) {
                 movementTime: seedTime,
             }));
         }
-        for (let i = 0; i < spec.imeiCount; i++) {
-            const imei = `35693810${String(imeiSeq++).padStart(7, '0')}`;
-            const sampleGrades = ['Grade A', 'Grade A', 'Brand New', 'Grade B'];
-            const sampleBH = [100, 98, 92, 88];
-            await imeiRepo.save(imeiRepo.create({
-                imei,
-                productId,
-                status: imei_status_enum_1.ImeiStatus.IN_STOCK,
-                currentLocation: 'STORE',
-                conditionGrade: sampleGrades[i % sampleGrades.length],
-                batteryHealth: sampleBH[i % sampleBH.length],
-            }));
+        if (spec.imeiUnits && spec.imeiUnits.length > 0) {
+            for (const u of spec.imeiUnits) {
+                const imei = `35693810${String(imeiSeq++).padStart(7, '0')}`;
+                await imeiRepo.save(imeiRepo.create({
+                    imei,
+                    productId,
+                    status: imei_status_enum_1.ImeiStatus.IN_STOCK,
+                    currentLocation: u.location || 'STORE',
+                    conditionGrade: u.grade,
+                    batteryHealth: u.battery,
+                    costPrice: u.cost,
+                    sellingPrice: u.srp,
+                }));
+            }
         }
     }
     const customerRepo = dataSource.getRepository(customer_entity_1.Customer);
@@ -330,10 +391,20 @@ async function seedDemoData(dataSource) {
             const product = products.get(line.sku);
             if (!product)
                 throw new Error(`Unknown SKU ${line.sku}`);
-            const unitPrice = parseFloat(product.srp);
+            let unitPrice = parseFloat(product.srp || '0');
+            let assignedImeis = [];
+            if (product.productType === product_type_enum_1.ProductType.SERIALIZED) {
+                assignedImeis = await imeiRepo.find({
+                    where: { productId: product.id, status: imei_status_enum_1.ImeiStatus.IN_STOCK },
+                    take: line.qty,
+                });
+                if (assignedImeis.length > 0 && assignedImeis[0].sellingPrice) {
+                    unitPrice = parseFloat(assignedImeis[0].sellingPrice);
+                }
+            }
             const lineTotal = unitPrice * line.qty;
             subtotal += lineTotal;
-            lines.push({ product, qty: line.qty, lineTotal });
+            lines.push({ product, qty: line.qty, unitPrice, lineTotal, assignedImeis });
         }
         const sale = await saleRepo.save(saleRepo.create({
             invoiceNumber,
@@ -351,12 +422,11 @@ async function seedDemoData(dataSource) {
         const savedItems = [];
         for (const line of lines) {
             const productId = Number(line.product.id);
-            const unitPrice = parseFloat(line.product.srp);
             const item = await saleItemRepo.save(saleItemRepo.create({
                 saleId,
                 productId,
                 qty: line.qty,
-                unitPrice: unitPrice.toFixed(2),
+                unitPrice: line.unitPrice.toFixed(2),
                 discountAmount: '0.00',
                 taxAmount: '0.00',
                 lineTotal: line.lineTotal.toFixed(2),
@@ -369,11 +439,14 @@ async function seedDemoData(dataSource) {
                 }
                 balance.onHandQty -= line.qty;
                 await stockRepo.save(balance);
+                const costUsed = line.assignedImeis && line.assignedImeis[0]?.costPrice
+                    ? line.assignedImeis[0].costPrice
+                    : line.product.costPrice || '0.00';
                 await movementRepo.save(movementRepo.create({
                     productId,
                     movementType: movement_type_enum_1.MovementType.OUT,
                     qty: line.qty,
-                    unitCost: line.product.costPrice,
+                    unitCost: costUsed,
                     refType: 'SALE',
                     refId: saleId,
                     createdBy: ownerId,
@@ -382,23 +455,16 @@ async function seedDemoData(dataSource) {
                     movementTime: saleTime,
                 }));
             }
-            if (line.product.productType === product_type_enum_1.ProductType.SERIALIZED) {
-                const imeis = await imeiRepo.find({
-                    where: { productId, status: imei_status_enum_1.ImeiStatus.IN_STOCK },
-                    take: line.qty,
-                });
-                if (imeis.length < line.qty) {
-                    throw new Error(`Not enough IMEIs for ${line.product.sku}`);
-                }
-                for (const imei of imeis) {
-                    imei.status = imei_status_enum_1.ImeiStatus.SOLD;
-                    imei.lastRefType = 'SALE';
-                    imei.lastRefId = saleId;
-                    await imeiRepo.save(imei);
+            if (line.product.productType === product_type_enum_1.ProductType.SERIALIZED && line.assignedImeis) {
+                for (const imeiUnit of line.assignedImeis) {
                     await saleItemImeiRepo.save(saleItemImeiRepo.create({
                         saleItemId: Number(item.id),
-                        imeiUnitId: Number(imei.id),
+                        imeiUnitId: Number(imeiUnit.id),
                     }));
+                    imeiUnit.status = imei_status_enum_1.ImeiStatus.SOLD;
+                    imeiUnit.lastRefType = 'SALE';
+                    imeiUnit.lastRefId = saleId;
+                    await imeiRepo.save(imeiUnit);
                 }
             }
         }
@@ -406,58 +472,53 @@ async function seedDemoData(dataSource) {
             saleId,
             method: spec.method,
             amount: subtotal.toFixed(2),
-            referenceNo: null,
+            referenceNo: spec.method === payment_method_enum_1.PaymentMethod.BANK_TRANSFER
+                ? `TRF-${saleId}`
+                : spec.method === payment_method_enum_1.PaymentMethod.E_WALLET
+                    ? `EWL-${saleId}`
+                    : null,
         }));
         savedSales.push({ sale, items: savedItems, spec });
     }
-    const returnTarget = savedSales.find((s) => s.spec.lines.some((l) => l.sku === 'BASEUS-CBL-C'));
-    if (returnTarget) {
-        const returnItemSpec = returnTarget.spec.lines.find((l) => l.sku === 'BASEUS-CBL-C');
-        const saleItem = returnTarget.items[returnTarget.spec.lines.indexOf(returnItemSpec)];
-        const product = products.get(returnItemSpec.sku);
-        const productId = Number(product.id);
-        const unitRefund = parseFloat(product.srp);
-        const returnTime = daysAgo(1, 18);
-        const returnNumber = `RET-${ymd(returnTime)}-0001`;
+    const returnEligible = savedSales.find((s) => s.items.some((item) => {
+        const p = Array.from(products.values()).find((pr) => Number(pr.id) === Number(item.productId));
+        return p?.productType === product_type_enum_1.ProductType.NON_SERIALIZED;
+    }));
+    if (returnEligible) {
         const returnRepo = dataSource.getRepository(return_entity_1.Return);
         const returnItemRepo = dataSource.getRepository(return_item_entity_1.ReturnItem);
-        const ret = await returnRepo.save(returnRepo.create({
-            returnNumber,
-            saleId: Number(returnTarget.sale.id),
+        const returnItem = returnEligible.items.find((item) => {
+            const p = Array.from(products.values()).find((pr) => Number(pr.id) === Number(item.productId));
+            return p?.productType === product_type_enum_1.ProductType.NON_SERIALIZED;
+        });
+        const returnSaleTime = daysAgo(1, 14);
+        const returnDoc = await returnRepo.save(returnRepo.create({
+            returnNumber: `RET-${ymd(returnSaleTime)}-0001`,
+            saleId: Number(returnEligible.sale.id),
+            returnTime: returnSaleTime,
             processedBy: ownerId,
-            returnTime,
-            refundTotal: unitRefund.toFixed(2),
+            refundTotal: returnItem.unitPrice,
             refundMethod: refund_method_enum_1.RefundMethod.CASH,
+            reason: 'Customer changed mind (sealed box)',
             status: return_status_enum_1.ReturnStatus.COMPLETED,
-            reason: 'Customer changed mind',
         }));
         await returnItemRepo.save(returnItemRepo.create({
-            returnId: Number(ret.id),
-            saleItemId: Number(saleItem.id),
-            productId,
+            returnId: Number(returnDoc.id),
+            saleItemId: Number(returnItem.id),
+            productId: Number(returnItem.productId),
             qty: 1,
-            unitRefund: unitRefund.toFixed(2),
-            lineRefundTotal: unitRefund.toFixed(2),
+            unitRefund: returnItem.unitPrice,
+            lineRefundTotal: returnItem.unitPrice,
             restockType: restock_type_enum_1.RestockType.SELLABLE,
         }));
-        const balance = await stockRepo.findOne({ where: { productId } });
+        const balance = await stockRepo.findOne({
+            where: { productId: Number(returnItem.productId) },
+        });
         if (balance) {
             balance.onHandQty += 1;
             await stockRepo.save(balance);
         }
-        await movementRepo.save(movementRepo.create({
-            productId,
-            movementType: movement_type_enum_1.MovementType.RETURN_IN,
-            qty: 1,
-            unitCost: product.costPrice,
-            refType: 'RETURN',
-            refId: Number(ret.id),
-            createdBy: ownerId,
-            notes: `Return via ${returnNumber}`,
-            imeiUnitId: null,
-            movementTime: returnTime,
-        }));
     }
-    console.log(`[seed] demo data created: ${PRODUCT_SPECS.length} products, ${SALE_SPECS.length} sales, 1 return`);
+    console.log('[seed] demo data seeded successfully');
 }
 //# sourceMappingURL=seed.demo-data.js.map

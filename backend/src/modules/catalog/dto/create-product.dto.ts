@@ -21,13 +21,15 @@ export class CreateProductDto {
   @IsEnum(ProductType)
   productType: ProductType;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  costPrice: number;
+  costPrice?: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  srp: number;
+  srp?: number;
 
   @IsOptional()
   @IsInt()

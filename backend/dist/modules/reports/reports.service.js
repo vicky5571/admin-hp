@@ -217,7 +217,15 @@ let ReportsService = class ReportsService {
         p.min_stock_alert,
         p.cost_price,
         p.srp,
-        COALESCE(sb.on_hand_qty, 0) * p.cost_price AS stock_value
+        CASE
+          WHEN p.product_type = 'SERIALIZED'
+          THEN COALESCE((
+            SELECT SUM(COALESCE(iu.cost_price, p.cost_price, 0))
+            FROM imei_units iu
+            WHERE iu.product_id = p.id AND iu.status = 'IN_STOCK'
+          ), 0)
+          ELSE COALESCE(sb.on_hand_qty, 0) * COALESCE(p.cost_price, 0)
+        END AS stock_value
       FROM products p
       LEFT JOIN stock_balances sb ON sb.product_id = p.id
       LEFT JOIN brands b ON b.id = p.brand_id

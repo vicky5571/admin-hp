@@ -45,6 +45,14 @@ __decorate([
     __metadata("design:type", Object)
 ], ImeiUnit.prototype, "batteryHealth", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'cost_price', type: 'numeric', precision: 14, scale: 2, nullable: true }),
+    __metadata("design:type", Object)
+], ImeiUnit.prototype, "costPrice", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'selling_price', type: 'numeric', precision: 14, scale: 2, nullable: true }),
+    __metadata("design:type", Object)
+], ImeiUnit.prototype, "sellingPrice", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'last_ref_type', type: 'varchar', length: 30, nullable: true }),
     __metadata("design:type", Object)
 ], ImeiUnit.prototype, "lastRefType", void 0);

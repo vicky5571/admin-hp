@@ -132,7 +132,7 @@ export default function PosProductCatalog({
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
             {filteredProducts.map((p) => {
-              const price = parseFloat(p.srp) || 0;
+              const price = parseFloat(p.srp || "0") || 0;
               const isSerialized = p.productType === "SERIALIZED";
 
               return (

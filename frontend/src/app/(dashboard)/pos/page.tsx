@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createSale,
   fetchCategories,
@@ -9,6 +9,7 @@ import {
   fetchSaleReceipt,
   generateIdempotencyKey,
   lookupImei,
+  Product,
   quoteSale,
   ReceiptPayload,
 } from "@/lib/api";
@@ -35,12 +36,17 @@ import PosHeldCartsModal from "./components/PosHeldCartsModal";
 export default function PosPage() {
   // 1. Smart Caching Layer (Products, Categories, Active Shift)
   const {
-    data: products = [],
+    data: rawProducts = [],
     loading: productsLoading,
   } = useCache("pos_products", () => fetchProducts({ limit: 80, isActive: true }), {
     ttlMs: 60000,
     persistKey: "pos_products",
   });
+
+  const products: Product[] = useMemo(() => {
+    const list = (rawProducts as any)?.data ?? rawProducts ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [rawProducts]);
 
   const { data: categories = [] } = useCache(
     "pos_categories",

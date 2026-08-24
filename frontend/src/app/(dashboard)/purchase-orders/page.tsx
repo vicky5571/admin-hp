@@ -174,7 +174,8 @@ export default function PurchaseOrdersPage() {
         fetchProducts({ limit: 100 }),
       ]);
       setSuppliers((supRes.data ?? []).filter((s) => s.isActive));
-      setProducts(prodRes.data ?? []);
+      const rawProds = (prodRes.data as any)?.data ?? prodRes.data ?? [];
+      setProducts(Array.isArray(rawProds) ? rawProds : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load form options");
     }

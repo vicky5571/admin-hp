@@ -113,8 +113,8 @@ export interface Product {
   categoryId?: number | null;
   brandId?: number | null;
   productType: "SERIALIZED" | "NON_SERIALIZED" | "SERVICE" | string;
-  costPrice: string;
-  srp: string;
+  costPrice?: string;
+  srp?: string;
   taxClassId?: number | null;
   minStockAlert: number;
   isActive: boolean;
@@ -131,8 +131,8 @@ export interface CreateProductPayload {
   categoryId?: number;
   brandId?: number;
   productType: string;
-  costPrice: number;
-  srp: number;
+  costPrice?: number;
+  srp?: number;
   taxClassId?: number;
   minStockAlert?: number;
   isActive?: boolean;
@@ -663,6 +663,8 @@ export interface ImeiUnit {
   currentLocation: string;
   conditionGrade?: string | null;
   batteryHealth?: number | null;
+  costPrice?: string | null;
+  sellingPrice?: string | null;
   lastRefType: string | null;
   lastRefId: number | null;
   createdAt: string;
@@ -712,6 +714,8 @@ export function updateImeiStatus(
     location?: string;
     conditionGrade?: string;
     batteryHealth?: number | null;
+    costPrice?: number | null;
+    sellingPrice?: number | null;
   },
 ) {
   return apiFetch<ImeiUnit>(`/imei/${id}/status`, {

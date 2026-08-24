@@ -31,4 +31,14 @@ export class UpdateImeiStatusDto {
   @Min(0)
   @Max(100)
   batteryHealth?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  costPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  sellingPrice?: number;
 }

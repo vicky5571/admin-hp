@@ -80,7 +80,8 @@ export default function ProductsPage() {
         fetchTaxClasses().catch(() => ({ success: true, data: [] })),
       ]);
 
-      setProducts(prodRes.data ?? []);
+      const rawProds = (prodRes.data as any)?.data ?? prodRes.data ?? [];
+      setProducts(Array.isArray(rawProds) ? rawProds : []);
       setCategories(catRes.data ?? []);
       setBrands(brandRes.data ?? []);
       setTaxClasses(taxRes.data ?? []);
@@ -120,8 +121,8 @@ export default function ProductsPage() {
     setFormType(p.productType);
     setFormCategoryId(p.categoryId ? String(p.categoryId) : "");
     setFormBrandId(p.brandId ? String(p.brandId) : "");
-    setFormCostPrice(String(parseFloat(p.costPrice) || 0));
-    setFormSrp(String(parseFloat(p.srp) || 0));
+    setFormCostPrice(String(parseFloat(p.costPrice || "0") || 0));
+    setFormSrp(String(parseFloat(p.srp || "0") || 0));
     setFormTaxClassId(p.taxClassId ? String(p.taxClassId) : "");
     setFormMinStockAlert(String(p.minStockAlert ?? 0));
     setFormIsActive(p.isActive);
@@ -514,8 +515,8 @@ export default function ProductsPage() {
                 </tr>
               )}
               {filteredProducts.map((p) => {
-                const cost = parseFloat(p.costPrice) || 0;
-                const srp = parseFloat(p.srp) || 0;
+                const cost = parseFloat(p.costPrice || "0") || 0;
+                const srp = parseFloat(p.srp || "0") || 0;
                 const profit = srp - cost;
                 const margin = cost > 0 ? ((profit / cost) * 100).toFixed(0) : "0";
 
@@ -565,25 +566,43 @@ export default function ProductsPage() {
 
                     {/* Cost Price */}
                     <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-600">
-                      IDR {cost.toLocaleString()}
+                      {p.productType === "SERIALIZED" ? (
+                        <span className="text-purple-700 font-sans text-[10px] font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                          📱 Per Unit
+                        </span>
+                      ) : (
+                        `IDR ${cost.toLocaleString()}`
+                      )}
                     </td>
 
                     {/* SRP */}
                     <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-gray-900">
-                      IDR {srp.toLocaleString()}
+                      {p.productType === "SERIALIZED" ? (
+                        <span className="text-purple-700 font-sans text-[10px] font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                          📱 Per Unit
+                        </span>
+                      ) : (
+                        `IDR ${srp.toLocaleString()}`
+                      )}
                     </td>
 
                     {/* Margin */}
                     <td className="px-4 py-3.5 text-center">
-                      <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold font-mono ${
-                          profit >= 0
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {profit >= 0 ? `+${margin}%` : `${margin}%`}
-                      </span>
+                      {p.productType === "SERIALIZED" ? (
+                        <span className="text-gray-400 font-sans text-[11px] font-medium">
+                          Variable
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold font-mono ${
+                            profit >= 0
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-rose-50 text-rose-700"
+                          }`}
+                        >
+                          {margin}%
+                        </span>
+                      )}
                     </td>
 
                     {/* Min Stock */}
@@ -789,61 +808,75 @@ export default function ProductsPage() {
               </div>
 
               {/* Pricing & Real-time Margin Box */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Pricing & Profit Margins (IDR)
+              {formType === "SERIALIZED" ? (
+                <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📱</span>
+                    <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">
+                      Individual Device (IMEI) Pricing
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-800 leading-relaxed font-sans">
+                    For serialized and used smartphones, <strong>Acquisition Cost (Harga Modal)</strong> and <strong>Selling Price (Harga Jual)</strong> are tracked individually per physical <strong>IMEI unit</strong> in <strong>Inventory & Stock Intake</strong> based on specific cosmetic condition, battery health, and buyback value.
+                  </p>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
-                      Cost Price (IDR) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      step="1000"
-                      placeholder="0"
-                      value={formCostPrice}
-                      onChange={(e) => setFormCostPrice(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-semibold bg-white focus:border-blue-500 focus:outline-none"
-                    />
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Pricing & Profit Margins (IDR)
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
-                      SRP (Suggested Retail Price) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      step="1000"
-                      placeholder="0"
-                      value={formSrp}
-                      onChange={(e) => setFormSrp(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold text-blue-700 bg-white focus:border-blue-500 focus:outline-none"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
+                        Cost Price (IDR) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        step="1000"
+                        placeholder="0"
+                        value={formCostPrice}
+                        onChange={(e) => setFormCostPrice(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-semibold bg-white focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 uppercase mb-1">
+                        SRP (Suggested Retail Price) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        step="1000"
+                        placeholder="0"
+                        value={formSrp}
+                        onChange={(e) => setFormSrp(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-right font-bold text-blue-700 bg-white focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Profit Calculation Banner */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                    <span className="text-gray-600">
+                      Calculated Profit:{" "}
+                      <strong className={formProfit >= 0 ? "text-emerald-700 font-mono" : "text-rose-700 font-mono"}>
+                        IDR {formProfit.toLocaleString()}
+                      </strong>
+                    </span>
+                    <span className="text-gray-600">
+                      Gross Margin:{" "}
+                      <strong className={formProfit >= 0 ? "text-emerald-700 font-mono" : "text-rose-700 font-mono"}>
+                        {formProfit >= 0 ? `+${formMarginPercent}%` : `${formMarginPercent}%`}
+                      </strong>
+                    </span>
                   </div>
                 </div>
-
-                {/* Live Profit Calculation Banner */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                  <span className="text-gray-600">
-                    Calculated Profit:{" "}
-                    <strong className={formProfit >= 0 ? "text-emerald-700 font-mono" : "text-rose-700 font-mono"}>
-                      IDR {formProfit.toLocaleString()}
-                    </strong>
-                  </span>
-                  <span className="text-gray-600">
-                    Gross Margin:{" "}
-                    <strong className={formProfit >= 0 ? "text-emerald-700 font-mono" : "text-rose-700 font-mono"}>
-                      {formProfit >= 0 ? `+${formMarginPercent}%` : `${formMarginPercent}%`}
-                    </strong>
-                  </span>
-                </div>
-              </div>
+              )}
 
               {/* Tax Class, Min Stock Alert, and Status */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

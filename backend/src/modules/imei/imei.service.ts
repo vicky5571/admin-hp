@@ -132,6 +132,18 @@ export class ImeiService {
           ? Number(dto.batteryHealth)
           : null;
     }
+    if (dto.costPrice !== undefined) {
+      unit.costPrice =
+        dto.costPrice !== null && !isNaN(Number(dto.costPrice))
+          ? String(dto.costPrice)
+          : null;
+    }
+    if (dto.sellingPrice !== undefined) {
+      unit.sellingPrice =
+        dto.sellingPrice !== null && !isNaN(Number(dto.sellingPrice))
+          ? String(dto.sellingPrice)
+          : null;
+    }
     return this.imeiRepo.save(unit);
   }
 
