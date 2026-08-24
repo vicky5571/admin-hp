@@ -449,7 +449,7 @@ function ProductInsightCard({
   profitData: any[];
   loading: boolean;
 }) {
-  const [metric, setMetric] = useState<"revenue" | "profit" | "volume">("revenue");
+  const [metric, setMetric] = useState<"profit" | "revenue" | "volume">("profit");
 
   const mergedItems = useMemo(() => {
     const pMap = new Map<string, any>();
@@ -475,10 +475,10 @@ function ProductInsightCard({
     if (metric === "volume") {
       return list.sort((a, b) => Number(b.qty_sold || 0) - Number(a.qty_sold || 0));
     }
-    if (metric === "profit") {
-      return list.sort((a, b) => parseFloat(b.gross_profit || 0) - parseFloat(a.gross_profit || 0));
+    if (metric === "revenue") {
+      return list.sort((a, b) => parseFloat(b.net_sales || 0) - parseFloat(a.net_sales || 0));
     }
-    return list.sort((a, b) => parseFloat(b.net_sales || 0) - parseFloat(a.net_sales || 0));
+    return list.sort((a, b) => parseFloat(b.gross_profit || 0) - parseFloat(a.gross_profit || 0));
   }, [mergedItems, metric]);
 
   const topItems = useMemo(() => sorted.slice(0, 5), [sorted]);
@@ -487,10 +487,10 @@ function ProductInsightCard({
     if (metric === "volume") {
       return Math.max(...topItems.map((it) => Number(it.qty_sold || 0)), 1);
     }
-    if (metric === "profit") {
-      return Math.max(...topItems.map((it) => Math.max(0, parseFloat(it.gross_profit || 0))), 1);
+    if (metric === "revenue") {
+      return Math.max(...topItems.map((it) => parseFloat(it.net_sales || 0)), 1);
     }
-    return Math.max(...topItems.map((it) => parseFloat(it.net_sales || 0)), 1);
+    return Math.max(...topItems.map((it) => Math.max(0, parseFloat(it.gross_profit || 0))), 1);
   }, [topItems, metric]);
 
   const totals = useMemo(() => {
@@ -500,8 +500,8 @@ function ProductInsightCard({
     return { totalUnits, totalNet, totalProfit };
   }, [mergedItems]);
 
-  const barColor = metric === "profit" ? "bg-indigo-600" : metric === "volume" ? "bg-amber-600" : "bg-emerald-600";
-  const badgeColor = metric === "profit" ? "bg-indigo-50 text-indigo-700 border-indigo-200" : metric === "volume" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
+  const barColor = metric === "revenue" ? "bg-emerald-600" : metric === "volume" ? "bg-amber-600" : "bg-indigo-600";
+  const badgeColor = metric === "revenue" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : metric === "volume" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-indigo-50 text-indigo-700 border-indigo-200";
 
   return (
     <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -509,21 +509,10 @@ function ProductInsightCard({
         <div>
           <h3 className="text-base font-semibold text-gray-900">Product Insights</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            {mergedItems.length} products sold · {totals.totalUnits} units · {fmtIDR(Math.round(totals.totalNet))} rev · {fmtIDR(Math.round(totals.totalProfit))} profit
+            {mergedItems.length} products sold · {totals.totalUnits} units · {fmtIDR(Math.round(totals.totalProfit))} profit · {fmtIDR(Math.round(totals.totalNet))} rev
           </p>
         </div>
         <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setMetric("revenue")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              metric === "revenue"
-                ? "bg-gray-900 text-white shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Top Revenue
-          </button>
           <button
             type="button"
             onClick={() => setMetric("profit")}
@@ -534,6 +523,17 @@ function ProductInsightCard({
             }`}
           >
             Top Profit
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetric("revenue")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "revenue"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Top Revenue
           </button>
           <button
             type="button"
