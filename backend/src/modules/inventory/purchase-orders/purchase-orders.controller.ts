@@ -19,6 +19,7 @@ import { AuthUser } from '../../../common/types/auth-user.type';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
 import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
+import { RecordPoPaymentDto } from '../dto/record-po-payment.dto';
 import { RejectPurchaseOrderDto, UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -31,6 +32,12 @@ export class PurchaseOrdersController {
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
   findAll(@Query() query: ListPurchaseOrdersQueryDto) {
     return this.service.findAll(query);
+  }
+
+  @Get('kpi/summary')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
+  getApKpis() {
+    return this.service.getApKpis();
   }
 
   @Get('imei-trace/:imei')
@@ -52,6 +59,16 @@ export class PurchaseOrdersController {
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
+  }
+
+  @Post(':id/record-payment')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  recordPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RecordPoPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.recordPayment(id, dto, user.id);
   }
 
   @Post()

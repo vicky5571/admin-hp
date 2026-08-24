@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  ApKpiSummary,
   GoodsReceipt,
   ImeiTraceResult,
   PoItem,
@@ -14,9 +15,11 @@ import {
   createSupplier,
   deletePurchaseOrder,
   expressBuyback,
+  fetchApKpiSummary,
   fetchProducts,
   fetchPurchaseOrders,
   fetchSuppliers,
+  recordPoPayment,
   rejectPurchaseOrder,
   submitPurchaseOrder,
   traceImeiProcurement,
@@ -169,12 +172,45 @@ export default function PurchaseOrdersPage() {
   const [buybackError, setBuybackError] = useState("");
   const [buybackScanner, setBuybackScanner] = useState(false);
 
+  // Capital Outlay AP KPIs State
+  const [kpis, setKpis] = useState<ApKpiSummary | null>(null);
+  const [loadingKpis, setLoadingKpis] = useState(false);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
+
+  // Record Supplier Payment Modal State
+  const [paymentTargetPo, setPaymentTargetPo] = useState<PurchaseOrder | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+
+  // PO Form states
+  const [paymentDueDate, setPaymentDueDate] = useState("");
+
+  const loadKpis = useCallback(async () => {
+    setLoadingKpis(true);
+    try {
+      const res = await fetchApKpiSummary();
+      setKpis(res.data);
+    } catch {
+      // ignore silently
+    } finally {
+      setLoadingKpis(false);
+    }
+  }, []);
+
   const load = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
+        const isOverdue = paymentStatusFilter === "OVERDUE";
+        const payStatus = isOverdue ? undefined : paymentStatusFilter || undefined;
         const res = await fetchPurchaseOrders({
           status: statusFilter || undefined,
+          paymentStatus: payStatus,
+          isOverdue,
           page,
           limit: 20,
         });
@@ -186,12 +222,13 @@ export default function PurchaseOrdersPage() {
         setLoading(false);
       }
     },
-    [statusFilter],
+    [statusFilter, paymentStatusFilter],
   );
 
   useEffect(() => {
     load(1);
-  }, [load]);
+    loadKpis();
+  }, [load, loadKpis]);
 
   const loadDropdownData = async () => {
     try {
@@ -213,12 +250,59 @@ export default function PurchaseOrdersPage() {
     setSupplierId("");
     setOrderDate(new Date().toISOString().slice(0, 10));
     setExpectedDate("");
+    setPaymentDueDate("");
     setNotes("");
     setRows([{ ...emptyRow }]);
     setShowForm(true);
     setError("");
     setSuccess("");
     await loadDropdownData();
+  };
+
+  const openRecordPaymentModal = (po: PurchaseOrder) => {
+    const total = po.items.reduce(
+      (sum, i) => sum + parseFloat(i.unitCost) * i.orderedQty,
+      0,
+    );
+    const paid = parseFloat(po.paidAmount || "0");
+    const remaining = Math.max(0, total - paid);
+
+    setPaymentTargetPo(po);
+    setPaymentAmount(remaining > 0 ? String(remaining) : "");
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentMethod("Bank Transfer");
+    setPaymentNotes("");
+    setPaymentError("");
+  };
+
+  const handleSavePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentTargetPo) return;
+    const amt = Number(paymentAmount);
+    if (!amt || amt <= 0) {
+      setPaymentError("Please enter a valid payment amount greater than 0");
+      return;
+    }
+
+    setPaymentSubmitting(true);
+    setPaymentError("");
+    try {
+      await recordPoPayment(paymentTargetPo.id, {
+        amount: amt,
+        paymentDate: paymentDate || undefined,
+        paymentMethod: paymentMethod || undefined,
+        notes: paymentNotes || undefined,
+      });
+
+      setPaymentTargetPo(null);
+      setSuccess(`Payment of IDR ${amt.toLocaleString()} recorded for PO #${paymentTargetPo.poNumber}.`);
+      load(1);
+      loadKpis();
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Failed to record payment");
+    } finally {
+      setPaymentSubmitting(false);
+    }
   };
 
   // IMEI Trace Handler
@@ -303,6 +387,7 @@ export default function PurchaseOrdersPage() {
     setSupplierId(po.supplierId ? String(po.supplierId) : "");
     setOrderDate(po.orderDate ? po.orderDate.slice(0, 10) : "");
     setExpectedDate(po.expectedDate ? po.expectedDate.slice(0, 10) : "");
+    setPaymentDueDate(po.paymentDueDate ? po.paymentDueDate.slice(0, 10) : "");
     setNotes(po.notes || "");
     setRows(
       po.items.map((i) => ({
@@ -350,20 +435,22 @@ export default function PurchaseOrdersPage() {
         supplierId: !isWalkIn && supplierId ? Number(supplierId) : null,
         orderDate,
         expectedDate: expectedDate || undefined,
+        paymentDueDate: paymentDueDate || undefined,
         notes: notes || undefined,
         items,
       };
 
       if (editingPoId) {
         await updatePurchaseOrder(editingPoId, payload);
-        setSuccess(`Purchase Order #${editingPoId} updated successfully`);
+        setSuccess("Purchase order updated successfully");
       } else {
         await createPurchaseOrder(payload);
-        setSuccess("New Purchase Order created in Draft status");
+        setSuccess("Purchase order created as draft");
       }
       setShowForm(false);
       setEditingPoId(null);
-      load(meta.page);
+      load(1);
+      loadKpis();
     } catch (err) {
       setError(
         err instanceof Error
@@ -687,6 +774,109 @@ export default function PurchaseOrdersPage() {
         </div>
       </div>
 
+      {/* ── Capital Outlay & AP KPI Strip ─────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Procurement Month */}
+        <div className="rounded-2xl bg-white p-5 border border-gray-200/80 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Total Procurement (This Month)
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              💼
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              IDR {kpis ? kpis.totalProcurementThisMonth.toLocaleString() : "..."}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {kpis ? `${kpis.poCountThisMonth} POs created this month` : "Loading..."}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: New Stock vs Used Buyback */}
+        <div className="rounded-2xl bg-white p-5 border border-gray-200/80 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              New vs Used Buyback Outlay
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold text-sm">
+              🔄
+            </div>
+          </div>
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-600 font-medium">📦 Supplier / New:</span>
+              <span className="font-mono font-bold text-gray-900">
+                IDR {kpis ? kpis.newStockOutlayThisMonth.toLocaleString() : "..."}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-amber-800 font-medium">⚡ Walk-in Used:</span>
+              <span className="font-mono font-bold text-emerald-700">
+                IDR {kpis ? kpis.usedBuybackOutlayThisMonth.toLocaleString() : "..."}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Outstanding Payables (Hutang Supplier Tempo) */}
+        <div className={`rounded-2xl bg-white p-5 border shadow-sm flex flex-col justify-between ${
+          kpis && kpis.overdueCount > 0
+            ? "border-rose-300 ring-1 ring-rose-300/50 bg-rose-50/20"
+            : "border-gray-200/80"
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Hutang Supplier (AP Tempo)
+            </span>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+              kpis && kpis.overdueCount > 0 ? "bg-rose-100 text-rose-600" : "bg-amber-50 text-amber-600"
+            }`}>
+              ⏳
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              IDR {kpis ? kpis.outstandingPayables.toLocaleString() : "..."}
+            </div>
+            <div className="mt-1">
+              {kpis && kpis.overdueCount > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800 animate-pulse">
+                  🚨 IDR {kpis.overduePayables.toLocaleString()} Overdue ({kpis.overdueCount} POs)
+                </span>
+              ) : (
+                <span className="text-xs text-emerald-600 font-medium">
+                  ✓ All supplier tempo on schedule
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Pending Goods Receipt */}
+        <div className="rounded-2xl bg-white p-5 border border-gray-200/80 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Pending Goods Receipt
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
+              🚚
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              {kpis ? kpis.pendingGoodsReceiptCount : "..."} <span className="text-sm font-semibold text-gray-500">POs</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Approved & waiting delivery
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Notifications */}
       {success && (
         <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 border border-emerald-200 flex items-center justify-between">
@@ -718,7 +908,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Global IMEI Trace Search & Filters */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm items-center">
-        <div className="md:col-span-8 flex items-center gap-2">
+        <div className="md:col-span-6 flex items-center gap-2">
           <div className="relative flex-1">
             <input
               type="text"
@@ -754,22 +944,41 @@ export default function PurchaseOrdersPage() {
           </div>
         </div>
 
-        <div className="md:col-span-4 flex items-center justify-end gap-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Status:
-          </span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-          >
-            <option value="">All statuses</option>
-            {PO_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
+        <div className="md:col-span-6 flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-1.5 flex-1 min-w-[150px]">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Status:
+            </span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">All statuses</option>
+              {PO_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-1 min-w-[170px]">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Payment:
+            </span>
+            <select
+              value={paymentStatusFilter}
+              onChange={(e) => setPaymentStatusFilter(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+            >
+              <option value="">All Payments</option>
+              <option value="UNPAID">Unpaid (Tempo)</option>
+              <option value="OVERDUE">🚨 Overdue Only</option>
+              <option value="PARTIALLY_PAID">Partially Paid</option>
+              <option value="PAID">Paid in Full</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -819,7 +1028,7 @@ export default function PurchaseOrdersPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
             <div>
               {!isWalkIn ? (
                 <>
@@ -837,13 +1046,22 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <select
                     value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSupplierId(val);
+                      const s = suppliers.find((sup) => String(sup.id) === val);
+                      if (s && s.paymentTermsDays && s.paymentTermsDays > 0 && orderDate) {
+                        const d = new Date(orderDate);
+                        d.setDate(d.getDate() + Number(s.paymentTermsDays));
+                        setPaymentDueDate(d.toISOString().slice(0, 10));
+                      }
+                    }}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">Select supplier...</option>
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} ({s.supplierCode})
+                        {s.name} {s.paymentTermsDays ? `(Tempo ${s.paymentTermsDays}d)` : ""} ({s.supplierCode})
                       </option>
                     ))}
                   </select>
@@ -883,11 +1101,22 @@ export default function PurchaseOrdersPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                Payment Due (Tempo)
+              </label>
+              <input
+                type="date"
+                value={paymentDueDate}
+                onChange={(e) => setPaymentDueDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
                 Notes / Terms
               </label>
               <input
                 type="text"
-                placeholder="e.g. FOB Destination, Net 30"
+                placeholder="e.g. Tempo 30 Hari, Transfer BCA"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
@@ -1041,7 +1270,8 @@ export default function PurchaseOrdersPage() {
               <tr className="border-b border-gray-200 bg-gray-50/75 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3.5">PO Number</th>
                 <th className="px-4 py-3.5">Supplier</th>
-                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">PO Status</th>
+                <th className="px-4 py-3.5">Payment & Due Date</th>
                 <th className="px-4 py-3.5">Order Date</th>
                 <th className="px-4 py-3.5 text-center">Items</th>
                 <th className="px-4 py-3.5 text-right">Total Cost</th>
@@ -1051,7 +1281,7 @@ export default function PurchaseOrdersPage() {
             <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading purchase orders...</span>
@@ -1061,7 +1291,7 @@ export default function PurchaseOrdersPage() {
               )}
               {!loading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     No purchase orders found matching criteria.
                   </td>
                 </tr>
@@ -1081,6 +1311,7 @@ export default function PurchaseOrdersPage() {
                   onReject={() => openRejectModal(po)}
                   onCancel={() => handleCancelPo(po.id, po.poNumber)}
                   onReceive={() => openReceiveModal(po)}
+                  onRecordPayment={openRecordPaymentModal}
                   total={poTotal(po)}
                 />
               ))}
@@ -2177,6 +2408,146 @@ export default function PurchaseOrdersPage() {
           currentCount={0}
         />
       )}
+
+      {/* ── Record Supplier Payment Modal (AP Outflow) ────────────────── */}
+      {paymentTargetPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                  Accounts Payable Outflow
+                </span>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Record Supplier Payment
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentTargetPo(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {paymentError && (
+              <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200 mb-4 flex items-center justify-between">
+                <span>{paymentError}</span>
+                <button onClick={() => setPaymentError("")} className="font-bold text-red-500">&times;</button>
+              </div>
+            )}
+
+            <form onSubmit={handleSavePayment} className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">PO Number:</span>
+                  <span className="font-mono font-bold text-gray-900">{paymentTargetPo.poNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Supplier:</span>
+                  <span className="font-semibold text-gray-900">{paymentTargetPo.supplier?.name || "Supplier"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Total PO Cost:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    IDR {poTotal(paymentTargetPo).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Already Paid:</span>
+                  <span className="font-mono font-semibold text-emerald-700">
+                    IDR {parseFloat(paymentTargetPo.paidAmount || "0").toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-200">
+                  <span className="font-bold text-rose-700">Remaining Balance:</span>
+                  <span className="font-mono font-black text-sm text-rose-700">
+                    IDR {Math.max(0, poTotal(paymentTargetPo) - parseFloat(paymentTargetPo.paidAmount || "0")).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Payment Amount (IDR) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs font-bold text-gray-400">IDR</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 pl-11 pr-3 py-2 text-sm font-mono font-bold focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Payment Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="Bank Transfer">Bank Transfer (BCA/Mandiri)</option>
+                    <option value="Cash">Cash / Kas Toko</option>
+                    <option value="Giro / Cek">Bilyet Giro / Cek</option>
+                    <option value="QRIS">QRIS</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Notes / Reference Number (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Bukti Transfer BCA #TRX-998821"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setPaymentTargetPo(null)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={paymentSubmitting}
+                  className="rounded-lg bg-amber-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {paymentSubmitting ? "Recording..." : `Confirm Payment (${Number(paymentAmount || 0) > 0 ? `IDR ${Number(paymentAmount).toLocaleString()}` : "Save"})`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2192,6 +2563,7 @@ function PoTableRow({
   onReject,
   onCancel,
   onReceive,
+  onRecordPayment,
   total,
 }: {
   po: PurchaseOrder;
@@ -2204,6 +2576,7 @@ function PoTableRow({
   onReject: () => void;
   onCancel: () => void;
   onReceive: () => void;
+  onRecordPayment: (po: PurchaseOrder) => void;
   total: number;
 }) {
   const isDraft = po.status === "DRAFT";
@@ -2213,9 +2586,22 @@ function PoTableRow({
   const isPartial = po.status === "PARTIALLY_RECEIVED";
   const canCancel = !["COMPLETED", "CANCELLED"].includes(po.status);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isOverdue =
+    Boolean(po.supplierId) &&
+    po.paymentStatus !== "PAID" &&
+    po.status !== "CANCELLED" &&
+    Boolean(po.paymentDueDate) &&
+    po.paymentDueDate! < todayStr;
+
+  const canPay =
+    Boolean(po.supplierId) &&
+    po.paymentStatus !== "PAID" &&
+    po.status !== "CANCELLED";
+
   return (
     <>
-      <tr className="hover:bg-gray-50/80 transition-colors">
+      <tr className={`hover:bg-gray-50/80 transition-colors ${isOverdue ? "bg-rose-50/20" : ""}`}>
         <td className="px-4 py-3.5">
           <button
             onClick={onToggle}
@@ -2234,7 +2620,14 @@ function PoTableRow({
         </td>
         <td className="px-4 py-3.5 font-medium text-gray-900">
           {po.supplier ? (
-            po.supplier.name
+            <div>
+              <span>{po.supplier.name}</span>
+              {po.supplier.paymentTermsDays ? (
+                <span className="text-[10px] text-gray-400 block font-normal">
+                  Tempo {po.supplier.paymentTermsDays} Hari
+                </span>
+              ) : null}
+            </div>
           ) : (
             <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
               Walk-in
@@ -2250,6 +2643,45 @@ function PoTableRow({
             {po.status.replace(/_/g, " ")}
           </span>
         </td>
+
+        {/* Payment Status & Due Date */}
+        <td className="px-4 py-3.5">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border ${
+                  po.paymentStatus === "PAID"
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                    : po.paymentStatus === "PARTIALLY_PAID"
+                      ? "bg-purple-100 text-purple-800 border-purple-200"
+                      : "bg-amber-100 text-amber-800 border-amber-200"
+                }`}
+              >
+                {po.paymentStatus === "PAID"
+                  ? "PAID"
+                  : po.paymentStatus === "PARTIALLY_PAID"
+                    ? "PARTIAL"
+                    : "UNPAID"}
+              </span>
+              {isOverdue && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white animate-pulse">
+                  OVERDUE
+                </span>
+              )}
+            </div>
+            {po.paymentDueDate && (
+              <div className={`text-[11px] font-mono ${isOverdue ? "text-rose-600 font-bold" : "text-gray-500"}`}>
+                Due: {po.paymentDueDate.slice(0, 10)}
+              </div>
+            )}
+            {po.paymentStatus === "PARTIALLY_PAID" && (
+              <div className="text-[10px] text-gray-500 font-mono">
+                Paid: IDR {parseFloat(po.paidAmount || "0").toLocaleString()}
+              </div>
+            )}
+          </div>
+        </td>
+
         <td className="px-4 py-3.5 text-gray-600 text-xs">
           {po.orderDate?.slice(0, 10)}
         </td>
@@ -2261,6 +2693,18 @@ function PoTableRow({
         </td>
         <td className="px-4 py-3.5 text-right">
           <div className="inline-flex items-center justify-end gap-2">
+            {/* Record Payment Button */}
+            {canPay && (
+              <button
+                type="button"
+                onClick={() => onRecordPayment(po)}
+                className="rounded bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 text-xs font-bold shadow-xs transition-colors flex items-center gap-1"
+                title="Record Supplier Payment / Pay Tempo"
+              >
+                💳 Pay
+              </button>
+            )}
+
             {/* Draft Actions */}
             {isDraft && (
               <>
@@ -2350,7 +2794,7 @@ function PoTableRow({
       {/* Expanded PO Details */}
       {expanded && (
         <tr className="bg-gray-50/90 border-y border-gray-200">
-          <td colSpan={7} className="px-6 py-4">
+          <td colSpan={8} className="px-6 py-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between text-xs text-gray-600 gap-4">
                 <div>
@@ -2364,6 +2808,18 @@ function PoTableRow({
                   )}
                 </div>
                 <div>
+                  <span className="font-semibold text-gray-700">Payment Status:</span>{" "}
+                  <span className="font-bold text-gray-900">
+                    {po.paymentStatus || "UNPAID"} ({po.paidAmount ? `IDR ${parseFloat(po.paidAmount).toLocaleString()}` : "IDR 0"} / IDR {total.toLocaleString()})
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-700">Payment Due:</span>{" "}
+                  <span className={`font-medium ${isOverdue ? "text-rose-600 font-bold" : "text-gray-900"}`}>
+                    {po.paymentDueDate?.slice(0, 10) || "Immediate / Cash"}
+                  </span>
+                </div>
+                <div>
                   <span className="font-semibold text-gray-700">Expected Delivery:</span>{" "}
                   {po.expectedDate?.slice(0, 10) || "Not specified"}
                 </div>
@@ -2373,7 +2829,7 @@ function PoTableRow({
                 </div>
                 {po.notes && (
                   <div className="w-full bg-white p-2.5 rounded-lg border border-gray-200 text-gray-700 whitespace-pre-line">
-                    <span className="font-semibold text-gray-900 block mb-0.5">Notes:</span>
+                    <span className="font-semibold text-gray-900 block mb-0.5">Notes / Payment Terms:</span>
                     {po.notes}
                   </div>
                 )}

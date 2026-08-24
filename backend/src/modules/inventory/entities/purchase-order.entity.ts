@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { PoPaymentStatus } from '../../../common/enums/po-payment-status.enum';
 import { PoStatus } from '../../../common/enums/po-status.enum';
 import { User } from '../../users/entities/user.entity';
 import { Supplier } from './supplier.entity';
@@ -26,6 +27,29 @@ export class PurchaseOrder {
 
   @Column({ type: 'varchar', length: 20 })
   status: PoStatus;
+
+  @Column({
+    name: 'payment_status',
+    type: 'varchar',
+    length: 20,
+    default: PoPaymentStatus.UNPAID,
+  })
+  paymentStatus: PoPaymentStatus;
+
+  @Column({ name: 'payment_due_date', type: 'date', nullable: true })
+  paymentDueDate: string | null;
+
+  @Column({
+    name: 'paid_amount',
+    type: 'numeric',
+    precision: 14,
+    scale: 2,
+    default: '0.00',
+  })
+  paidAmount: string;
+
+  @Column({ name: 'paid_at', type: 'timestamp', nullable: true })
+  paidAt: Date | null;
 
   @Column({ name: 'order_date', type: 'date' })
   orderDate: string;

@@ -493,12 +493,16 @@ export interface PurchaseOrder {
   poNumber: string;
   supplierId: number | null;
   status: string;
+  paymentStatus?: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  paymentDueDate?: string | null;
+  paidAmount?: string;
+  paidAt?: string | null;
   orderDate: string;
   expectedDate: string | null;
   notes: string | null;
   createdBy?: number;
   createdAt: string;
-  supplier?: { id: number; name: string } | null;
+  supplier?: { id: number; name: string; paymentTermsDays?: number } | null;
   items: PoItem[];
   creator?: { id: number; fullName: string };
 }
@@ -507,20 +511,58 @@ export interface CreatePoPayload {
   supplierId?: number | null;
   orderDate: string;
   expectedDate?: string;
+  paymentDueDate?: string;
+  paymentStatus?: string;
+  paidAmount?: number;
   notes?: string;
   items: { productId: number; orderedQty: number; unitCost: number }[];
 }
 
+export interface ApKpiSummary {
+  monthPeriod: { from: string; to: string };
+  totalProcurementThisMonth: number;
+  newStockOutlayThisMonth: number;
+  usedBuybackOutlayThisMonth: number;
+  poCountThisMonth: number;
+  outstandingPayables: number;
+  overduePayables: number;
+  overdueCount: number;
+  pendingGoodsReceiptCount: number;
+}
+
 export function fetchPurchaseOrders(params?: {
   status?: string;
+  paymentStatus?: string;
+  isOverdue?: boolean;
   page?: number;
   limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params?.status) query.set("status", params.status);
+  if (params?.paymentStatus) query.set("paymentStatus", params.paymentStatus);
+  if (params?.isOverdue) query.set("isOverdue", "true");
   query.set("page", String(params?.page ?? 1));
   query.set("limit", String(params?.limit ?? 20));
   return apiFetch<PurchaseOrder[]>(`/purchase-orders?${query.toString()}`);
+}
+
+export function fetchApKpiSummary() {
+  return apiFetch<ApKpiSummary>("/purchase-orders/kpi/summary");
+}
+
+export function recordPoPayment(
+  id: number,
+  payload: {
+    amount: number;
+    paymentDate?: string;
+    paymentMethod?: string;
+    notes?: string;
+  },
+) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/record-payment`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function fetchPurchaseOrder(id: number) {

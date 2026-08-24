@@ -8,11 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ImeiStatus } from '../../../common/enums/imei-status.enum';
 import { MovementType } from '../../../common/enums/movement-type.enum';
+import { PoPaymentStatus } from '../../../common/enums/po-payment-status.enum';
 import { PoStatus } from '../../../common/enums/po-status.enum';
 import { paginateMeta } from '../../../common/utils/pagination.util';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
 import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
+import { RecordPoPaymentDto } from '../dto/record-po-payment.dto';
 import { UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrder } from '../entities/purchase-order.entity';
 import { PurchaseOrderItem } from '../entities/purchase-order-item.entity';
@@ -48,6 +50,17 @@ export class PurchaseOrdersService {
     if (query.status) {
       qb.andWhere('po.status = :status', { status: query.status });
     }
+    if (query.paymentStatus) {
+      qb.andWhere('po.paymentStatus = :paymentStatus', {
+        paymentStatus: query.paymentStatus,
+      });
+    }
+    if (query.isOverdue === 'true') {
+      qb.andWhere(
+        'po.paymentStatus != :paidStatus AND po.paymentDueDate IS NOT NULL AND po.paymentDueDate < CURRENT_DATE',
+        { paidStatus: PoPaymentStatus.PAID },
+      );
+    }
     if (query.dateFrom) {
       qb.andWhere('po.orderDate >= :dateFrom', { dateFrom: query.dateFrom });
     }
@@ -79,8 +92,9 @@ export class PurchaseOrdersService {
 
   async create(dto: CreatePurchaseOrderDto, userId: number) {
     let supplierName = 'Walk-in Customer';
+    let supplier: Supplier | null = null;
     if (dto.supplierId) {
-      const supplier = await this.supplierRepo.findOne({
+      supplier = await this.supplierRepo.findOne({
         where: { id: dto.supplierId },
       });
       if (!supplier) {
@@ -104,10 +118,34 @@ export class PurchaseOrdersService {
       }),
     );
 
+    let paymentDueDate = dto.paymentDueDate ?? null;
+    let paymentStatus =
+      (dto.paymentStatus as PoPaymentStatus) || PoPaymentStatus.UNPAID;
+    let paidAmount =
+      dto.paidAmount !== undefined ? dto.paidAmount.toFixed(2) : '0.00';
+
+    if (!dto.supplierId) {
+      // Walk-in purchase is cash-out on the spot
+      paymentDueDate = paymentDueDate || dto.orderDate;
+      paymentStatus = PoPaymentStatus.PAID;
+      const totalAmount = dto.items.reduce(
+        (sum, item) => sum + item.unitCost * item.orderedQty,
+        0,
+      );
+      paidAmount = totalAmount.toFixed(2);
+    } else if (supplier && supplier.paymentTermsDays > 0 && !paymentDueDate) {
+      const orderD = new Date(dto.orderDate);
+      orderD.setDate(orderD.getDate() + Number(supplier.paymentTermsDays));
+      paymentDueDate = orderD.toISOString().slice(0, 10);
+    }
+
     const po = this.poRepo.create({
       poNumber,
       supplierId: dto.supplierId ?? null,
       status: PoStatus.DRAFT,
+      paymentStatus,
+      paymentDueDate,
+      paidAmount,
       orderDate: dto.orderDate,
       expectedDate: dto.expectedDate ?? null,
       notes: dto.notes ?? null,
@@ -126,6 +164,8 @@ export class PurchaseOrdersService {
         poNumber: saved.poNumber,
         supplierId: saved.supplierId,
         supplierName,
+        paymentStatus: saved.paymentStatus,
+        paymentDueDate: saved.paymentDueDate,
         itemsCount: saved.items.length,
       },
     });
@@ -175,6 +215,15 @@ export class PurchaseOrdersService {
     po.supplierId = dto.supplierId ?? null;
     po.orderDate = dto.orderDate;
     po.expectedDate = dto.expectedDate ?? null;
+    if (dto.paymentDueDate !== undefined) {
+      po.paymentDueDate = dto.paymentDueDate || null;
+    }
+    if (dto.paymentStatus) {
+      po.paymentStatus = dto.paymentStatus as PoPaymentStatus;
+    }
+    if (dto.paidAmount !== undefined) {
+      po.paidAmount = dto.paidAmount.toFixed(2);
+    }
     po.notes = dto.notes ?? null;
     po.status = PoStatus.DRAFT; // auto-resets REJECTED back to DRAFT on edit
     po.items = items;
@@ -456,10 +505,15 @@ export class PurchaseOrdersService {
       const movementRepo = manager.getRepository(StockMovement);
 
       // 1. Create completed PO
+      const totalBuyout = dto.unitCost;
       const po = poRepo.create({
         poNumber,
         supplierId: null, // Walk-in Customer
         status: PoStatus.COMPLETED,
+        paymentStatus: PoPaymentStatus.PAID,
+        paymentDueDate: todayStr,
+        paidAmount: totalBuyout.toFixed(2),
+        paidAt: new Date(),
         orderDate: todayStr,
         expectedDate: todayStr,
         notes: dto.notes ? `Express Buyback: ${dto.notes}` : 'Express Buyback (Used Smartphone)',
@@ -577,6 +631,130 @@ export class PurchaseOrdersService {
     });
 
     return result;
+  }
+
+  // ── Record Supplier Payment (Accounts Payable) ───────────────────
+  async recordPayment(id: number, dto: RecordPoPaymentDto, userId: number) {
+    const po = await this.findOne(id);
+    if (po.status === PoStatus.CANCELLED) {
+      throw new BadRequestException('Cannot record payment on a cancelled PO');
+    }
+
+    const poTotal = po.items.reduce(
+      (sum, i) => sum + parseFloat(i.unitCost || '0') * i.orderedQty,
+      0,
+    );
+
+    const currentPaid = parseFloat(po.paidAmount || '0');
+    const paymentAmount = Number(dto.amount);
+    const newPaid = currentPaid + paymentAmount;
+
+    po.paidAmount = newPaid.toFixed(2);
+    po.paidAt = dto.paymentDate ? new Date(dto.paymentDate) : new Date();
+
+    if (newPaid >= poTotal - 0.01) {
+      po.paymentStatus = PoPaymentStatus.PAID;
+    } else {
+      po.paymentStatus = PoPaymentStatus.PARTIALLY_PAID;
+    }
+
+    const saved = await this.poRepo.save(po);
+
+    await this.auditLogsService.log({
+      userId,
+      action: 'PO_PAYMENT_RECORDED',
+      entityType: 'PURCHASE_ORDER',
+      entityId: Number(id),
+      metadataJson: {
+        poNumber: po.poNumber,
+        paymentAmount,
+        totalPaid: newPaid,
+        poTotal,
+        paymentStatus: po.paymentStatus,
+        paymentMethod: dto.paymentMethod,
+        notes: dto.notes,
+      },
+    });
+
+    return saved;
+  }
+
+  // ── Capital Outlay & AP KPI Summary ──────────────────────────────
+  async getApKpis() {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString()
+      .slice(0, 10);
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      .toISOString()
+      .slice(0, 10);
+
+    const monthlySql = `
+      SELECT
+        COALESCE(SUM(poi.unit_cost * poi.ordered_qty), 0)::numeric(14,2) AS total_procurement_month,
+        COALESCE(SUM(CASE WHEN po.supplier_id IS NOT NULL THEN (poi.unit_cost * poi.ordered_qty) ELSE 0 END), 0)::numeric(14,2) AS new_stock_outlay_month,
+        COALESCE(SUM(CASE WHEN po.supplier_id IS NULL THEN (poi.unit_cost * poi.ordered_qty) ELSE 0 END), 0)::numeric(14,2) AS used_buyback_outlay_month,
+        COUNT(DISTINCT po.id)::int AS po_count_month
+      FROM purchase_orders po
+      JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
+      WHERE po.order_date >= $1 AND po.order_date <= $2
+        AND po.status != 'CANCELLED'
+    `;
+    const monthlyRes = await this.dataSource.query(monthlySql, [
+      firstDayOfMonth,
+      lastDayOfMonth,
+    ]);
+
+    const payablesSql = `
+      SELECT
+        COALESCE(SUM(po_totals.total_cost - po_totals.paid_amount), 0)::numeric(14,2) AS outstanding_payables,
+        COALESCE(SUM(CASE WHEN po_totals.payment_due_date < CURRENT_DATE THEN (po_totals.total_cost - po_totals.paid_amount) ELSE 0 END), 0)::numeric(14,2) AS overdue_payables,
+        COUNT(CASE WHEN po_totals.payment_due_date < CURRENT_DATE THEN 1 END)::int AS overdue_count
+      FROM (
+        SELECT
+          po.id,
+          po.payment_due_date,
+          po.paid_amount,
+          COALESCE(SUM(poi.unit_cost * poi.ordered_qty), 0) AS total_cost
+        FROM purchase_orders po
+        JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
+        WHERE po.supplier_id IS NOT NULL
+          AND po.payment_status != 'PAID'
+          AND po.status != 'CANCELLED'
+        GROUP BY po.id, po.payment_due_date, po.paid_amount
+      ) po_totals
+    `;
+    const payablesRes = await this.dataSource.query(payablesSql);
+
+    const pendingGrnCount = await this.poRepo
+      .createQueryBuilder('po')
+      .where('po.status IN (:...statuses)', {
+        statuses: [PoStatus.APPROVED, PoStatus.PARTIALLY_RECEIVED],
+      })
+      .getCount();
+
+    return {
+      monthPeriod: {
+        from: firstDayOfMonth,
+        to: lastDayOfMonth,
+      },
+      totalProcurementThisMonth: parseFloat(
+        monthlyRes[0]?.total_procurement_month || '0',
+      ),
+      newStockOutlayThisMonth: parseFloat(
+        monthlyRes[0]?.new_stock_outlay_month || '0',
+      ),
+      usedBuybackOutlayThisMonth: parseFloat(
+        monthlyRes[0]?.used_buyback_outlay_month || '0',
+      ),
+      poCountThisMonth: Number(monthlyRes[0]?.po_count_month || 0),
+      outstandingPayables: parseFloat(
+        payablesRes[0]?.outstanding_payables || '0',
+      ),
+      overduePayables: parseFloat(payablesRes[0]?.overdue_payables || '0'),
+      overdueCount: Number(payablesRes[0]?.overdue_count || 0),
+      pendingGoodsReceiptCount: pendingGrnCount,
+    };
   }
 
   private async generatePoNumber(prefix = 'PO'): Promise<string> {

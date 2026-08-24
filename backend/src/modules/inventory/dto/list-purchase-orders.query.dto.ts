@@ -19,4 +19,11 @@ export class ListPurchaseOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsDateString()
   dateTo?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  isOverdue?: string;
 }

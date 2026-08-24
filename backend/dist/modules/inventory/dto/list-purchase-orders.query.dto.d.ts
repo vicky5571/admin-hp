@@ -4,4 +4,6 @@ export declare class ListPurchaseOrdersQueryDto extends PaginationQueryDto {
     status?: string;
     dateFrom?: string;
     dateTo?: string;
+    paymentStatus?: string;
+    isOverdue?: string;
 }

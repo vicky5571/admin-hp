@@ -24,6 +24,19 @@ export class UpdatePurchaseOrderDto {
   expectedDate?: string;
 
   @IsOptional()
+  @IsDateString()
+  paymentDueDate?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  paidAmount?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 

@@ -4,6 +4,7 @@ import { PoStatus } from '../../../common/enums/po-status.enum';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
 import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
+import { RecordPoPaymentDto } from '../dto/record-po-payment.dto';
 import { UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrder } from '../entities/purchase-order.entity';
 import { Supplier } from '../entities/supplier.entity';
@@ -91,6 +92,21 @@ export declare class PurchaseOrdersService {
         purchaseOrder: PurchaseOrder;
         goodsReceipt: GoodsReceipt;
         imeiUnit: ImeiUnit;
+    }>;
+    recordPayment(id: number, dto: RecordPoPaymentDto, userId: number): Promise<PurchaseOrder>;
+    getApKpis(): Promise<{
+        monthPeriod: {
+            from: string;
+            to: string;
+        };
+        totalProcurementThisMonth: number;
+        newStockOutlayThisMonth: number;
+        usedBuybackOutlayThisMonth: number;
+        poCountThisMonth: number;
+        outstandingPayables: number;
+        overduePayables: number;
+        overdueCount: number;
+        pendingGoodsReceiptCount: number;
     }>;
     private generatePoNumber;
     private generateGrnNumber;

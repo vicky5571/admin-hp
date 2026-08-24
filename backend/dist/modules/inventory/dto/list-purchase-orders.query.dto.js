@@ -37,4 +37,13 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], ListPurchaseOrdersQueryDto.prototype, "dateTo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListPurchaseOrdersQueryDto.prototype, "paymentStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ListPurchaseOrdersQueryDto.prototype, "isOverdue", void 0);
 //# sourceMappingURL=list-purchase-orders.query.dto.js.map

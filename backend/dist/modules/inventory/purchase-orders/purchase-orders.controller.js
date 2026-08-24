@@ -22,6 +22,7 @@ const roles_guard_1 = require("../../../common/guards/roles.guard");
 const create_purchase_order_dto_1 = require("../dto/create-purchase-order.dto");
 const express_buyback_dto_1 = require("../dto/express-buyback.dto");
 const list_purchase_orders_query_dto_1 = require("../dto/list-purchase-orders.query.dto");
+const record_po_payment_dto_1 = require("../dto/record-po-payment.dto");
 const update_purchase_order_dto_1 = require("../dto/update-purchase-order.dto");
 const purchase_orders_service_1 = require("./purchase-orders.service");
 let PurchaseOrdersController = class PurchaseOrdersController {
@@ -31,6 +32,9 @@ let PurchaseOrdersController = class PurchaseOrdersController {
     findAll(query) {
         return this.service.findAll(query);
     }
+    getApKpis() {
+        return this.service.getApKpis();
+    }
     imeiTrace(imei) {
         return this.service.imeiTrace(imei);
     }
@@ -39,6 +43,9 @@ let PurchaseOrdersController = class PurchaseOrdersController {
     }
     findOne(id) {
         return this.service.findOne(id);
+    }
+    recordPayment(id, dto, user) {
+        return this.service.recordPayment(id, dto, user.id);
     }
     create(dto, user) {
         return this.service.create(dto, user.id);
@@ -72,6 +79,13 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.Get)('kpi/summary'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "getApKpis", null);
+__decorate([
     (0, common_1.Get)('imei-trace/:imei'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
     __param(0, (0, common_1.Param)('imei')),
@@ -96,6 +110,16 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Post)(':id/record-payment'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, record_po_payment_dto_1.RecordPoPaymentDto, Object]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "recordPayment", null);
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),

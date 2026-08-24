@@ -2,6 +2,7 @@ import { AuthUser } from '../../../common/types/auth-user.type';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
 import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
+import { RecordPoPaymentDto } from '../dto/record-po-payment.dto';
 import { RejectPurchaseOrderDto, UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 export declare class PurchaseOrdersController {
@@ -15,6 +16,20 @@ export declare class PurchaseOrdersController {
             limit: number;
             pageCount: number;
         };
+    }>;
+    getApKpis(): Promise<{
+        monthPeriod: {
+            from: string;
+            to: string;
+        };
+        totalProcurementThisMonth: number;
+        newStockOutlayThisMonth: number;
+        usedBuybackOutlayThisMonth: number;
+        poCountThisMonth: number;
+        outstandingPayables: number;
+        overduePayables: number;
+        overdueCount: number;
+        pendingGoodsReceiptCount: number;
     }>;
     imeiTrace(imei: string): Promise<{
         imeiUnit: {
@@ -73,6 +88,7 @@ export declare class PurchaseOrdersController {
         imeiUnit: import("../../imei/entities/imei-unit.entity").ImeiUnit;
     }>;
     findOne(id: number): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
+    recordPayment(id: number, dto: RecordPoPaymentDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     create(dto: CreatePurchaseOrderDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     update(id: number, dto: UpdatePurchaseOrderDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     remove(id: number): Promise<{

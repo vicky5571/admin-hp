@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PurchaseOrder = void 0;
 const typeorm_1 = require("typeorm");
+const po_payment_status_enum_1 = require("../../../common/enums/po-payment-status.enum");
 const po_status_enum_1 = require("../../../common/enums/po-status.enum");
 const user_entity_1 = require("../../users/entities/user.entity");
 const supplier_entity_1 = require("./supplier.entity");
@@ -34,6 +35,33 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20 }),
     __metadata("design:type", String)
 ], PurchaseOrder.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'payment_status',
+        type: 'varchar',
+        length: 20,
+        default: po_payment_status_enum_1.PoPaymentStatus.UNPAID,
+    }),
+    __metadata("design:type", String)
+], PurchaseOrder.prototype, "paymentStatus", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'payment_due_date', type: 'date', nullable: true }),
+    __metadata("design:type", Object)
+], PurchaseOrder.prototype, "paymentDueDate", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'paid_amount',
+        type: 'numeric',
+        precision: 14,
+        scale: 2,
+        default: '0.00',
+    }),
+    __metadata("design:type", String)
+], PurchaseOrder.prototype, "paidAmount", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'paid_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Object)
+], PurchaseOrder.prototype, "paidAt", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'order_date', type: 'date' }),
     __metadata("design:type", String)
