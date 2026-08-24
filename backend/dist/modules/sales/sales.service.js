@@ -26,6 +26,7 @@ const product_entity_1 = require("../catalog/entities/product.entity");
 const imei_unit_entity_1 = require("../imei/entities/imei-unit.entity");
 const stock_balance_entity_1 = require("../inventory/entities/stock-balance.entity");
 const stock_movement_entity_1 = require("../inventory/entities/stock-movement.entity");
+const cashier_shift_entity_1 = require("./entities/cashier-shift.entity");
 const customer_entity_1 = require("./entities/customer.entity");
 const payment_entity_1 = require("./entities/payment.entity");
 const sale_item_imei_entity_1 = require("./entities/sale-item-imei.entity");
@@ -44,6 +45,28 @@ let SalesService = class SalesService {
         this.auditLogsService = auditLogsService;
     }
     async create(dto, user) {
+        if (dto.idempotencyKey) {
+            const existing = await this.salesRepo.findOne({
+                where: { idempotencyKey: dto.idempotencyKey },
+                relations: [
+                    'items',
+                    'items.imeis',
+                    'items.imeis.imeiUnit',
+                    'payments',
+                    'cashier',
+                    'customer',
+                ],
+            });
+            if (existing) {
+                const paidTotal = (0, money_util_1.sumAmounts)(existing.payments?.map((p) => parseFloat(p.amount)) || []);
+                const change = Math.max(0, paidTotal - parseFloat(existing.grandTotal || '0'));
+                return {
+                    ...existing,
+                    paidTotal: paidTotal.toFixed(2),
+                    change: change.toFixed(2),
+                };
+            }
+        }
         this.pricingService.validateClientTotals(dto);
         const paidTotal = (0, money_util_1.sumAmounts)(dto.payments.map((p) => p.amount));
         if (paidTotal < dto.grandTotal) {
@@ -59,11 +82,22 @@ let SalesService = class SalesService {
         }
         return this.dataSource.transaction(async (manager) => {
             const invoiceNumber = await this.generateInvoiceNumber(manager);
+            let shiftId = dto.shiftId ?? null;
+            if (!shiftId) {
+                const activeShift = await manager.findOne(cashier_shift_entity_1.CashierShift, {
+                    where: { userId: user.id, status: cashier_shift_entity_1.ShiftStatus.OPEN },
+                });
+                if (activeShift) {
+                    shiftId = activeShift.id;
+                }
+            }
             const sale = manager.create(sale_entity_1.Sale, {
                 invoiceNumber,
                 saleTime: new Date(),
                 cashierId: user.id,
                 customerId: dto.customerId ?? null,
+                shiftId,
+                idempotencyKey: dto.idempotencyKey ?? null,
                 subtotal: dto.subtotal.toFixed(2),
                 discountTotal: dto.discountTotal.toFixed(2),
                 taxTotal: dto.taxTotal.toFixed(2),
@@ -86,9 +120,10 @@ let SalesService = class SalesService {
                 }
                 const stock = await manager.findOne(stock_balance_entity_1.StockBalance, {
                     where: { productId: line.productId },
+                    lock: { mode: 'pessimistic_write' },
                 });
                 if (!stock || stock.onHandQty < line.qty) {
-                    throw new common_1.ConflictException('STOCK_NOT_ENOUGH');
+                    throw new common_1.ConflictException(`STOCK_NOT_ENOUGH for product "${product.name}"`);
                 }
                 const saleItem = await manager.save(sale_item_entity_1.SaleItem, manager.create(sale_item_entity_1.SaleItem, {
                     saleId: savedSale.id,
@@ -116,12 +151,13 @@ let SalesService = class SalesService {
                     for (const imeiValue of line.imeis) {
                         const imei = await manager.findOne(imei_unit_entity_1.ImeiUnit, {
                             where: { imei: imeiValue, productId: line.productId },
+                            lock: { mode: 'pessimistic_write' },
                         });
                         if (!imei) {
-                            throw new common_1.NotFoundException('IMEI_NOT_FOUND');
+                            throw new common_1.NotFoundException(`IMEI "${imeiValue}" NOT_FOUND`);
                         }
                         if (imei.status !== imei_status_enum_1.ImeiStatus.IN_STOCK) {
-                            throw new common_1.ConflictException('IMEI_NOT_AVAILABLE');
+                            throw new common_1.ConflictException(`IMEI "${imeiValue}" is not available (status: ${imei.status})`);
                         }
                         imei.status = imei_status_enum_1.ImeiStatus.SOLD;
                         imei.lastRefType = 'SALE';
@@ -142,9 +178,42 @@ let SalesService = class SalesService {
                     referenceNo: pay.referenceNo ?? null,
                 }));
             }
+            if (shiftId) {
+                const cashAmount = dto.payments
+                    .filter((p) => p.method === 'CASH')
+                    .reduce((sum, p) => sum + p.amount, 0);
+                if (cashAmount > 0) {
+                    const shift = await manager.findOne(cashier_shift_entity_1.CashierShift, {
+                        where: { id: shiftId },
+                        lock: { mode: 'pessimistic_write' },
+                    });
+                    if (shift) {
+                        const currentCash = parseFloat(shift.totalCashSales) || 0;
+                        const newCash = currentCash + cashAmount;
+                        shift.totalCashSales = newCash.toFixed(2);
+                        const openBal = parseFloat(shift.openingBalance) || 0;
+                        const cashIn = parseFloat(shift.totalCashIn) || 0;
+                        const cashOut = parseFloat(shift.totalCashOut) || 0;
+                        const refunds = parseFloat(shift.totalCashRefunds) || 0;
+                        shift.expectedEndingCash = (openBal +
+                            newCash +
+                            cashIn -
+                            cashOut -
+                            refunds).toFixed(2);
+                        await manager.save(cashier_shift_entity_1.CashierShift, shift);
+                    }
+                }
+            }
             const result = await manager.findOne(sale_entity_1.Sale, {
                 where: { id: savedSale.id },
-                relations: ['items', 'items.imeis', 'items.imeis.imeiUnit', 'payments', 'cashier', 'customer'],
+                relations: [
+                    'items',
+                    'items.imeis',
+                    'items.imeis.imeiUnit',
+                    'payments',
+                    'cashier',
+                    'customer',
+                ],
             });
             const change = paidTotal - dto.grandTotal;
             await this.auditLogsService.log({
@@ -158,6 +227,7 @@ let SalesService = class SalesService {
                     subtotal: dto.subtotal,
                     itemsCount: dto.items.length,
                     paymentMethods: dto.payments.map((p) => p.method),
+                    shiftId,
                 },
             });
             return {
