@@ -575,6 +575,83 @@ export function cancelPurchaseOrder(id: number) {
   });
 }
 
+export interface ExpressBuybackPayload {
+  productId: number;
+  unitCost: number;
+  imei: string;
+  conditionGrade?: string;
+  batteryHealth?: number;
+  sellingPrice?: number;
+  notes?: string;
+}
+
+export interface ImeiTraceResult {
+  imeiUnit: {
+    id: number;
+    imei: string;
+    status: string;
+    conditionGrade?: string | null;
+    batteryHealth?: number | null;
+    costPrice?: number | null;
+    sellingPrice?: number | null;
+    createdAt: string;
+  };
+  product: {
+    id: number;
+    sku: string;
+    name: string;
+    brand?: string;
+    category?: string;
+  };
+  source: {
+    type: "SUPPLIER" | "WALK_IN";
+    supplierName: string;
+    supplierCode?: string | null;
+  };
+  procurement: {
+    id: number;
+    poNumber: string;
+    orderDate: string;
+    unitCost: number;
+    actualUnitCost?: number | null;
+    status: string;
+    notes?: string | null;
+    createdBy: string;
+  } | null;
+  receiving: {
+    id: number;
+    grnNumber: string;
+    receiveDate: string;
+    receivedBy: string;
+    conditionStatus?: string | null;
+    conditionNotes?: string | null;
+  } | null;
+  salesInfo: {
+    id: number;
+    saleNumber: string;
+    saleTime: string;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    unitPrice: number;
+    cashierName?: string | null;
+  } | null;
+}
+
+export function expressBuyback(payload: ExpressBuybackPayload) {
+  return apiFetch<{
+    purchaseOrder: PurchaseOrder;
+    goodsReceipt: GoodsReceipt;
+    imeiUnit: any;
+  }>("/purchase-orders/express-buyback", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function traceImeiProcurement(imei: string) {
+  return apiFetch<ImeiTraceResult>(`/purchase-orders/imei-trace/${encodeURIComponent(imei.trim())}`);
+}
+
 // ── Goods Receipts ──────────────────────────────────────────────────
 export interface GrItem {
   id: number;

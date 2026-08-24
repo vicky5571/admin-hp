@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   GoodsReceipt,
+  ImeiTraceResult,
   PoItem,
   PurchaseOrder,
   Supplier,
@@ -12,11 +13,13 @@ import {
   createPurchaseOrder,
   createSupplier,
   deletePurchaseOrder,
+  expressBuyback,
   fetchProducts,
   fetchPurchaseOrders,
   fetchSuppliers,
   rejectPurchaseOrder,
   submitPurchaseOrder,
+  traceImeiProcurement,
   updatePurchaseOrder,
 } from "@/lib/api";
 import CameraBarcodeScanner from "@/components/CameraBarcodeScanner";
@@ -144,6 +147,28 @@ export default function PurchaseOrdersPage() {
   });
   const [printGrnTarget, setPrintGrnTarget] = useState<GoodsReceipt | null>(null);
 
+  // Global IMEI Trace State
+  const [traceImeiInput, setTraceImeiInput] = useState("");
+  const [tracing, setTracing] = useState(false);
+  const [traceResult, setTraceResult] = useState<ImeiTraceResult | null>(null);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [showTraceScanner, setShowTraceScanner] = useState(false);
+  const [traceError, setTraceError] = useState("");
+
+  // Express Buyback Modal State
+  const [showExpressBuybackModal, setShowExpressBuybackModal] = useState(false);
+  const [buybackProductId, setBuybackProductId] = useState("");
+  const [buybackProductSearch, setBuybackProductSearch] = useState("");
+  const [buybackUnitCost, setBuybackUnitCost] = useState("");
+  const [buybackSellingPrice, setBuybackSellingPrice] = useState("");
+  const [buybackImei, setBuybackImei] = useState("");
+  const [buybackGrade, setBuybackGrade] = useState("Grade B");
+  const [buybackBattery, setBuybackBattery] = useState("");
+  const [buybackNotes, setBuybackNotes] = useState("");
+  const [buybackSubmitting, setBuybackSubmitting] = useState(false);
+  const [buybackError, setBuybackError] = useState("");
+  const [buybackScanner, setBuybackScanner] = useState(false);
+
   const load = useCallback(
     async (page = 1) => {
       setLoading(true);
@@ -194,6 +219,82 @@ export default function PurchaseOrdersPage() {
     setError("");
     setSuccess("");
     await loadDropdownData();
+  };
+
+  // IMEI Trace Handler
+  const handleTraceImei = async (imeiInputParam?: string) => {
+    const queryImei = (imeiInputParam ?? traceImeiInput).trim();
+    if (!queryImei) {
+      setError("Please enter or scan an IMEI to trace");
+      return;
+    }
+    setTracing(true);
+    setTraceError("");
+    try {
+      const res = await traceImeiProcurement(queryImei);
+      setTraceResult(res.data);
+      setShowTraceModal(true);
+    } catch (err) {
+      setTraceError(err instanceof Error ? err.message : `No trace found for IMEI ${queryImei}`);
+      setError(err instanceof Error ? err.message : `No trace found for IMEI ${queryImei}`);
+    } finally {
+      setTracing(false);
+    }
+  };
+
+  // Express Buyback Handlers
+  const openExpressBuybackModal = async () => {
+    setBuybackProductId("");
+    setBuybackProductSearch("");
+    setBuybackUnitCost("");
+    setBuybackSellingPrice("");
+    setBuybackImei("");
+    setBuybackGrade("Grade B");
+    setBuybackBattery("");
+    setBuybackNotes("");
+    setBuybackError("");
+    setShowExpressBuybackModal(true);
+    await loadDropdownData();
+  };
+
+  const handleSaveExpressBuyback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!buybackProductId) {
+      setBuybackError("Please select a smartphone product / model");
+      return;
+    }
+    if (!buybackUnitCost || Number(buybackUnitCost) <= 0) {
+      setBuybackError("Please enter a valid purchase cost (IDR)");
+      return;
+    }
+    if (!buybackImei.trim()) {
+      setBuybackError("Please enter or scan a valid 15-digit IMEI");
+      return;
+    }
+
+    setBuybackSubmitting(true);
+    setBuybackError("");
+    try {
+      const res = await expressBuyback({
+        productId: Number(buybackProductId),
+        unitCost: Number(buybackUnitCost),
+        sellingPrice: buybackSellingPrice ? Number(buybackSellingPrice) : undefined,
+        imei: buybackImei.trim(),
+        conditionGrade: buybackGrade || undefined,
+        batteryHealth: buybackBattery ? Number(buybackBattery) : undefined,
+        notes: buybackNotes || undefined,
+      });
+
+      setShowExpressBuybackModal(false);
+      setSuccess(
+        `Express Buyback completed! Received ${res.data.imeiUnit?.imei || "device"} into stock (#${res.data.purchaseOrder.poNumber}).`
+      );
+      load(1);
+    } catch (err) {
+      setBuybackError(err instanceof Error ? err.message : "Failed to execute Express Buyback");
+    } finally {
+      setBuybackSubmitting(false);
+    }
   };
 
   const openEditForm = async (po: PurchaseOrder) => {
@@ -559,18 +660,31 @@ export default function PurchaseOrdersPage() {
             Purchase Orders
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage procurement, supplier orders, approval workflows, and receiving.
+            Manage procurement, walk-in buybacks, approval workflows, and receiving.
           </p>
         </div>
-        <button
-          onClick={openCreateForm}
-          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
-        >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Purchase Order
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={openExpressBuybackModal}
+            className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            + Express Buyback (Used HP)
+          </button>
+          <button
+            type="button"
+            onClick={openCreateForm}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Purchase Order
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}
@@ -602,23 +716,61 @@ export default function PurchaseOrdersPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-2">
-          Status:
-        </span>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All statuses</option>
-          {PO_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s.replace(/_/g, " ")}
-            </option>
-          ))}
-        </select>
+      {/* Global IMEI Trace Search & Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm items-center">
+        <div className="md:col-span-8 flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="🔍 Enter or scan 15-digit IMEI to trace who sold it, buy date & purchase cost..."
+              value={traceImeiInput}
+              onChange={(e) => setTraceImeiInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleTraceImei();
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 pl-3 pr-24 py-2 text-xs sm:text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            />
+            <div className="absolute right-1 top-1 bottom-1 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowTraceScanner(true)}
+                title="Scan Barcode / QR with Camera"
+                className="rounded px-2 py-1 text-xs text-gray-500 hover:text-blue-600 hover:bg-gray-100 flex items-center gap-1"
+              >
+                📷 Scan
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTraceImei()}
+                disabled={tracing || !traceImeiInput.trim()}
+                className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {tracing ? "..." : "Trace"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="md:col-span-4 flex items-center justify-end gap-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Status:
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          >
+            <option value="">All statuses</option>
+            {PO_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Create / Edit Form Card */}
@@ -1579,6 +1731,452 @@ export default function PurchaseOrdersPage() {
         onClose={() => setPrintGrnTarget(null)}
         gr={printGrnTarget}
       />
+
+      {/* ── Global IMEI Trace Modal ────────────────────────────────────── */}
+      {showTraceModal && traceResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                  Device Origin & Procurement Trace
+                </span>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span>IMEI: {traceResult.imeiUnit.imei}</span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      traceResult.imeiUnit.status === "IN_STOCK"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : traceResult.imeiUnit.status === "SOLD"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {traceResult.imeiUnit.status.replace(/_/g, " ")}
+                  </span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTraceModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Product Overview Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900">
+                    {traceResult.product.name}
+                  </h4>
+                  <p className="text-xs text-gray-500 font-mono">
+                    SKU: {traceResult.product.sku} · {traceResult.product.brand || "Brand"} · {traceResult.product.category || "Smartphone"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {traceResult.imeiUnit.conditionGrade && (
+                    <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold px-2 py-0.5 rounded">
+                      {traceResult.imeiUnit.conditionGrade}
+                    </span>
+                  )}
+                  {traceResult.imeiUnit.batteryHealth != null && (
+                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded font-mono">
+                      {traceResult.imeiUnit.batteryHealth}% Battery
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 2-Column Procurement & Receiving History */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* 1. Who sold it to us & Buy Price */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs uppercase tracking-wider">
+                  <span>📥 Procurement / Purchase</span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Source:</span>
+                    <span className="font-semibold text-gray-900">
+                      {traceResult.source.type === "WALK_IN" ? (
+                        <span className="text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded font-bold">
+                          Walk-in Customer
+                        </span>
+                      ) : (
+                        traceResult.source.supplierName
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Purchase Date:</span>
+                    <span className="font-medium text-gray-900">
+                      {traceResult.procurement?.orderDate?.slice(0, 10) || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">PO Reference:</span>
+                    <span className="font-mono font-bold text-blue-600">
+                      {traceResult.procurement?.poNumber || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Recorded By:</span>
+                    <span className="font-medium text-gray-800">
+                      {traceResult.procurement?.createdBy || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-emerald-200/80">
+                    <span className="font-semibold text-gray-700">Buyout Cost (Price):</span>
+                    <span className="font-mono font-black text-sm text-emerald-800">
+                      IDR {(traceResult.procurement?.unitCost || traceResult.imeiUnit.costPrice || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Receiving / Warehouse details */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wider">
+                  <span>📦 Inward Goods Receipt</span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">GRN Number:</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      {traceResult.receiving?.grnNumber || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Received Date:</span>
+                    <span className="font-medium text-gray-900">
+                      {traceResult.receiving?.receiveDate ? new Date(traceResult.receiving.receiveDate).toLocaleDateString() : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Received By:</span>
+                    <span className="font-medium text-gray-800">
+                      {traceResult.receiving?.receivedBy || "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Condition Tag:</span>
+                    <span className="font-medium text-gray-800">
+                      {traceResult.receiving?.conditionStatus || "GOOD"}
+                    </span>
+                  </div>
+                  {traceResult.procurement?.notes && (
+                    <div className="pt-2 border-t border-slate-100 text-gray-600 italic">
+                      &ldquo;{traceResult.procurement.notes}&rdquo;
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Outward Sale info (if sold) */}
+            {traceResult.salesInfo ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-2 mb-4">
+                <div className="flex items-center justify-between text-blue-900 font-bold text-xs uppercase tracking-wider">
+                  <span>📤 Customer Resale Record</span>
+                  <span className="text-emerald-700 font-bold">
+                    Margin: +IDR {(traceResult.salesInfo.unitPrice - (traceResult.procurement?.unitCost || 0)).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div>
+                    <span className="text-gray-500 block">Sale Invoice</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      {traceResult.salesInfo.saleNumber}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block">Sold Date</span>
+                    <span className="font-medium text-gray-900">
+                      {traceResult.salesInfo.saleTime?.slice(0, 10)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block">Buyer Name</span>
+                    <span className="font-medium text-gray-900">
+                      {traceResult.salesInfo.customerName || "Walk-in Customer"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block">Selling Price</span>
+                    <span className="font-mono font-bold text-blue-700">
+                      IDR {traceResult.salesInfo.unitPrice.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-center text-xs text-gray-500 mb-4">
+                Device currently unsold in store inventory (Ready for POS sale).
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowTraceModal(false)}
+                className="rounded-lg bg-gray-900 px-5 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+              >
+                Close Trace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Express Buyback Modal (60-Second Walk-In Purchase) ──────────── */}
+      {showExpressBuybackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <div>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+                  ⚡ Express Walk-in Buyback
+                </span>
+                <h3 className="text-lg font-bold text-gray-900 mt-1">
+                  Purchase Used Smartphone
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExpressBuybackModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {buybackError && (
+              <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200 mb-4 flex items-center justify-between">
+                <span>{buybackError}</span>
+                <button onClick={() => setBuybackError("")} className="font-bold text-red-500">&times;</button>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveExpressBuyback} className="space-y-4">
+              {/* Product Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Phone Model / Product <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    placeholder="Search phone model or SKU (e.g. iPhone 13, Galaxy S23)..."
+                    value={buybackProductSearch}
+                    onChange={(e) => setBuybackProductSearch(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                  />
+                  <select
+                    value={buybackProductId}
+                    onChange={(e) => setBuybackProductId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select phone model...</option>
+                    {products
+                      .filter((p) =>
+                        !buybackProductSearch.trim() ||
+                        `${p.name} ${p.sku}`.toLowerCase().includes(buybackProductSearch.toLowerCase())
+                      )
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.sku}) — SRP: IDR {Number(p.sellingPrice || 0).toLocaleString()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Pricing & Margin Calculator */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Buy Price (Pay Out) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-gray-400">IDR</span>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="7500000"
+                      value={buybackUnitCost}
+                      onChange={(e) => setBuybackUnitCost(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 pl-11 pr-3 py-1.5 text-sm font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Expected Selling Price (Opt)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-gray-400">IDR</span>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="8900000"
+                      value={buybackSellingPrice}
+                      onChange={(e) => setBuybackSellingPrice(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 pl-11 pr-3 py-1.5 text-sm font-mono focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Instant Profit Estimator */}
+                {Number(buybackUnitCost) > 0 && Number(buybackSellingPrice) > 0 && (
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                    <span className="text-gray-600 font-medium">Estimated Gross Profit:</span>
+                    <span className={`font-mono font-bold ${Number(buybackSellingPrice) >= Number(buybackUnitCost) ? "text-emerald-700" : "text-red-600"}`}>
+                      IDR {(Number(buybackSellingPrice) - Number(buybackUnitCost)).toLocaleString()}{" "}
+                      ({(( (Number(buybackSellingPrice) - Number(buybackUnitCost)) / Number(buybackSellingPrice) ) * 100).toFixed(1)}% margin)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* IMEI & Camera Scanner */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Device 15-Digit IMEI <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Scan or enter 15-digit IMEI..."
+                    value={buybackImei}
+                    onChange={(e) => setBuybackImei(e.target.value.trim())}
+                    className="w-full rounded-lg border border-gray-300 pl-3 pr-24 py-2 text-xs sm:text-sm font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setBuybackScanner(true)}
+                    className="absolute right-1 top-1 bottom-1 px-3 rounded bg-gray-100 hover:bg-gray-200 text-xs text-gray-700 font-semibold flex items-center gap-1"
+                  >
+                    📷 Camera
+                  </button>
+                </div>
+              </div>
+
+              {/* Condition Grading & Battery Health */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Physical Grade
+                  </label>
+                  <div className="grid grid-cols-4 gap-1">
+                    {["Grade A", "Grade B", "Grade C", "Grade D"].map((gr) => (
+                      <button
+                        key={gr}
+                        type="button"
+                        onClick={() => setBuybackGrade(gr)}
+                        className={`rounded-lg py-1.5 text-xs font-semibold border transition-colors ${
+                          buybackGrade === gr
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {gr.replace("Grade ", "")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Battery Health %
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="e.g. 88"
+                    value={buybackBattery}
+                    onChange={(e) => setBuybackBattery(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Notes / Accessories (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Fullset (box+cable), lecet tipis bezel"
+                  value={buybackNotes}
+                  onChange={(e) => setBuybackNotes(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowExpressBuybackModal(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={buybackSubmitting}
+                  className="rounded-lg bg-emerald-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {buybackSubmitting ? "Processing Buyout..." : `Complete Buyback (${Number(buybackUnitCost || 0) > 0 ? `IDR ${Number(buybackUnitCost).toLocaleString()}` : "Pay Out"})`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Scanner Modal for IMEI Trace */}
+      {showTraceScanner && (
+        <CameraBarcodeScanner
+          isOpen={true}
+          onClose={() => setShowTraceScanner(false)}
+          onScan={(code) => {
+            setShowTraceScanner(false);
+            setTraceImeiInput(code);
+            handleTraceImei(code);
+          }}
+          title="Scan IMEI for Origin & Procurement Trace"
+          subtitle="Scan 15-digit barcode on device box or screen"
+          expectedCount={1}
+          currentCount={0}
+        />
+      )}
+
+      {/* Scanner Modal for Express Buyback */}
+      {buybackScanner && (
+        <CameraBarcodeScanner
+          isOpen={true}
+          onClose={() => setBuybackScanner(false)}
+          onScan={(code) => {
+            setBuybackScanner(false);
+            setBuybackImei(code);
+          }}
+          title="Scan IMEI for Express Buyback"
+          subtitle="Scan 15-digit barcode on used device"
+          expectedCount={1}
+          currentCount={0}
+        />
+      )}
     </div>
   );
 }

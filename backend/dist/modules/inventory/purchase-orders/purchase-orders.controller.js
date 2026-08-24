@@ -20,6 +20,7 @@ const role_enum_1 = require("../../../common/enums/role.enum");
 const jwt_auth_guard_1 = require("../../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../../common/guards/roles.guard");
 const create_purchase_order_dto_1 = require("../dto/create-purchase-order.dto");
+const express_buyback_dto_1 = require("../dto/express-buyback.dto");
 const list_purchase_orders_query_dto_1 = require("../dto/list-purchase-orders.query.dto");
 const update_purchase_order_dto_1 = require("../dto/update-purchase-order.dto");
 const purchase_orders_service_1 = require("./purchase-orders.service");
@@ -29,6 +30,12 @@ let PurchaseOrdersController = class PurchaseOrdersController {
     }
     findAll(query) {
         return this.service.findAll(query);
+    }
+    imeiTrace(imei) {
+        return this.service.imeiTrace(imei);
+    }
+    expressBuyback(dto, user) {
+        return this.service.expressBuyback(dto, user.id);
     }
     findOne(id) {
         return this.service.findOne(id);
@@ -64,6 +71,23 @@ __decorate([
     __metadata("design:paramtypes", [list_purchase_orders_query_dto_1.ListPurchaseOrdersQueryDto]),
     __metadata("design:returntype", void 0)
 ], PurchaseOrdersController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('imei-trace/:imei'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __param(0, (0, common_1.Param)('imei')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "imeiTrace", null);
+__decorate([
+    (0, common_1.Post)('express-buyback'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [express_buyback_dto_1.ExpressBuybackDto, Object]),
+    __metadata("design:returntype", void 0)
+], PurchaseOrdersController.prototype, "expressBuyback", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),

@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { AuthUser } from '../../../common/types/auth-user.type';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
+import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
 import { RejectPurchaseOrderDto, UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
@@ -30,6 +31,21 @@ export class PurchaseOrdersController {
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
   findAll(@Query() query: ListPurchaseOrdersQueryDto) {
     return this.service.findAll(query);
+  }
+
+  @Get('imei-trace/:imei')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
+  imeiTrace(@Param('imei') imei: string) {
+    return this.service.imeiTrace(imei);
+  }
+
+  @Post('express-buyback')
+  @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
+  expressBuyback(
+    @Body() dto: ExpressBuybackDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.expressBuyback(dto, user.id);
   }
 
   @Get(':id')

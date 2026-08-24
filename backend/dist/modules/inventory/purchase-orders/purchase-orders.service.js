@@ -16,12 +16,20 @@ exports.PurchaseOrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const imei_status_enum_1 = require("../../../common/enums/imei-status.enum");
+const movement_type_enum_1 = require("../../../common/enums/movement-type.enum");
 const po_status_enum_1 = require("../../../common/enums/po-status.enum");
 const pagination_util_1 = require("../../../common/utils/pagination.util");
 const purchase_order_entity_1 = require("../entities/purchase-order.entity");
 const purchase_order_item_entity_1 = require("../entities/purchase-order-item.entity");
 const supplier_entity_1 = require("../entities/supplier.entity");
 const goods_receipt_entity_1 = require("../entities/goods-receipt.entity");
+const goods_receipt_item_entity_1 = require("../entities/goods-receipt-item.entity");
+const goods_receipt_item_imei_entity_1 = require("../entities/goods-receipt-item-imei.entity");
+const stock_balance_entity_1 = require("../entities/stock-balance.entity");
+const stock_movement_entity_1 = require("../entities/stock-movement.entity");
+const imei_unit_entity_1 = require("../../imei/entities/imei-unit.entity");
+const product_entity_1 = require("../../catalog/entities/product.entity");
 const audit_logs_service_1 = require("../../audit-logs/audit-logs.service");
 let PurchaseOrdersService = class PurchaseOrdersService {
     constructor(poRepo, supplierRepo, dataSource, auditLogsService) {
@@ -250,12 +258,236 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         });
         return saved;
     }
-    async generatePoNumber() {
+    async imeiTrace(imei) {
+        const cleanImei = (imei || '').trim();
+        if (!cleanImei) {
+            throw new common_1.BadRequestException('IMEI is required');
+        }
+        const imeiRow = await this.dataSource.getRepository(imei_unit_entity_1.ImeiUnit).findOne({
+            where: { imei: cleanImei },
+            relations: ['product', 'product.brand', 'product.category'],
+        });
+        if (!imeiRow) {
+            throw new common_1.NotFoundException(`No device found with IMEI ${cleanImei}`);
+        }
+        const grImei = await this.dataSource
+            .getRepository(goods_receipt_item_imei_entity_1.GoodsReceiptItemImei)
+            .createQueryBuilder('grii')
+            .innerJoinAndSelect('grii.goodsReceiptItem', 'gri')
+            .innerJoinAndSelect('gri.goodsReceipt', 'gr')
+            .leftJoinAndSelect('gr.receiver', 'receiver')
+            .leftJoinAndSelect('gr.purchaseOrder', 'po')
+            .leftJoinAndSelect('po.supplier', 'supplier')
+            .leftJoinAndSelect('po.creator', 'creator')
+            .where('grii.imeiUnitId = :imeiUnitId', { imeiUnitId: imeiRow.id })
+            .orderBy('gr.createdAt', 'DESC')
+            .getOne();
+        const saleItem = await this.dataSource.query(`SELECT s.id, s.sale_number, s.sale_time, s.customer_name, s.customer_phone, si.unit_price, si.line_total, u.full_name as cashier_name
+       FROM sale_item_imeis sii
+       JOIN sale_items si ON si.id = sii.sale_item_id
+       JOIN sales s ON s.id = si.sale_id
+       LEFT JOIN users u ON u.id = s.user_id
+       WHERE sii.imei_unit_id = $1
+       ORDER BY s.sale_time DESC
+       LIMIT 1`, [imeiRow.id]);
+        return {
+            imeiUnit: {
+                id: imeiRow.id,
+                imei: imeiRow.imei,
+                status: imeiRow.status,
+                conditionGrade: imeiRow.conditionGrade,
+                batteryHealth: imeiRow.batteryHealth,
+                costPrice: imeiRow.costPrice ? parseFloat(imeiRow.costPrice) : null,
+                sellingPrice: imeiRow.sellingPrice ? parseFloat(imeiRow.sellingPrice) : null,
+                createdAt: imeiRow.createdAt,
+            },
+            product: {
+                id: imeiRow.product?.id,
+                sku: imeiRow.product?.sku,
+                name: imeiRow.product?.name,
+                brand: imeiRow.product?.brand?.name,
+                category: imeiRow.product?.category?.name,
+            },
+            source: {
+                type: grImei?.goodsReceiptItem?.goodsReceipt?.purchaseOrder?.supplier ? 'SUPPLIER' : 'WALK_IN',
+                supplierName: grImei?.goodsReceiptItem?.goodsReceipt?.purchaseOrder?.supplier?.name ?? 'Walk-in Customer',
+                supplierCode: grImei?.goodsReceiptItem?.goodsReceipt?.purchaseOrder?.supplier?.supplierCode ?? null,
+            },
+            procurement: grImei?.goodsReceiptItem?.goodsReceipt?.purchaseOrder
+                ? {
+                    id: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.id,
+                    poNumber: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.poNumber,
+                    orderDate: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.orderDate,
+                    unitCost: parseFloat(grImei.goodsReceiptItem.unitCost || '0'),
+                    actualUnitCost: grImei.goodsReceiptItem.actualUnitCost ? parseFloat(grImei.goodsReceiptItem.actualUnitCost) : null,
+                    status: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.status,
+                    notes: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.notes,
+                    createdBy: grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.creator?.fullName || `#${grImei.goodsReceiptItem.goodsReceipt.purchaseOrder.createdBy}`,
+                }
+                : null,
+            receiving: grImei?.goodsReceiptItem?.goodsReceipt
+                ? {
+                    id: grImei.goodsReceiptItem.goodsReceipt.id,
+                    grnNumber: grImei.goodsReceiptItem.goodsReceipt.grnNumber,
+                    receiveDate: grImei.goodsReceiptItem.goodsReceipt.receiveDate,
+                    receivedBy: grImei.goodsReceiptItem.goodsReceipt.receiver?.fullName || `#${grImei.goodsReceiptItem.goodsReceipt.receivedBy}`,
+                    conditionStatus: grImei.goodsReceiptItem.conditionStatus,
+                    conditionNotes: grImei.goodsReceiptItem.conditionNotes,
+                }
+                : null,
+            salesInfo: saleItem && saleItem.length > 0
+                ? {
+                    id: saleItem[0].id,
+                    saleNumber: saleItem[0].sale_number,
+                    saleTime: saleItem[0].sale_time,
+                    customerName: saleItem[0].customer_name,
+                    customerPhone: saleItem[0].customer_phone,
+                    unitPrice: parseFloat(saleItem[0].unit_price || '0'),
+                    cashierName: saleItem[0].cashier_name,
+                }
+                : null,
+        };
+    }
+    async expressBuyback(dto, userId) {
+        const cleanImei = (dto.imei || '').trim();
+        if (!cleanImei) {
+            throw new common_1.BadRequestException('IMEI is required for express buyback');
+        }
+        const product = await this.dataSource.getRepository(product_entity_1.Product).findOne({
+            where: { id: dto.productId },
+        });
+        if (!product) {
+            throw new common_1.BadRequestException('Product not found');
+        }
+        const existingImei = await this.dataSource.getRepository(imei_unit_entity_1.ImeiUnit).findOne({
+            where: { imei: cleanImei },
+        });
+        if (existingImei) {
+            throw new common_1.ConflictException(`IMEI ${cleanImei} already exists in the system`);
+        }
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const poNumber = await this.generatePoNumber('BB');
+        const grnNumber = await this.generateGrnNumber();
+        const result = await this.dataSource.transaction(async (manager) => {
+            const poRepo = manager.getRepository(purchase_order_entity_1.PurchaseOrder);
+            const poItemRepo = manager.getRepository(purchase_order_item_entity_1.PurchaseOrderItem);
+            const grRepo = manager.getRepository(goods_receipt_entity_1.GoodsReceipt);
+            const grItemRepo = manager.getRepository(goods_receipt_item_entity_1.GoodsReceiptItem);
+            const grImeiRepo = manager.getRepository(goods_receipt_item_imei_entity_1.GoodsReceiptItemImei);
+            const imeiRepo = manager.getRepository(imei_unit_entity_1.ImeiUnit);
+            const balanceRepo = manager.getRepository(stock_balance_entity_1.StockBalance);
+            const movementRepo = manager.getRepository(stock_movement_entity_1.StockMovement);
+            const po = poRepo.create({
+                poNumber,
+                supplierId: null,
+                status: po_status_enum_1.PoStatus.COMPLETED,
+                orderDate: todayStr,
+                expectedDate: todayStr,
+                notes: dto.notes ? `Express Buyback: ${dto.notes}` : 'Express Buyback (Used Smartphone)',
+                createdBy: userId,
+            });
+            const savedPo = await poRepo.save(po);
+            const poItem = poItemRepo.create({
+                purchaseOrderId: savedPo.id,
+                productId: dto.productId,
+                orderedQty: 1,
+                receivedQty: 1,
+                unitCost: dto.unitCost.toFixed(2),
+            });
+            const savedPoItem = await poItemRepo.save(poItem);
+            const gr = grRepo.create({
+                grnNumber,
+                purchaseOrderId: savedPo.id,
+                receiveDate: new Date(),
+                receivedBy: userId,
+                notes: dto.notes ? `Express Buyback: ${dto.notes}` : 'Express Buyback Receipt',
+            });
+            const savedGr = await grRepo.save(gr);
+            const grItem = grItemRepo.create({
+                goodsReceiptId: savedGr.id,
+                poItemId: savedPoItem.id,
+                productId: dto.productId,
+                receivedQty: 1,
+                unitCost: dto.unitCost.toFixed(2),
+                actualUnitCost: dto.unitCost.toFixed(2),
+                conditionStatus: dto.conditionGrade || 'GOOD',
+                conditionNotes: dto.notes ?? null,
+            });
+            const savedGrItem = await grItemRepo.save(grItem);
+            const imeiUnit = imeiRepo.create({
+                imei: cleanImei,
+                productId: dto.productId,
+                status: imei_status_enum_1.ImeiStatus.IN_STOCK,
+                currentLocation: 'STORE',
+                conditionGrade: dto.conditionGrade ?? null,
+                batteryHealth: dto.batteryHealth ?? null,
+                costPrice: dto.unitCost.toFixed(2),
+                sellingPrice: dto.sellingPrice ? dto.sellingPrice.toFixed(2) : null,
+                lastRefType: 'GRN',
+                lastRefId: savedGr.id,
+            });
+            const savedImei = await imeiRepo.save(imeiUnit);
+            const grImei = grImeiRepo.create({
+                goodsReceiptItemId: savedGrItem.id,
+                imeiUnitId: savedImei.id,
+            });
+            await grImeiRepo.save(grImei);
+            let balance = await balanceRepo.findOne({
+                where: { productId: dto.productId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!balance) {
+                balance = balanceRepo.create({
+                    productId: dto.productId,
+                    onHandQty: 0,
+                    reservedQty: 0,
+                });
+            }
+            balance.onHandQty += 1;
+            await balanceRepo.save(balance);
+            const movement = movementRepo.create({
+                productId: dto.productId,
+                imeiUnitId: savedImei.id,
+                movementType: movement_type_enum_1.MovementType.IN,
+                qty: 1,
+                unitCost: dto.unitCost.toFixed(2),
+                refType: 'GRN',
+                refId: savedGr.id,
+                createdBy: userId,
+                notes: `Express Buyback (${cleanImei})`,
+            });
+            await movementRepo.save(movement);
+            return {
+                purchaseOrder: savedPo,
+                goodsReceipt: savedGr,
+                imeiUnit: savedImei,
+            };
+        });
+        await this.auditLogsService.log({
+            userId,
+            action: 'EXPRESS_BUYBACK_CREATED',
+            entityType: 'PURCHASE_ORDER',
+            entityId: Number(result.purchaseOrder.id),
+            metadataJson: {
+                poNumber: result.purchaseOrder.poNumber,
+                grnNumber: result.goodsReceipt.grnNumber,
+                imei: cleanImei,
+                productId: dto.productId,
+                productName: product.name,
+                unitCost: dto.unitCost,
+                sellingPrice: dto.sellingPrice,
+                conditionGrade: dto.conditionGrade,
+                batteryHealth: dto.batteryHealth,
+            },
+        });
+        return result;
+    }
+    async generatePoNumber(prefix = 'PO') {
         const date = new Date();
         const ymd = date.getFullYear().toString() +
             (date.getMonth() + 1).toString().padStart(2, '0') +
             date.getDate().toString().padStart(2, '0');
-        const todayPrefix = `PO-${ymd}-`;
+        const todayPrefix = `${prefix}-${ymd}-`;
         const count = await this.poRepo
             .createQueryBuilder('po')
             .where('po.poNumber LIKE :prefix', { prefix: `${todayPrefix}%` })
@@ -264,6 +496,29 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         const candidate = `${todayPrefix}${seq}`;
         const exists = await this.poRepo.findOne({
             where: { poNumber: candidate },
+        });
+        if (exists) {
+            return `${todayPrefix}${Date.now().toString().slice(-6)}`;
+        }
+        return candidate;
+    }
+    async generateGrnNumber() {
+        const date = new Date();
+        const ymd = date.getFullYear().toString() +
+            (date.getMonth() + 1).toString().padStart(2, '0') +
+            date.getDate().toString().padStart(2, '0');
+        const todayPrefix = `GRN-${ymd}-`;
+        const count = await this.dataSource
+            .getRepository(goods_receipt_entity_1.GoodsReceipt)
+            .createQueryBuilder('gr')
+            .where('gr.grnNumber LIKE :prefix', { prefix: `${todayPrefix}%` })
+            .getCount();
+        const seq = (count + 1).toString().padStart(3, '0');
+        const candidate = `${todayPrefix}${seq}`;
+        const exists = await this.dataSource
+            .getRepository(goods_receipt_entity_1.GoodsReceipt)
+            .findOne({
+            where: { grnNumber: candidate },
         });
         if (exists) {
             return `${todayPrefix}${Date.now().toString().slice(-6)}`;

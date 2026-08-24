@@ -1,5 +1,6 @@
 import { AuthUser } from '../../../common/types/auth-user.type';
 import { CreatePurchaseOrderDto } from '../dto/create-purchase-order.dto';
+import { ExpressBuybackDto } from '../dto/express-buyback.dto';
 import { ListPurchaseOrdersQueryDto } from '../dto/list-purchase-orders.query.dto';
 import { RejectPurchaseOrderDto, UpdatePurchaseOrderDto } from '../dto/update-purchase-order.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
@@ -14,6 +15,62 @@ export declare class PurchaseOrdersController {
             limit: number;
             pageCount: number;
         };
+    }>;
+    imeiTrace(imei: string): Promise<{
+        imeiUnit: {
+            id: number;
+            imei: string;
+            status: import("../../../common/enums/imei-status.enum").ImeiStatus;
+            conditionGrade: string | null;
+            batteryHealth: number | null;
+            costPrice: number | null;
+            sellingPrice: number | null;
+            createdAt: Date;
+        };
+        product: {
+            id: number;
+            sku: string;
+            name: string;
+            brand: string | undefined;
+            category: string | undefined;
+        };
+        source: {
+            type: string;
+            supplierName: string;
+            supplierCode: string | null;
+        };
+        procurement: {
+            id: number;
+            poNumber: string;
+            orderDate: string;
+            unitCost: number;
+            actualUnitCost: number | null;
+            status: import("../../../common/enums/po-status.enum").PoStatus;
+            notes: string | null;
+            createdBy: string;
+        } | null;
+        receiving: {
+            id: number;
+            grnNumber: string;
+            receiveDate: Date;
+            receivedBy: string;
+            conditionStatus: string;
+            conditionNotes: string | null;
+        } | null;
+        salesInfo: {
+            id: any;
+            saleNumber: any;
+            saleTime: any;
+            customerName: any;
+            customerPhone: any;
+            unitPrice: number;
+            cashierName: any;
+        } | null;
+    }>;
+    expressBuyback(dto: ExpressBuybackDto, user: AuthUser): Promise<{
+        purchaseOrder: import("../entities/purchase-order.entity").PurchaseOrder;
+        goodsReceipt: import("../entities/goods-receipt.entity").GoodsReceipt;
+        imeiUnit: import("../../imei/entities/imei-unit.entity").ImeiUnit;
     }>;
     findOne(id: number): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
     create(dto: CreatePurchaseOrderDto, user: AuthUser): Promise<import("../entities/purchase-order.entity").PurchaseOrder>;
