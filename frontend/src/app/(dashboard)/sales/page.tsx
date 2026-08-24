@@ -1,13 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiFetch,
   downloadReceiptPdf,
   downloadReportCsv,
+  fetchAuditLogs,
+  fetchPaymentBreakdown,
   fetchSaleReceipt,
+  fetchSalesByCashier,
   fetchSalesSummary,
   fetchUsers,
+  AuditLogItem,
   ReceiptPayload,
   AppUser,
 } from "@/lib/api";
@@ -92,13 +97,6 @@ const SALE_STATUSES = [
   { label: "Partially Refunded", value: "PARTIALLY_REFUNDED" },
   { label: "Voided", value: "VOIDED" },
 ] as const;
-
-type ChartPeriod = "daily" | "weekly" | "monthly";
-const CHART_PERIODS: { label: string; short: string; value: ChartPeriod }[] = [
-  { label: "Day", short: "D", value: "daily" },
-  { label: "Week", short: "W", value: "weekly" },
-  { label: "Month", short: "M", value: "monthly" },
-];
 
 // ── KPI aggregation ───────────────────────────────────────────
 type SummaryAgg = {
@@ -231,254 +229,269 @@ function KpiCard({
   );
 }
 
-// ── Mini trend chart — Area of grand_total over period_start ──
-function formatChartLabel(iso: string, period: ChartPeriod): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso.slice(0, 10);
-  if (period === "monthly") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-  if (period === "weekly") return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-function formatChartTooltip(iso: string, period: ChartPeriod): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  if (period === "monthly") return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-  if (period === "weekly") {
-    const end = new Date(d);
-    end.setDate(end.getDate() + 6);
-    return `${d.toLocaleDateString("id-ID", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("id-ID", { month: "short", day: "numeric", year: "numeric" })}`;
-  }
-  return d.toLocaleDateString("id-ID", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+function formatMethodLabel(m: string): string {
+  const map: Record<string, string> = { CASH: "Cash", TRANSFER: "Transfer", CARD: "Card", QRIS: "QRIS", E_WALLET: "E-Wallet", CREDIT: "Credit" };
+  return map[m?.toUpperCase()] ?? m ?? "-";
 }
 
-function TrendChart({
+// ── Payment Mix Card ──────────────────────────────────────────
+function PaymentBreakdownCard({
   data,
-  period,
   loading,
-  error,
 }: {
   data: any[];
-  period: ChartPeriod;
   loading: boolean;
-  error: string | null;
 }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const points = useMemo(() => {
-    return data.map((r) => ({
-      iso: String(r.period_start),
-      total: parseFloat(r.grand_total ?? 0),
-      tx: Number(r.transaction_count ?? 0),
-    }));
-  }, [data]);
-
-  const stats = useMemo(() => {
-    if (!points.length) return null;
-    const totals = points.map((p) => p.total);
-    const max = Math.max(...totals);
-    const min = Math.min(...totals);
-    const peak = points.find((p) => p.total === max) ?? points[0];
-    const sum = totals.reduce((a, b) => a + b, 0);
-    return { max, min, peak, sum };
-  }, [points]);
-
-  // SVG geometry
-  const W = 640;
-  const H = 180;
-  const padLeft = 8;
-  const padRight = 8;
-  const padTop = 12;
-  const padBottom = 22;
-  const chartW = W - padLeft - padRight;
-  const chartH = H - padTop - padBottom;
-
-  const maxY = useMemo(() => {
-    if (!points.length) return 0;
-    const m = Math.max(...points.map((p) => p.total));
-    // add 12% headroom so line doesn't clip top
-    return m === 0 ? 1 : m * 1.12;
-  }, [points]);
-
-  const getX = (idx: number) => {
-    if (points.length <= 1) return padLeft + chartW / 2;
-    return padLeft + (idx / (points.length - 1)) * chartW;
-  };
-  const getY = (val: number) => {
-    if (maxY === 0) return padTop + chartH;
-    return padTop + chartH - (val / maxY) * chartH;
-  };
-
-  const areaPath = useMemo(() => {
-    if (!points.length) return "";
-    if (points.length === 1) {
-      const x = getX(0);
-      const y = getY(points[0].total);
-      // single bar-like area
-      return `M ${padLeft} ${padTop + chartH} L ${x - 18} ${padTop + chartH} L ${x - 18} ${y} L ${x + 18} ${y} L ${x + 18} ${padTop + chartH} Z`;
-    }
-    let d = `M ${getX(0)} ${getY(points[0].total)}`;
-    for (let i = 1; i < points.length; i++) d += ` L ${getX(i)} ${getY(points[i].total)}`;
-    d += ` L ${getX(points.length - 1)} ${padTop + chartH} L ${getX(0)} ${padTop + chartH} Z`;
-    return d;
-  }, [points, maxY]);
-
-  const linePath = useMemo(() => {
-    if (!points.length) return "";
-    if (points.length === 1) return "";
-    let d = `M ${getX(0)} ${getY(points[0].total)}`;
-    for (let i = 1; i < points.length; i++) d += ` L ${getX(i)} ${getY(points[i].total)}`;
-    return d;
-  }, [points, maxY]);
-
-  const hover = hoverIdx !== null ? points[hoverIdx] : null;
-
-  if (loading) {
-    return (
-      <div className="h-[220px] animate-pulse">
-        <div className="h-4 w-32 rounded bg-gray-100 mb-3" />
-        <div className="h-[160px] rounded-lg bg-gray-50 border border-gray-100" />
-        <div className="mt-3 h-3 w-48 rounded bg-gray-100" />
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700">
-        {error}
-      </div>
-    );
-  }
-  if (!points.length) {
-    return (
-      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center">
-        <p className="text-sm text-gray-400">No sales for this period</p>
-        <p className="text-xs text-gray-400 mt-1">Try a longer date range or switch to Day view</p>
-      </div>
-    );
-  }
-
-  // x labels: show up to 8 evenly spaced
-  const labelStep = Math.max(1, Math.ceil(points.length / 8));
+  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const total = useMemo(
+    () => items.reduce((acc, row) => acc + parseFloat(row.total_amount || 0), 0),
+    [items]
+  );
 
   return (
-    <div ref={wrapRef} className="relative">
-      {/* hover tooltip */}
-      {hover && hoverIdx !== null && (
-        <div
-          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg border border-gray-900 bg-gray-900 px-2.5 py-1.5 shadow-lg"
-          style={{
-            left: `${(getX(hoverIdx) / W) * 100}%`,
-            top: `${getY(hover.total) - 8}px`,
-            transform: "translate(-50%, -100%)",
-          }}
-        >
-          <div className="whitespace-nowrap text-[11px] font-semibold text-white">
-            {fmtIDR(Math.round(hover.total))} · {hover.tx} tx
-          </div>
-          <div className="whitespace-nowrap text-[11px] text-gray-300">
-            {formatChartTooltip(hover.iso, period)}
-          </div>
-          <div className="absolute left-1/2 top-full -translate-x-1/2 w-2 h-2 rotate-45 bg-gray-900 -mt-1" />
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Payment Mix
+        </h3>
+        <span className="text-xs font-semibold text-gray-700">
+          {loading ? "..." : fmtIDR(Math.round(total))}
+        </span>
+      </div>
+      {loading ? (
+        <div className="space-y-2 animate-pulse">
+          <div className="h-3 rounded bg-gray-100" />
+          <div className="h-3 rounded bg-gray-100" />
+          <div className="h-3 rounded bg-gray-100" />
         </div>
-      )}
-
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-[180px] select-none"
-        role="img"
-        aria-label={`Sales trend ${period}`}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
-        <defs>
-          <linearGradient id="salesTrendFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {/* grid lines */}
-        {[0, 0.5, 1].map((t) => {
-          const y = padTop + chartH * t;
-          const val = maxY * (1 - t);
-          return (
-            <g key={t}>
-              <line x1={padLeft} x2={W - padRight} y1={y} y2={y} stroke="#f1f5f9" strokeWidth={1} />
-              <text x={W - padRight} y={y - 4} textAnchor="end" fontSize={9} fill="#94a3b8">
-                {fmtCompactIDR(Math.round(val))}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* area */}
-        <path d={areaPath} fill="url(#salesTrendFill)" stroke="none" />
-        {/* line */}
-        {linePath && <path d={linePath} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
-        {points.length === 1 && (
-          <rect
-            x={getX(0) - 18}
-            y={getY(points[0].total)}
-            width={36}
-            height={padTop + chartH - getY(points[0].total)}
-            rx={6}
-            fill="#2563eb"
-            opacity={0.9}
-          />
-        )}
-
-        {/* x labels */}
-        {points.map((p, i) => {
-          if (i % labelStep !== 0 && i !== points.length - 1) return null;
-          return (
-            <text
-              key={p.iso + i}
-              x={getX(i)}
-              y={H - 4}
-              textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
-              fontSize={9}
-              fill="#64748b"
-            >
-              {formatChartLabel(p.iso, period)}
-            </text>
-          );
-        })}
-
-        {/* dots + hit targets */}
-        {points.map((p, i) => (
-          <g key={p.iso + "-dot-" + i} onMouseEnter={() => setHoverIdx(i)} className="cursor-pointer">
-            <circle cx={getX(i)} cy={getY(p.total)} r={hoverIdx === i ? 5 : 3.5} fill={hoverIdx === i ? "#1d4ed8" : "#2563eb"} stroke="white" strokeWidth={2} />
-            {/* larger invisible hit area */}
-            <circle cx={getX(i)} cy={getY(p.total)} r={14} fill="transparent" />
-          </g>
-        ))}
-      </svg>
-
-      {/* stats footer */}
-      {stats && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 border-t border-gray-100 pt-2.5">
-          <span>
-            Peak: <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.max))}</span>
-            <span className="text-gray-400"> · {formatChartLabel(stats.peak.iso, period)}</span>
-          </span>
-          <span className="hidden sm:inline text-gray-200">|</span>
-          <span>
-            Total: <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.sum))}</span>
-          </span>
-          <span className="hidden sm:inline text-gray-200">|</span>
-          <span>
-            Avg / {period === "monthly" ? "month" : period === "weekly" ? "week" : "day"}:{" "}
-            <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.sum / points.length))}</span>
-          </span>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-gray-400 py-3 text-center">No payment data</p>
+      ) : (
+        <div className="space-y-2.5">
+          {items.map((item) => {
+            const amount = parseFloat(item.total_amount || 0);
+            const pct = total > 0 ? (amount / total) * 100 : 0;
+            return (
+              <div key={item.method} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-gray-700">
+                    {formatMethodLabel(item.method)}
+                    <span className="text-gray-400 font-normal ml-1">
+                      ({item.transaction_count} tx)
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-gray-900 font-semibold">
+                      {fmtCompactIDR(Math.round(amount))}
+                    </span>
+                    <span className="text-gray-400 font-mono text-[11px] w-10 text-right">
+                      {pct.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function formatMethodLabel(m: string): string {
-  const map: Record<string, string> = { CASH: "Cash", TRANSFER: "Transfer", CARD: "Card", QRIS: "QRIS", E_WALLET: "E-Wallet", CREDIT: "Credit" };
-  return map[m?.toUpperCase()] ?? m ?? "-";
+// ── Cashier Leaderboard Card ───────────────────────────────────
+function CashierLeaderboardCard({
+  data,
+  loading,
+}: {
+  data: any[];
+  loading: boolean;
+}) {
+  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const topCashiers = useMemo(() => items.slice(0, 5), [items]);
+  const maxSales = useMemo(
+    () => Math.max(...items.map((c) => parseFloat(c.total_sales || 0)), 1),
+    [items]
+  );
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Cashier Tally
+        </h3>
+        <span className="text-xs text-gray-400">{items.length} cashiers</span>
+      </div>
+      {loading ? (
+        <div className="space-y-2 animate-pulse">
+          <div className="h-3 rounded bg-gray-100" />
+          <div className="h-3 rounded bg-gray-100" />
+          <div className="h-3 rounded bg-gray-100" />
+        </div>
+      ) : topCashiers.length === 0 ? (
+        <p className="text-xs text-gray-400 py-3 text-center">No cashier data</p>
+      ) : (
+        <div className="space-y-2.5">
+          {topCashiers.map((c, idx) => {
+            const sales = parseFloat(c.total_sales || 0);
+            const pct = (sales / maxSales) * 100;
+            return (
+              <div key={c.cashier_id ?? idx} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 truncate max-w-[65%]">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-[10px] font-bold text-gray-600">
+                      {idx + 1}
+                    </span>
+                    <span className="font-medium text-gray-700 truncate">
+                      {c.full_name || "Unknown"}
+                    </span>
+                    <span className="text-gray-400 font-normal text-[11px]">
+                      · {c.transaction_count} tx
+                    </span>
+                  </div>
+                  <span className="font-mono text-gray-900 font-semibold">
+                    {fmtCompactIDR(Math.round(sales))}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Void Audit Modal ──────────────────────────────────────────
+function VoidAuditModal({
+  sale,
+  isOpen,
+  onClose,
+}: {
+  sale: any | null;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const [logs, setLogs] = useState<AuditLogItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !sale) return;
+    setLoading(true);
+    setError(null);
+    fetchAuditLogs({ entityType: "SALE", action: "SALE_VOIDED", limit: 50 })
+      .then((res) => {
+        const matching = ((res as any)?.data ?? []).filter(
+          (l: any) =>
+            Number(l.entityId) === Number(sale.id) ||
+            l.metadataJson?.invoiceNumber === sale.invoiceNumber
+        );
+        setLogs(matching);
+      })
+      .catch((e: any) => setError(e?.message || "Failed to load audit log"))
+      .finally(() => setLoading(false));
+  }, [isOpen, sale]);
+
+  if (!isOpen || !sale) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
+              VOID AUDIT
+            </span>
+            <span className="font-mono text-sm font-semibold text-gray-900">
+              {sale.invoiceNumber}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+          >
+            ×
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-sm text-gray-500">
+            <span className="inline-block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2" />
+            Loading void audit logs...
+          </div>
+        ) : error ? (
+          <div className="p-3 rounded-lg bg-red-50 text-red-700 text-xs">{error}</div>
+        ) : logs.length === 0 ? (
+          <div className="py-6 text-center text-sm text-gray-500 space-y-1">
+            <p>No explicit void audit log found in recent records.</p>
+            <p className="text-xs text-gray-400 font-mono">Sale ID #{sale.id}</p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            {logs.map((log) => (
+              <div
+                key={log.id}
+                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3.5 space-y-2 text-xs"
+              >
+                <div className="flex items-center justify-between font-medium">
+                  <span className="text-gray-900 font-semibold">
+                    {log.user?.fullName || log.user?.username || `User #${log.userId || "-"}`}
+                  </span>
+                  <span className="text-gray-500 font-mono text-[11px]">
+                    {new Date(log.eventTime).toLocaleString("id-ID")}
+                  </span>
+                </div>
+                <div className="text-gray-600 space-y-0.5">
+                  <p>
+                    <span className="text-gray-400">Action:</span>{" "}
+                    <code className="font-mono font-semibold text-red-600">{log.action}</code>
+                  </p>
+                  {log.ipAddress && (
+                    <p>
+                      <span className="text-gray-400">IP Address:</span>{" "}
+                      <span className="font-mono">{log.ipAddress}</span>
+                    </p>
+                  )}
+                  {log.metadataJson && (
+                    <div className="mt-1 pt-1.5 border-t border-gray-200/60 font-mono text-[11px] text-gray-700">
+                      {Object.entries(log.metadataJson).map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span className="text-gray-400">{k}:</span>
+                          <span>{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="pt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-gray-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-black"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function SalesPage() {
@@ -499,11 +512,6 @@ export default function SalesPage() {
     deltas: Record<string, { pct: number | null; dir: "up" | "down" | "flat" }>;
   } | null>(null);
 
-  // ── chart state — Area/Bar of grand_total over period_start ─
-  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [chartLoading, setChartLoading] = useState(true);
-  const [chartError, setChartError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   // ── table state ─────────────────────────────────────────────
@@ -581,32 +589,44 @@ export default function SalesPage() {
     };
   }, [dateFrom, dateTo]);
 
-  // ── Chart fetch — grand_total over period_start, toggle day/week/month (backend dateTrunc :19) ──
+  // ── Operations mix: Payment Breakdown + Cashier Leaderboard ─
+  const [paymentMix, setPaymentMix] = useState<any[]>([]);
+  const [cashierSales, setCashierSales] = useState<any[]>([]);
+  const [opsLoading, setOpsLoading] = useState(true);
+  const [voidAuditSale, setVoidAuditSale] = useState<any | null>(null);
+
+  // ── Operational mix fetch (payment breakdown + cashier tally) ─
   useEffect(() => {
     let cancelled = false;
-    async function run() {
-      setChartLoading(true);
-      setChartError(null);
+    async function runOps() {
+      setOpsLoading(true);
       try {
-        const res = await fetchSalesSummary({
-          period: chartPeriod,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        });
+        const [pRes, cRes] = await Promise.all([
+          fetchPaymentBreakdown({
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+          }),
+          fetchSalesByCashier({
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+          }),
+        ]);
         if (cancelled) return;
-        const rows: any[] = (res as any)?.data?.data ?? [];
-        setChartData(rows);
-      } catch (e: any) {
-        if (!cancelled) setChartError(e?.message || "Failed to load trend");
+        const pRows = (pRes as any)?.data?.data ?? (pRes as any)?.data ?? [];
+        const cRows = (cRes as any)?.data?.data ?? (cRes as any)?.data ?? [];
+        setPaymentMix(Array.isArray(pRows) ? pRows : []);
+        setCashierSales(Array.isArray(cRows) ? cRows : []);
+      } catch {
+        // keep previous state
       } finally {
-        if (!cancelled) setChartLoading(false);
+        if (!cancelled) setOpsLoading(false);
       }
     }
-    run();
+    runOps();
     return () => {
       cancelled = true;
     };
-  }, [dateFrom, dateTo, chartPeriod]);
+  }, [dateFrom, dateTo]);
 
   const load = useCallback(
     async (page = 1) => {
@@ -690,10 +710,10 @@ export default function SalesPage() {
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      const q = new URLSearchParams({ period: chartPeriod });
+      const q = new URLSearchParams({ period: "daily" });
       if (dateFrom) q.set("dateFrom", dateFrom);
       if (dateTo) q.set("dateTo", dateTo);
-      await downloadReportCsv(`/reports/sales-summary/csv?${q.toString()}`, `sales-summary-${dateFrom || "all"}-${dateTo || "all"}-${chartPeriod}.csv`);
+      await downloadReportCsv(`/reports/sales-summary/csv?${q.toString()}`, `sales-summary-${dateFrom || "all"}-${dateTo || "all"}-daily.csv`);
     } catch (e: any) {
       alert(e?.message || "Export failed");
     } finally {
@@ -974,36 +994,26 @@ export default function SalesPage() {
         </p>
       )}
 
-      {/* ── Mini trend chart — grand_total over period_start (no table scan) ── */}
-      <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Sales trend</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              <code className="font-mono text-[11px]">grand_total</code> over <code className="font-mono text-[11px]">period_start</code> · {rangeLabel}
-            </p>
-          </div>
-          <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
-            {CHART_PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setChartPeriod(p.value)}
-                className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
-                  chartPeriod === p.value
-                    ? "bg-gray-900 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-                aria-pressed={chartPeriod === p.value}
-                title={`GROUP BY date_trunc('${p.value === "monthly" ? "month" : p.value === "weekly" ? "week" : "day"}', sale_time) — backend reports.service.ts:19`}
-              >
-                <span className="sm:hidden">{p.short}</span>
-                <span className="hidden sm:inline">{p.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── Operational Mix: Payment breakdown & Cashier tally ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <PaymentBreakdownCard data={paymentMix} loading={opsLoading} />
+        <CashierLeaderboardCard data={cashierSales} loading={opsLoading} />
+      </div>
 
-        <TrendChart data={chartData} period={chartPeriod} loading={chartLoading} error={chartError} />
+      {/* ── Quick link to Reports deep-dive ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-3.5 px-4 text-xs">
+        <div className="text-gray-700">
+          <span className="font-semibold text-blue-900">Need deeper analytics?</span> Inspect gross profit margins, inventory valuation, and product performance in Reports.
+        </div>
+        <Link
+          href="/reports"
+          className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 shrink-0"
+        >
+          Open Reports & Analytics
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
       </div>
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-200 overflow-hidden">
@@ -1104,17 +1114,28 @@ export default function SalesPage() {
                         </div>
                       </td>
                       <td className="px-2 sm:px-3 py-2.5">
-                        <span
-                          className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${
-                            s.status === "COMPLETED"
-                              ? "bg-green-100 text-green-700"
-                              : s.status === "VOIDED"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                          {s.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                              s.status === "COMPLETED"
+                                ? "bg-green-100 text-green-700"
+                                : s.status === "VOIDED"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {s.status}
+                          </span>
+                          {s.status === "VOIDED" && (
+                            <button
+                              type="button"
+                              onClick={() => setVoidAuditSale(s)}
+                              className="text-[10px] font-semibold text-red-600 hover:text-red-800 underline inline-flex items-center gap-0.5"
+                            >
+                              Audit Log
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 sm:px-4 py-2.5 text-right">
                         <div className="inline-flex items-center gap-1.5">
@@ -1299,6 +1320,13 @@ export default function SalesPage() {
         isOpen={Boolean(selectedReceipt)}
         onClose={() => setSelectedReceipt(null)}
         receipt={selectedReceipt}
+      />
+
+      {/* Void Audit Modal */}
+      <VoidAuditModal
+        sale={voidAuditSale}
+        isOpen={Boolean(voidAuditSale)}
+        onClose={() => setVoidAuditSale(null)}
       />
     </div>
   );

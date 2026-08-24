@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   downloadReportCsv,
   fetchSalesSummary,
@@ -29,6 +29,17 @@ function daysAgo(n: number) {
   ].join("-");
 }
 
+function fmtIDR(n: number): string {
+  return `IDR ${n.toLocaleString("id-ID")}`;
+}
+
+function fmtCompactIDR(n: number): string {
+  if (n >= 1_000_000_000) return `IDR ${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `IDR ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `IDR ${(n / 1_000).toFixed(0)}k`;
+  return `IDR ${n.toLocaleString("id-ID")}`;
+}
+
 const QUICK_RANGES = [
   { label: "Today", from: () => today(), to: () => today() },
   { label: "Yesterday", from: () => daysAgo(1), to: () => daysAgo(1) },
@@ -38,12 +49,256 @@ const QUICK_RANGES = [
   { label: "All time", from: () => "", to: () => "" },
 ];
 
+type ChartPeriod = "daily" | "weekly" | "monthly";
+const CHART_PERIODS: { label: string; short: string; value: ChartPeriod }[] = [
+  { label: "Day", short: "D", value: "daily" },
+  { label: "Week", short: "W", value: "weekly" },
+  { label: "Month", short: "M", value: "monthly" },
+];
+
+function formatChartLabel(iso: string, period: ChartPeriod): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 10);
+  if (period === "monthly") return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  if (period === "weekly") return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatChartTooltip(iso: string, period: ChartPeriod): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  if (period === "monthly") return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  if (period === "weekly") {
+    const end = new Date(d);
+    end.setDate(end.getDate() + 6);
+    return `${d.toLocaleDateString("id-ID", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("id-ID", { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+  return d.toLocaleDateString("id-ID", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+function TrendChart({
+  data,
+  period,
+  loading,
+  error,
+}: {
+  data: any[];
+  period: ChartPeriod;
+  loading: boolean;
+  error: string | null;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const points = useMemo(() => {
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map((r) => ({
+      iso: String(r.period_start),
+      total: parseFloat(r.grand_total ?? 0),
+      tx: Number(r.transaction_count ?? 0),
+    }));
+  }, [data]);
+
+  const stats = useMemo(() => {
+    if (!points.length) return null;
+    const totals = points.map((p) => p.total);
+    const max = Math.max(...totals);
+    const min = Math.min(...totals);
+    const peak = points.find((p) => p.total === max) ?? points[0];
+    const sum = totals.reduce((a, b) => a + b, 0);
+    return { max, min, peak, sum };
+  }, [points]);
+
+  const W = 640;
+  const H = 180;
+  const padLeft = 8;
+  const padRight = 8;
+  const padTop = 12;
+  const padBottom = 22;
+  const chartW = W - padLeft - padRight;
+  const chartH = H - padTop - padBottom;
+
+  const maxY = useMemo(() => {
+    if (!points.length) return 0;
+    const m = Math.max(...points.map((p) => p.total));
+    return m === 0 ? 1 : m * 1.12;
+  }, [points]);
+
+  const getX = (idx: number) => {
+    if (points.length <= 1) return padLeft + chartW / 2;
+    return padLeft + (idx / (points.length - 1)) * chartW;
+  };
+  const getY = (val: number) => {
+    if (maxY === 0) return padTop + chartH;
+    return padTop + chartH - (val / maxY) * chartH;
+  };
+
+  const areaPath = useMemo(() => {
+    if (!points.length) return "";
+    if (points.length === 1) {
+      const x = getX(0);
+      const y = getY(points[0].total);
+      return `M ${padLeft} ${padTop + chartH} L ${x - 18} ${padTop + chartH} L ${x - 18} ${y} L ${x + 18} ${y} L ${x + 18} ${padTop + chartH} Z`;
+    }
+    let d = `M ${getX(0)} ${getY(points[0].total)}`;
+    for (let i = 1; i < points.length; i++) d += ` L ${getX(i)} ${getY(points[i].total)}`;
+    d += ` L ${getX(points.length - 1)} ${padTop + chartH} L ${getX(0)} ${padTop + chartH} Z`;
+    return d;
+  }, [points, maxY]);
+
+  const linePath = useMemo(() => {
+    if (!points.length) return "";
+    if (points.length === 1) return "";
+    let d = `M ${getX(0)} ${getY(points[0].total)}`;
+    for (let i = 1; i < points.length; i++) d += ` L ${getX(i)} ${getY(points[i].total)}`;
+    return d;
+  }, [points, maxY]);
+
+  const hover = hoverIdx !== null ? points[hoverIdx] : null;
+
+  if (loading) {
+    return (
+      <div className="h-[220px] animate-pulse">
+        <div className="h-4 w-32 rounded bg-gray-100 mb-3" />
+        <div className="h-[160px] rounded-lg bg-gray-50 border border-gray-100" />
+        <div className="mt-3 h-3 w-48 rounded bg-gray-100" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+  if (!points.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center">
+        <p className="text-sm text-gray-400">No sales for this period</p>
+        <p className="text-xs text-gray-400 mt-1">Try a longer date range or switch to Day view</p>
+      </div>
+    );
+  }
+
+  const labelStep = Math.max(1, Math.ceil(points.length / 8));
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {hover && hoverIdx !== null && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg border border-gray-900 bg-gray-900 px-2.5 py-1.5 shadow-lg"
+          style={{
+            left: `${(getX(hoverIdx) / W) * 100}%`,
+            top: `${getY(hover.total) - 8}px`,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="whitespace-nowrap text-[11px] font-semibold text-white">
+            {fmtIDR(Math.round(hover.total))} · {hover.tx} tx
+          </div>
+          <div className="whitespace-nowrap text-[11px] text-gray-300">
+            {formatChartTooltip(hover.iso, period)}
+          </div>
+          <div className="absolute left-1/2 top-full -translate-x-1/2 w-2 h-2 rotate-45 bg-gray-900 -mt-1" />
+        </div>
+      )}
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-[180px] select-none"
+        role="img"
+        aria-label={`Sales trend ${period}`}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        <defs>
+          <linearGradient id="reportsTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0, 0.5, 1].map((t) => {
+          const y = padTop + chartH * t;
+          const val = maxY * (1 - t);
+          return (
+            <g key={t}>
+              <line x1={padLeft} x2={W - padRight} y1={y} y2={y} stroke="#f1f5f9" strokeWidth={1} />
+              <text x={W - padRight} y={y - 4} textAnchor="end" fontSize={9} fill="#94a3b8">
+                {fmtCompactIDR(Math.round(val))}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={areaPath} fill="url(#reportsTrendFill)" stroke="none" />
+        {linePath && <path d={linePath} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+        {points.length === 1 && (
+          <rect
+            x={getX(0) - 18}
+            y={getY(points[0].total)}
+            width={36}
+            height={padTop + chartH - getY(points[0].total)}
+            rx={6}
+            fill="#2563eb"
+            opacity={0.9}
+          />
+        )}
+
+        {points.map((p, i) => {
+          if (i % labelStep !== 0 && i !== points.length - 1) return null;
+          return (
+            <text
+              key={p.iso + i}
+              x={getX(i)}
+              y={H - 4}
+              textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+              fontSize={9}
+              fill="#64748b"
+            >
+              {formatChartLabel(p.iso, period)}
+            </text>
+          );
+        })}
+
+        {points.map((p, i) => (
+          <g key={p.iso + "-dot-" + i} onMouseEnter={() => setHoverIdx(i)} className="cursor-pointer">
+            <circle cx={getX(i)} cy={getY(p.total)} r={hoverIdx === i ? 5 : 3.5} fill={hoverIdx === i ? "#1d4ed8" : "#2563eb"} stroke="white" strokeWidth={2} />
+            <circle cx={getX(i)} cy={getY(p.total)} r={14} fill="transparent" />
+          </g>
+        ))}
+      </svg>
+
+      {stats && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 border-t border-gray-100 pt-2.5">
+          <span>
+            Peak: <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.max))}</span>
+            <span className="text-gray-400"> · {formatChartLabel(stats.peak.iso, period)}</span>
+          </span>
+          <span className="hidden sm:inline text-gray-200">|</span>
+          <span>
+            Total: <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.sum))}</span>
+          </span>
+          <span className="hidden sm:inline text-gray-200">|</span>
+          <span>
+            Avg / {period === "monthly" ? "month" : period === "weekly" ? "week" : "day"}:{" "}
+            <span className="font-semibold text-gray-700">{fmtIDR(Math.round(stats.sum / points.length))}</span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
   const [activeQuick, setActiveQuick] = useState("Last 30 days");
 
   const [salesData, setSalesData] = useState<any[]>([]);
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
+  const [trendLoading, setTrendLoading] = useState(false);
   const [profitData, setProfitData] = useState<any>(null);
   const [returnsData, setReturnsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +306,7 @@ export default function ReportsPage() {
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
   const load = useCallback(
-    async (from: string, to: string) => {
+    async (from: string, to: string, period: ChartPeriod = "daily") => {
       setLoading(true);
       setError(null);
       try {
@@ -60,11 +315,14 @@ export default function ReportsPage() {
           dateTo: to || undefined,
         };
         const [sales, profit, returns] = await Promise.all([
-          fetchSalesSummary({ period: "daily", ...params }),
+          fetchSalesSummary({ period, ...params }),
           fetchGrossProfit(params),
           fetchReturnsSummary(params),
         ]);
-        setSalesData(sales.data.data ?? []);
+        const sRows = (sales as any)?.data?.data ?? (sales as any)?.data ?? [];
+        const safeRows = Array.isArray(sRows) ? sRows : [];
+        setSalesData(safeRows);
+        setTrendData(safeRows);
         setProfitData(profit.data);
         setReturnsData(returns.data);
       } catch (err: any) {
@@ -77,8 +335,26 @@ export default function ReportsPage() {
   );
 
   useEffect(() => {
-    load(dateFrom, dateTo);
+    load(dateFrom, dateTo, chartPeriod);
   }, [load, dateFrom, dateTo]);
+
+  const handlePeriodChange = async (p: ChartPeriod) => {
+    setChartPeriod(p);
+    setTrendLoading(true);
+    try {
+      const res = await fetchSalesSummary({
+        period: p,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      const rows = (res as any)?.data?.data ?? (res as any)?.data ?? [];
+      setTrendData(Array.isArray(rows) ? rows : []);
+    } catch {
+      // keep previous trend data visible
+    } finally {
+      setTrendLoading(false);
+    }
+  };
 
   const applyQuick = (range: (typeof QUICK_RANGES)[number]) => {
     const from = range.from();
@@ -234,6 +510,44 @@ export default function ReportsPage() {
 
       {!loading && !error && (
         <>
+          {/* Sales Trend Chart */}
+          <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+                  Sales Trend
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Revenue and transaction velocity over time · {rangeLabel}
+                </p>
+              </div>
+              <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
+                {CHART_PERIODS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => handlePeriodChange(p.value)}
+                    className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-colors ${
+                      chartPeriod === p.value
+                        ? "bg-gray-900 text-white shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    aria-pressed={chartPeriod === p.value}
+                  >
+                    <span className="sm:hidden">{p.short}</span>
+                    <span className="hidden sm:inline">{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <TrendChart
+              data={trendData}
+              period={chartPeriod}
+              loading={trendLoading}
+              error={null}
+            />
+          </div>
+
           {/* Gross Profit Summary */}
           {profitData?.summary && (
             <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">
