@@ -304,8 +304,8 @@ function PaymentBreakdownCard({
   );
 }
 
-// ── Cashier Leaderboard Card ───────────────────────────────────
-function CashierLeaderboardCard({
+// ── Sales Person Leaderboard Card ─────────────────────────────
+function SalesPersonLeaderboardCard({
   data,
   loading,
 }: {
@@ -313,7 +313,7 @@ function CashierLeaderboardCard({
   loading: boolean;
 }) {
   const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  const topCashiers = useMemo(() => items.slice(0, 5), [items]);
+  const topSalesPersons = useMemo(() => items.slice(0, 5), [items]);
   const maxSales = useMemo(
     () => Math.max(...items.map((c) => parseFloat(c.total_sales || 0)), 1),
     [items]
@@ -323,9 +323,9 @@ function CashierLeaderboardCard({
     <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-          Cashier Tally
+          Sales Person Leaderboard
         </h3>
-        <span className="text-xs text-gray-400">{items.length} cashiers</span>
+        <span className="text-xs text-gray-400">{items.length} sales staff</span>
       </div>
       {loading ? (
         <div className="space-y-2 animate-pulse">
@@ -333,22 +333,24 @@ function CashierLeaderboardCard({
           <div className="h-3 rounded bg-gray-100" />
           <div className="h-3 rounded bg-gray-100" />
         </div>
-      ) : topCashiers.length === 0 ? (
-        <p className="text-xs text-gray-400 py-3 text-center">No cashier data</p>
+      ) : topSalesPersons.length === 0 ? (
+        <p className="text-xs text-gray-400 py-3 text-center">No sales person data</p>
       ) : (
         <div className="space-y-2.5">
-          {topCashiers.map((c, idx) => {
+          {topSalesPersons.map((c, idx) => {
             const sales = parseFloat(c.total_sales || 0);
             const pct = (sales / maxSales) * 100;
+            const personName =
+              c.sales_person_name || c.full_name || c.cashier_name || "Unknown";
             return (
-              <div key={c.cashier_id ?? idx} className="space-y-1">
+              <div key={c.sales_person_id ?? c.cashier_id ?? idx} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 truncate max-w-[65%]">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-[10px] font-bold text-gray-600">
                       {idx + 1}
                     </span>
                     <span className="font-medium text-gray-700 truncate">
-                      {c.full_name || "Unknown"}
+                      {personName}
                     </span>
                     <span className="text-gray-400 font-normal text-[11px]">
                       · {c.transaction_count} tx
@@ -994,10 +996,10 @@ export default function SalesPage() {
         </p>
       )}
 
-      {/* ── Operational Mix: Payment breakdown & Cashier tally ── */}
+      {/* ── Operational Mix: Payment breakdown & Sales person leaderboard ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <PaymentBreakdownCard data={paymentMix} loading={opsLoading} />
-        <CashierLeaderboardCard data={cashierSales} loading={opsLoading} />
+        <SalesPersonLeaderboardCard data={cashierSales} loading={opsLoading} />
       </div>
 
       {/* ── Quick link to Reports deep-dive ── */}

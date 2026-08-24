@@ -54,7 +54,7 @@ exports.SalesModule = SalesModule = __decorate([
                 cash_movement_entity_1.CashMovement,
             ]),
         ],
-        controllers: [sales_controller_1.SalesController, returns_controller_1.ReturnsController, shifts_controller_1.ShiftsController],
+        controllers: [shifts_controller_1.ShiftsController, returns_controller_1.ReturnsController, sales_controller_1.SalesController],
         providers: [
             sales_service_1.SalesService,
             pricing_service_1.PricingService,

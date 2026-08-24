@@ -42,7 +42,7 @@ import { ShiftsService } from './shifts.service';
       CashMovement,
     ]),
   ],
-  controllers: [SalesController, ReturnsController, ShiftsController],
+  controllers: [ShiftsController, ReturnsController, SalesController],
   providers: [
     SalesService,
     PricingService,

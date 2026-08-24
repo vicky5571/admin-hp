@@ -373,8 +373,8 @@ function PaymentBreakdownCard({
   );
 }
 
-// ── Cashier Leaderboard Card ───────────────────────────────────
-function CashierLeaderboardCard({
+// ── Sales Person Leaderboard Card ─────────────────────────────
+function SalesPersonLeaderboardCard({
   data,
   loading,
 }: {
@@ -382,7 +382,7 @@ function CashierLeaderboardCard({
   loading: boolean;
 }) {
   const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
-  const topCashiers = useMemo(() => items.slice(0, 8), [items]);
+  const topSalesPersons = useMemo(() => items.slice(0, 8), [items]);
   const maxSales = useMemo(
     () => Math.max(...items.map((c) => parseFloat(c.total_sales || 0)), 1),
     [items]
@@ -392,10 +392,10 @@ function CashierLeaderboardCard({
     <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">Cashier Leaderboard</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Top performing sales cashiers</p>
+          <h3 className="text-base font-semibold text-gray-900">Sales Person Leaderboard</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Top performing sales staff & consultants</p>
         </div>
-        <span className="text-xs font-medium text-gray-500">{items.length} cashiers</span>
+        <span className="text-xs font-medium text-gray-500">{items.length} sales persons</span>
       </div>
       {loading ? (
         <div className="space-y-3 animate-pulse">
@@ -403,22 +403,24 @@ function CashierLeaderboardCard({
           <div className="h-4 rounded bg-gray-100" />
           <div className="h-4 rounded bg-gray-100" />
         </div>
-      ) : topCashiers.length === 0 ? (
-        <p className="text-xs text-gray-400 py-4 text-center">No cashier data for this period</p>
+      ) : topSalesPersons.length === 0 ? (
+        <p className="text-xs text-gray-400 py-4 text-center">No sales person data for this period</p>
       ) : (
         <div className="space-y-3">
-          {topCashiers.map((c, idx) => {
+          {topSalesPersons.map((c, idx) => {
             const sales = parseFloat(c.total_sales || 0);
             const pct = (sales / maxSales) * 100;
+            const personName =
+              c.sales_person_name || c.full_name || c.cashier_name || "Unknown";
             return (
-              <div key={c.cashier_id ?? idx} className="space-y-1.5">
+              <div key={c.sales_person_id ?? c.cashier_id ?? idx} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <div className="flex items-center gap-2 truncate max-w-[65%]">
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-xs font-bold text-gray-700 shrink-0">
                       {idx + 1}
                     </span>
                     <span className="font-medium text-gray-800 truncate">
-                      {c.full_name || "Unknown"}
+                      {personName}
                     </span>
                     <span className="text-gray-400 font-normal text-xs whitespace-nowrap">
                       · {c.transaction_count} tx
@@ -1419,10 +1421,10 @@ export default function ReportsPage() {
           {/* Product Insights */}
           <ProductInsightCard productData={productData} profitData={profitData?.data ?? []} loading={loading} />
 
-          {/* Payment Breakdown & Cashier Leaderboard */}
+          {/* Payment Breakdown & Sales Person Leaderboard */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <PaymentBreakdownCard data={paymentData} loading={loading} />
-            <CashierLeaderboardCard data={cashierData} loading={loading} />
+            <SalesPersonLeaderboardCard data={cashierData} loading={loading} />
           </div>
 
           {/* Sales Velocity Heatmap */}

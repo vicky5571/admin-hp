@@ -106,7 +106,10 @@ export class ReportsService {
     const sql = `
       SELECT
         s.cashier_id,
+        s.cashier_id AS sales_person_id,
+        u.full_name AS sales_person_name,
         u.full_name AS cashier_name,
+        u.full_name AS full_name,
         COUNT(*)::int AS transaction_count,
         COALESCE(SUM(s.grand_total), 0)::numeric(14,2) AS total_sales
       FROM sales s
