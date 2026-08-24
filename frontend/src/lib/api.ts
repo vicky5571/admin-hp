@@ -1019,4 +1019,80 @@ export function fetchShifts(params?: { userId?: number; status?: string; page?: 
   return apiFetch<CashierShift[]>(`/sales/shifts?${query.toString()}`);
 }
 
+// ── Stock Adjustments & Shrinkage ──────────────────────────────────
+export type AdjustmentType =
+  | "DAMAGE"
+  | "SHRINKAGE"
+  | "COUNT_VARIANCE_IN"
+  | "COUNT_VARIANCE_OUT"
+  | "PROMO_SAMPLE"
+  | "FOUND_STOCK"
+  | "CORRECTION_IN"
+  | "CORRECTION_OUT";
+
+export interface CreateStockAdjustmentPayload {
+  productId: number;
+  adjustmentType: AdjustmentType;
+  qty: number;
+  reason: string;
+  notes?: string;
+  imeiUnitIds?: number[];
+}
+
+export interface StockAdjustmentRecord {
+  id: number;
+  movementTime: string;
+  productId: number;
+  movementType: string;
+  qty: number;
+  unitCost: string;
+  refType: string;
+  refId: number;
+  reasonCode: string;
+  notes?: string | null;
+  product?: Product;
+  creator?: { id: number; fullName: string; username: string };
+  imeiUnit?: ImeiUnit | null;
+}
+
+export function createStockAdjustment(payload: CreateStockAdjustmentPayload) {
+  return apiFetch<{
+    success: boolean;
+    message: string;
+    data: {
+      movementId: number;
+      productId: number;
+      sku: string;
+      name: string;
+      oldQty: number;
+      newQty: number;
+      adjustmentType: AdjustmentType;
+      adjustedAt: string;
+    };
+  }>("/inventory/adjustments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchStockAdjustments(params?: {
+  productId?: number;
+  adjustmentType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.productId) query.set("productId", String(params.productId));
+  if (params?.adjustmentType) query.set("adjustmentType", params.adjustmentType);
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  return apiFetch<StockAdjustmentRecord[]>(
+    `/inventory/adjustments?${query.toString()}`,
+  );
+}
+
 

@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Brand, Category, fetchBrands, fetchCategories, fetchStockOnHand } from "@/lib/api";
+import {
+  Brand,
+  Category,
+  fetchBrands,
+  fetchCategories,
+  fetchStockOnHand,
+  Product,
+} from "@/lib/api";
+import StockAdjustmentModal from "./components/StockAdjustmentModal";
+import StockAdjustmentsHistoryModal from "./components/StockAdjustmentsHistoryModal";
 
 interface StockItem {
   id: number;
@@ -36,6 +45,7 @@ export default function InventoryPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   // Filters State
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -44,6 +54,12 @@ export default function InventoryPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
   const [productTypeFilter, setProductTypeFilter] = useState<ProductTypeFilter>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("QTY_ASC");
+
+  // Adjustment Modals State
+  const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [adjustTargetProductId, setAdjustTargetProductId] = useState<number | null>(null);
+  const [adjustTargetOnHand, setAdjustTargetOnHand] = useState<number | undefined>(undefined);
 
   const loadStockData = async () => {
     setLoading(true);
@@ -112,6 +128,22 @@ export default function InventoryPage() {
       lowStockCount,
       inStockCount,
     };
+  }, [data]);
+
+  // Map StockItems to Products for Modal Selector
+  const modalProducts: Product[] = useMemo(() => {
+    return data.map((d) => ({
+      id: d.id,
+      sku: d.sku,
+      name: d.name,
+      productType: d.product_type,
+      costPrice: d.cost_price,
+      srp: d.srp,
+      minStockAlert: d.min_stock_alert,
+      isActive: true,
+      categoryId: d.category_id,
+      brandId: d.brand_id,
+    }));
   }, [data]);
 
   // Filter & Sort Data
@@ -231,6 +263,18 @@ export default function InventoryPage() {
     setSortBy("QTY_ASC");
   };
 
+  const handleOpenRowAdjust = (item: StockItem) => {
+    setAdjustTargetProductId(item.id);
+    setAdjustTargetOnHand(item.on_hand_qty);
+    setIsAdjustmentModalOpen(true);
+  };
+
+  const handleOpenNewAdjust = () => {
+    setAdjustTargetProductId(null);
+    setAdjustTargetOnHand(undefined);
+    setIsAdjustmentModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -244,7 +288,7 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {hasActiveFilters && (
             <button
               type="button"
@@ -258,14 +302,49 @@ export default function InventoryPage() {
 
           <button
             type="button"
-            onClick={loadStockData}
+            onClick={() => setIsHistoryModalOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors"
           >
+            <span>📜</span>
+            <span>Adjustment Logs</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenNewAdjust}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-md transition-colors"
+          >
+            <span>⚙️</span>
+            <span>+ Stock Adjustment</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={loadStockData}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors"
+            title="Refresh inventory"
+          >
             <span>⟳</span>
-            <span>Refresh</span>
           </button>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {successMsg && (
+        <div className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-800 border border-emerald-200 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <span className="font-semibold">{successMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMsg("")}
+            className="font-bold text-emerald-600 hover:text-emerald-800"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* 📊 Executive KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -584,6 +663,7 @@ export default function InventoryPage() {
                   <th className="px-4 py-3 text-right">Retail SRP</th>
                   <th className="px-4 py-3 text-right">Total Stock Value</th>
                   <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-mono">
@@ -744,6 +824,19 @@ export default function InventoryPage() {
                                 : "🟢 Healthy"}
                         </span>
                       </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right font-sans">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRowAdjust(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 rounded-lg transition-colors shadow-2xs"
+                          title="Record Stock Adjustment / Damage"
+                        >
+                          <span>⚙️</span>
+                          <span>Adjust</span>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -752,6 +845,26 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+
+      {/* 🛠️ Stock Adjustment Modal */}
+      <StockAdjustmentModal
+        isOpen={isAdjustmentModalOpen}
+        onClose={() => setIsAdjustmentModalOpen(false)}
+        products={modalProducts}
+        initialProductId={adjustTargetProductId}
+        initialOnHand={adjustTargetOnHand}
+        onSuccess={(msg) => {
+          setSuccessMsg(msg);
+          loadStockData();
+          setTimeout(() => setSuccessMsg(""), 4000);
+        }}
+      />
+
+      {/* 📜 Stock Adjustments History Log Modal */}
+      <StockAdjustmentsHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+      />
     </div>
   );
 }

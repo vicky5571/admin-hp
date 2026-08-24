@@ -16,6 +16,9 @@ import { PurchaseOrdersController } from './purchase-orders/purchase-orders.cont
 import { PurchaseOrdersService } from './purchase-orders/purchase-orders.service';
 import { GoodsReceiptsController } from './goods-receipts/goods-receipts.controller';
 import { GoodsReceiptsService } from './goods-receipts/goods-receipts.service';
+import { AdjustmentsController } from './adjustments/adjustments.controller';
+import { AdjustmentsService } from './adjustments/adjustments.service';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -31,9 +34,26 @@ import { GoodsReceiptsService } from './goods-receipts/goods-receipts.service';
       StockBalance,
       StockMovement,
     ]),
+    AuditLogsModule,
   ],
-  controllers: [SuppliersController, PurchaseOrdersController, GoodsReceiptsController],
-  providers: [SuppliersService, PurchaseOrdersService, GoodsReceiptsService],
-  exports: [SuppliersService, PurchaseOrdersService, GoodsReceiptsService, TypeOrmModule],
+  controllers: [
+    SuppliersController,
+    PurchaseOrdersController,
+    GoodsReceiptsController,
+    AdjustmentsController,
+  ],
+  providers: [
+    SuppliersService,
+    PurchaseOrdersService,
+    GoodsReceiptsService,
+    AdjustmentsService,
+  ],
+  exports: [
+    SuppliersService,
+    PurchaseOrdersService,
+    GoodsReceiptsService,
+    AdjustmentsService,
+    TypeOrmModule,
+  ],
 })
 export class InventoryModule {}

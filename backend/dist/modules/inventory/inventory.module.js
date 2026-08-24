@@ -25,6 +25,9 @@ const purchase_orders_controller_1 = require("./purchase-orders/purchase-orders.
 const purchase_orders_service_1 = require("./purchase-orders/purchase-orders.service");
 const goods_receipts_controller_1 = require("./goods-receipts/goods-receipts.controller");
 const goods_receipts_service_1 = require("./goods-receipts/goods-receipts.service");
+const adjustments_controller_1 = require("./adjustments/adjustments.controller");
+const adjustments_service_1 = require("./adjustments/adjustments.service");
+const audit_logs_module_1 = require("../audit-logs/audit-logs.module");
 let InventoryModule = class InventoryModule {
 };
 exports.InventoryModule = InventoryModule;
@@ -43,10 +46,27 @@ exports.InventoryModule = InventoryModule = __decorate([
                 stock_balance_entity_1.StockBalance,
                 stock_movement_entity_1.StockMovement,
             ]),
+            audit_logs_module_1.AuditLogsModule,
         ],
-        controllers: [suppliers_controller_1.SuppliersController, purchase_orders_controller_1.PurchaseOrdersController, goods_receipts_controller_1.GoodsReceiptsController],
-        providers: [suppliers_service_1.SuppliersService, purchase_orders_service_1.PurchaseOrdersService, goods_receipts_service_1.GoodsReceiptsService],
-        exports: [suppliers_service_1.SuppliersService, purchase_orders_service_1.PurchaseOrdersService, goods_receipts_service_1.GoodsReceiptsService, typeorm_1.TypeOrmModule],
+        controllers: [
+            suppliers_controller_1.SuppliersController,
+            purchase_orders_controller_1.PurchaseOrdersController,
+            goods_receipts_controller_1.GoodsReceiptsController,
+            adjustments_controller_1.AdjustmentsController,
+        ],
+        providers: [
+            suppliers_service_1.SuppliersService,
+            purchase_orders_service_1.PurchaseOrdersService,
+            goods_receipts_service_1.GoodsReceiptsService,
+            adjustments_service_1.AdjustmentsService,
+        ],
+        exports: [
+            suppliers_service_1.SuppliersService,
+            purchase_orders_service_1.PurchaseOrdersService,
+            goods_receipts_service_1.GoodsReceiptsService,
+            adjustments_service_1.AdjustmentsService,
+            typeorm_1.TypeOrmModule,
+        ],
     })
 ], InventoryModule);
 //# sourceMappingURL=inventory.module.js.map
