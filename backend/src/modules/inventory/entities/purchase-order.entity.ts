@@ -21,8 +21,8 @@ export class PurchaseOrder {
   @Column({ name: 'po_number', type: 'varchar', length: 40, unique: true })
   poNumber: string;
 
-  @Column({ name: 'supplier_id', type: 'bigint' })
-  supplierId: number;
+  @Column({ name: 'supplier_id', type: 'bigint', nullable: true })
+  supplierId: number | null;
 
   @Column({ type: 'varchar', length: 20 })
   status: PoStatus;
@@ -45,9 +45,9 @@ export class PurchaseOrder {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Supplier)
+  @ManyToOne(() => Supplier, { nullable: true })
   @JoinColumn({ name: 'supplier_id' })
-  supplier: Supplier;
+  supplier: Supplier | null;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'created_by' })

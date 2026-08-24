@@ -5,7 +5,7 @@ import { PurchaseOrderItem } from './purchase-order-item.entity';
 export declare class PurchaseOrder {
     id: number;
     poNumber: string;
-    supplierId: number;
+    supplierId: number | null;
     status: PoStatus;
     orderDate: string;
     expectedDate: string | null;
@@ -13,7 +13,7 @@ export declare class PurchaseOrder {
     createdBy: number;
     createdAt: Date;
     updatedAt: Date;
-    supplier: Supplier;
+    supplier: Supplier | null;
     creator: User;
     items: PurchaseOrderItem[];
 }

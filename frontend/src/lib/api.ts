@@ -491,20 +491,20 @@ export interface PoItem {
 export interface PurchaseOrder {
   id: number;
   poNumber: string;
-  supplierId: number;
+  supplierId: number | null;
   status: string;
   orderDate: string;
   expectedDate: string | null;
   notes: string | null;
   createdBy?: number;
   createdAt: string;
-  supplier?: { id: number; name: string };
+  supplier?: { id: number; name: string } | null;
   items: PoItem[];
   creator?: { id: number; fullName: string };
 }
 
 export interface CreatePoPayload {
-  supplierId: number;
+  supplierId?: number | null;
   orderDate: string;
   expectedDate?: string;
   notes?: string;

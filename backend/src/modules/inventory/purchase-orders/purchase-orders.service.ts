@@ -68,11 +68,15 @@ export class PurchaseOrdersService {
   }
 
   async create(dto: CreatePurchaseOrderDto, userId: number) {
-    const supplier = await this.supplierRepo.findOne({
-      where: { id: dto.supplierId },
-    });
-    if (!supplier) {
-      throw new BadRequestException('Supplier not found');
+    let supplierName = 'Walk-in Customer';
+    if (dto.supplierId) {
+      const supplier = await this.supplierRepo.findOne({
+        where: { id: dto.supplierId },
+      });
+      if (!supplier) {
+        throw new BadRequestException('Supplier not found');
+      }
+      supplierName = supplier.name;
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -92,7 +96,7 @@ export class PurchaseOrdersService {
 
     const po = this.poRepo.create({
       poNumber,
-      supplierId: dto.supplierId,
+      supplierId: dto.supplierId ?? null,
       status: PoStatus.DRAFT,
       orderDate: dto.orderDate,
       expectedDate: dto.expectedDate ?? null,
@@ -111,7 +115,7 @@ export class PurchaseOrdersService {
       metadataJson: {
         poNumber: saved.poNumber,
         supplierId: saved.supplierId,
-        supplierName: supplier.name,
+        supplierName,
         itemsCount: saved.items.length,
       },
     });
@@ -127,54 +131,57 @@ export class PurchaseOrdersService {
       );
     }
 
-    const supplier = await this.supplierRepo.findOne({
-      where: { id: dto.supplierId },
-    });
-    if (!supplier) {
-      throw new BadRequestException('Supplier not found');
+    let supplierName = 'Walk-in Customer';
+    if (dto.supplierId) {
+      const supplier = await this.supplierRepo.findOne({
+        where: { id: dto.supplierId },
+      });
+      if (!supplier) {
+        throw new BadRequestException('Supplier not found');
+      }
+      supplierName = supplier.name;
     }
 
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('PO must have at least one item');
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      const poItemRepo = manager.getRepository(PurchaseOrderItem);
-      const poRepoTx = manager.getRepository(PurchaseOrder);
+    // Delete existing items
+    await this.dataSource
+      .getRepository(PurchaseOrderItem)
+      .delete({ purchaseOrderId: id });
 
-      // Remove existing items
-      await poItemRepo.delete({ purchaseOrderId: id });
+    // Create new items
+    const items = dto.items.map((i) =>
+      this.dataSource.getRepository(PurchaseOrderItem).create({
+        purchaseOrderId: id,
+        productId: i.productId,
+        orderedQty: i.orderedQty,
+        receivedQty: 0,
+        unitCost: i.unitCost.toFixed(2),
+      }),
+    );
 
-      // Create new items
-      const newItems = dto.items.map((i) =>
-        poItemRepo.create({
-          purchaseOrderId: id,
-          productId: i.productId,
-          orderedQty: i.orderedQty,
-          receivedQty: 0,
-          unitCost: i.unitCost.toFixed(2),
-        }),
-      );
-      await poItemRepo.save(newItems);
+    po.supplierId = dto.supplierId ?? null;
+    po.orderDate = dto.orderDate;
+    po.expectedDate = dto.expectedDate ?? null;
+    po.notes = dto.notes ?? null;
+    po.status = PoStatus.DRAFT; // auto-resets REJECTED back to DRAFT on edit
+    po.items = items;
 
-      // Update header
-      po.supplierId = dto.supplierId;
-      po.orderDate = dto.orderDate;
-      po.expectedDate = dto.expectedDate ?? null;
-      po.notes = dto.notes ?? null;
-      if (po.status === PoStatus.REJECTED) {
-        po.status = PoStatus.DRAFT;
-      }
-
-      await poRepoTx.save(po);
-    });
+    const saved = await this.poRepo.save(po);
 
     await this.auditLogsService.log({
       userId,
       action: 'PO_UPDATED',
       entityType: 'PURCHASE_ORDER',
-      entityId: Number(id),
-      metadataJson: { poNumber: po.poNumber, itemsCount: dto.items.length },
+      entityId: Number(saved.id),
+      metadataJson: {
+        poNumber: saved.poNumber,
+        supplierId: saved.supplierId,
+        supplierName,
+        itemsCount: saved.items.length,
+      },
     });
 
     return this.findOne(id);

@@ -11,9 +11,10 @@ import {
 import { CreatePoItemDto } from './create-purchase-order.dto';
 
 export class UpdatePurchaseOrderDto {
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  supplierId: number;
+  supplierId?: number;
 
   @IsDateString()
   orderDate: string;

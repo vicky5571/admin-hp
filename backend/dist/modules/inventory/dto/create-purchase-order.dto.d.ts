@@ -4,7 +4,7 @@ export declare class CreatePoItemDto {
     unitCost: number;
 }
 export declare class CreatePurchaseOrderDto {
-    supplierId: number;
+    supplierId?: number;
     orderDate: string;
     expectedDate?: string;
     notes?: string;

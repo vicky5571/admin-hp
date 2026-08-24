@@ -66,11 +66,15 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         return row;
     }
     async create(dto, userId) {
-        const supplier = await this.supplierRepo.findOne({
-            where: { id: dto.supplierId },
-        });
-        if (!supplier) {
-            throw new common_1.BadRequestException('Supplier not found');
+        let supplierName = 'Walk-in Customer';
+        if (dto.supplierId) {
+            const supplier = await this.supplierRepo.findOne({
+                where: { id: dto.supplierId },
+            });
+            if (!supplier) {
+                throw new common_1.BadRequestException('Supplier not found');
+            }
+            supplierName = supplier.name;
         }
         if (!dto.items || dto.items.length === 0) {
             throw new common_1.BadRequestException('PO must have at least one item');
@@ -84,7 +88,7 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         }));
         const po = this.poRepo.create({
             poNumber,
-            supplierId: dto.supplierId,
+            supplierId: dto.supplierId ?? null,
             status: po_status_enum_1.PoStatus.DRAFT,
             orderDate: dto.orderDate,
             expectedDate: dto.expectedDate ?? null,
@@ -101,7 +105,7 @@ let PurchaseOrdersService = class PurchaseOrdersService {
             metadataJson: {
                 poNumber: saved.poNumber,
                 supplierId: saved.supplierId,
-                supplierName: supplier.name,
+                supplierName,
                 itemsCount: saved.items.length,
             },
         });
@@ -112,42 +116,47 @@ let PurchaseOrdersService = class PurchaseOrdersService {
         if (po.status !== po_status_enum_1.PoStatus.DRAFT && po.status !== po_status_enum_1.PoStatus.REJECTED) {
             throw new common_1.BadRequestException(`Cannot edit purchase order with status ${po.status}. Only DRAFT or REJECTED POs can be edited.`);
         }
-        const supplier = await this.supplierRepo.findOne({
-            where: { id: dto.supplierId },
-        });
-        if (!supplier) {
-            throw new common_1.BadRequestException('Supplier not found');
+        let supplierName = 'Walk-in Customer';
+        if (dto.supplierId) {
+            const supplier = await this.supplierRepo.findOne({
+                where: { id: dto.supplierId },
+            });
+            if (!supplier) {
+                throw new common_1.BadRequestException('Supplier not found');
+            }
+            supplierName = supplier.name;
         }
         if (!dto.items || dto.items.length === 0) {
             throw new common_1.BadRequestException('PO must have at least one item');
         }
-        await this.dataSource.transaction(async (manager) => {
-            const poItemRepo = manager.getRepository(purchase_order_item_entity_1.PurchaseOrderItem);
-            const poRepoTx = manager.getRepository(purchase_order_entity_1.PurchaseOrder);
-            await poItemRepo.delete({ purchaseOrderId: id });
-            const newItems = dto.items.map((i) => poItemRepo.create({
-                purchaseOrderId: id,
-                productId: i.productId,
-                orderedQty: i.orderedQty,
-                receivedQty: 0,
-                unitCost: i.unitCost.toFixed(2),
-            }));
-            await poItemRepo.save(newItems);
-            po.supplierId = dto.supplierId;
-            po.orderDate = dto.orderDate;
-            po.expectedDate = dto.expectedDate ?? null;
-            po.notes = dto.notes ?? null;
-            if (po.status === po_status_enum_1.PoStatus.REJECTED) {
-                po.status = po_status_enum_1.PoStatus.DRAFT;
-            }
-            await poRepoTx.save(po);
-        });
+        await this.dataSource
+            .getRepository(purchase_order_item_entity_1.PurchaseOrderItem)
+            .delete({ purchaseOrderId: id });
+        const items = dto.items.map((i) => this.dataSource.getRepository(purchase_order_item_entity_1.PurchaseOrderItem).create({
+            purchaseOrderId: id,
+            productId: i.productId,
+            orderedQty: i.orderedQty,
+            receivedQty: 0,
+            unitCost: i.unitCost.toFixed(2),
+        }));
+        po.supplierId = dto.supplierId ?? null;
+        po.orderDate = dto.orderDate;
+        po.expectedDate = dto.expectedDate ?? null;
+        po.notes = dto.notes ?? null;
+        po.status = po_status_enum_1.PoStatus.DRAFT;
+        po.items = items;
+        const saved = await this.poRepo.save(po);
         await this.auditLogsService.log({
             userId,
             action: 'PO_UPDATED',
             entityType: 'PURCHASE_ORDER',
-            entityId: Number(id),
-            metadataJson: { poNumber: po.poNumber, itemsCount: dto.items.length },
+            entityId: Number(saved.id),
+            metadataJson: {
+                poNumber: saved.poNumber,
+                supplierId: saved.supplierId,
+                supplierName,
+                itemsCount: saved.items.length,
+            },
         });
         return this.findOne(id);
     }

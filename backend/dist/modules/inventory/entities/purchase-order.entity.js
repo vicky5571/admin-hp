@@ -27,8 +27,8 @@ __decorate([
     __metadata("design:type", String)
 ], PurchaseOrder.prototype, "poNumber", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ name: 'supplier_id', type: 'bigint' }),
-    __metadata("design:type", Number)
+    (0, typeorm_1.Column)({ name: 'supplier_id', type: 'bigint', nullable: true }),
+    __metadata("design:type", Object)
 ], PurchaseOrder.prototype, "supplierId", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20 }),
@@ -59,9 +59,9 @@ __decorate([
     __metadata("design:type", Date)
 ], PurchaseOrder.prototype, "updatedAt", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => supplier_entity_1.Supplier),
+    (0, typeorm_1.ManyToOne)(() => supplier_entity_1.Supplier, { nullable: true }),
     (0, typeorm_1.JoinColumn)({ name: 'supplier_id' }),
-    __metadata("design:type", supplier_entity_1.Supplier)
+    __metadata("design:type", Object)
 ], PurchaseOrder.prototype, "supplier", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => user_entity_1.User),

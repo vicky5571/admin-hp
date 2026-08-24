@@ -88,6 +88,7 @@ export default function PurchaseOrdersPage() {
   // Form State (Create & Edit PO)
   const [showForm, setShowForm] = useState(false);
   const [editingPoId, setEditingPoId] = useState<number | null>(null);
+  const [isWalkIn, setIsWalkIn] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [supplierId, setSupplierId] = useState("");
@@ -183,6 +184,7 @@ export default function PurchaseOrdersPage() {
 
   const openCreateForm = async () => {
     setEditingPoId(null);
+    setIsWalkIn(false);
     setSupplierId("");
     setOrderDate(new Date().toISOString().slice(0, 10));
     setExpectedDate("");
@@ -196,7 +198,8 @@ export default function PurchaseOrdersPage() {
 
   const openEditForm = async (po: PurchaseOrder) => {
     setEditingPoId(po.id);
-    setSupplierId(String(po.supplierId));
+    setIsWalkIn(!po.supplierId);
+    setSupplierId(po.supplierId ? String(po.supplierId) : "");
     setOrderDate(po.orderDate ? po.orderDate.slice(0, 10) : "");
     setExpectedDate(po.expectedDate ? po.expectedDate.slice(0, 10) : "");
     setNotes(po.notes || "");
@@ -230,30 +233,31 @@ export default function PurchaseOrdersPage() {
         unitCost: Number(r.unitCost || 0),
       }));
 
-    if (!supplierId || items.length === 0 || !orderDate) {
-      setError("Supplier, order date, and at least one valid item are required");
+    if (!isWalkIn && !supplierId) {
+      setError("Please select a supplier or switch to Walk-in Customer");
+      return;
+    }
+
+    if (items.length === 0 || !orderDate) {
+      setError("Order date and at least one valid item are required");
       return;
     }
 
     setSubmitting(true);
     try {
+      const payload = {
+        supplierId: !isWalkIn && supplierId ? Number(supplierId) : null,
+        orderDate,
+        expectedDate: expectedDate || undefined,
+        notes: notes || undefined,
+        items,
+      };
+
       if (editingPoId) {
-        await updatePurchaseOrder(editingPoId, {
-          supplierId: Number(supplierId),
-          orderDate,
-          expectedDate: expectedDate || undefined,
-          notes: notes || undefined,
-          items,
-        });
+        await updatePurchaseOrder(editingPoId, payload);
         setSuccess(`Purchase Order #${editingPoId} updated successfully`);
       } else {
-        await createPurchaseOrder({
-          supplierId: Number(supplierId),
-          orderDate,
-          expectedDate: expectedDate || undefined,
-          notes: notes || undefined,
-          items,
-        });
+        await createPurchaseOrder(payload);
         setSuccess("New Purchase Order created in Draft status");
       }
       setShowForm(false);
@@ -629,32 +633,79 @@ export default function PurchaseOrdersPage() {
             </span>
           </div>
 
+          {/* Source Type Selector */}
+          <div className="mb-4 flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Source:
+            </span>
+            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setIsWalkIn(false)}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                  !isWalkIn
+                    ? "bg-white text-gray-900 shadow-sm border border-gray-200/60"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Supplier / Distributor
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWalkIn(true);
+                  setSupplierId("");
+                }}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                  isWalkIn
+                    ? "bg-white text-amber-900 shadow-sm border border-gray-200/60"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Walk-in Customer
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-gray-700 uppercase">
-                  Supplier <span className="text-red-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={openSupplierModal}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  + Add Supplier
-                </button>
-              </div>
-              <select
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">Select supplier...</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.supplierCode})
-                  </option>
-                ))}
-              </select>
+              {!isWalkIn ? (
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700 uppercase">
+                      Supplier <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={openSupplierModal}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      + Add Supplier
+                    </button>
+                  </div>
+                  <select
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select supplier...</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.supplierCode})
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                    Source
+                  </label>
+                  <div className="flex items-center h-[38px] px-3 rounded-lg bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-800">
+                    Walk-in Customer
+                  </div>
+                </>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
@@ -1584,7 +1635,13 @@ function PoTableRow({
           </button>
         </td>
         <td className="px-4 py-3.5 font-medium text-gray-900">
-          {po.supplier?.name ?? "-"}
+          {po.supplier ? (
+            po.supplier.name
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
+              Walk-in
+            </span>
+          )}
         </td>
         <td className="px-4 py-3.5">
           <span
@@ -1698,6 +1755,16 @@ function PoTableRow({
           <td colSpan={7} className="px-6 py-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between text-xs text-gray-600 gap-4">
+                <div>
+                  <span className="font-semibold text-gray-700">Source:</span>{" "}
+                  {po.supplier ? (
+                    <span className="font-medium text-gray-900">{po.supplier.name}</span>
+                  ) : (
+                    <span className="font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      Walk-in Customer
+                    </span>
+                  )}
+                </div>
                 <div>
                   <span className="font-semibold text-gray-700">Expected Delivery:</span>{" "}
                   {po.expectedDate?.slice(0, 10) || "Not specified"}

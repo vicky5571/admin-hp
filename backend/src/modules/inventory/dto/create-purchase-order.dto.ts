@@ -26,9 +26,10 @@ export class CreatePoItemDto {
 }
 
 export class CreatePurchaseOrderDto {
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  supplierId: number;
+  supplierId?: number;
 
   @IsDateString()
   orderDate: string;
