@@ -95,6 +95,7 @@ let SalesService = class SalesService {
                 invoiceNumber,
                 saleTime: new Date(),
                 cashierId: user.id,
+                salesPersonId: dto.salesPersonId ?? user.id,
                 customerId: dto.customerId ?? null,
                 shiftId,
                 idempotencyKey: dto.idempotencyKey ?? null,
@@ -212,6 +213,7 @@ let SalesService = class SalesService {
                     'items.imeis.imeiUnit',
                     'payments',
                     'cashier',
+                    'salesPerson',
                     'customer',
                 ],
             });
@@ -228,6 +230,7 @@ let SalesService = class SalesService {
                     itemsCount: dto.items.length,
                     paymentMethods: dto.payments.map((p) => p.method),
                     shiftId,
+                    salesPersonId: dto.salesPersonId ?? user.id,
                 },
             });
             return {
@@ -250,6 +253,11 @@ let SalesService = class SalesService {
                 cashierId: query.cashierId,
             });
         }
+        if (query.salesPersonId) {
+            qb.andWhere('sale.salesPersonId = :salesPersonId', {
+                salesPersonId: query.salesPersonId,
+            });
+        }
         if (query.status) {
             qb.andWhere('sale.status = :status', { status: query.status });
         }
@@ -259,6 +267,7 @@ let SalesService = class SalesService {
             });
         }
         qb.leftJoinAndSelect('sale.cashier', 'cashier')
+            .leftJoinAndSelect('sale.salesPerson', 'salesPerson')
             .leftJoinAndSelect('sale.customer', 'customer')
             .leftJoinAndSelect('sale.items', 'items')
             .leftJoinAndSelect('sale.payments', 'payments')
@@ -278,6 +287,7 @@ let SalesService = class SalesService {
                 'items.imeis.imeiUnit',
                 'payments',
                 'cashier',
+                'salesPerson',
                 'customer',
             ],
         });

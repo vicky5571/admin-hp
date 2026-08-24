@@ -31,6 +31,7 @@ export declare class SalesController {
         invoiceNumber?: string | undefined;
         saleTime?: Date | undefined;
         cashierId?: number | undefined;
+        salesPersonId?: number | null | undefined;
         customerId?: number | null | undefined;
         subtotal?: string | undefined;
         discountTotal?: string | undefined;
@@ -41,6 +42,7 @@ export declare class SalesController {
         shiftId?: number | null | undefined;
         notes?: string | null | undefined;
         cashier?: import("../users/entities/user.entity").User | undefined;
+        salesPerson?: import("../users/entities/user.entity").User | null | undefined;
         customer?: import("./entities/customer.entity").Customer | null | undefined;
         shift?: any;
         items?: import("./entities/sale-item.entity").SaleItem[] | undefined;
@@ -67,6 +69,10 @@ export declare class SalesController {
         grandTotal: string;
         notes: string | null;
         cashier: {
+            id: number;
+            fullName: string;
+        } | null;
+        salesPerson: {
             id: number;
             fullName: string;
         } | null;

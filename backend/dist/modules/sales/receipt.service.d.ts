@@ -13,6 +13,10 @@ export declare class ReceiptService {
             id: number;
             fullName: string;
         } | null;
+        salesPerson: {
+            id: number;
+            fullName: string;
+        } | null;
         customer: {
             id: number;
             name: string;

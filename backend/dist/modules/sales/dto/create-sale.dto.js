@@ -118,6 +118,11 @@ __decorate([
     __metadata("design:type", Number)
 ], CreateSaleDto.prototype, "customerId", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateSaleDto.prototype, "salesPersonId", void 0);
+__decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),
     (0, class_validator_1.ValidateNested)({ each: true }),

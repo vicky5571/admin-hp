@@ -1078,7 +1078,16 @@ export default function SalesPage() {
                       <td className="px-2 sm:px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
                         {new Date(s.saleTime).toLocaleString("id-ID", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </td>
-                      <td className="px-2 sm:px-3 py-2.5 text-xs whitespace-nowrap max-w-[110px] truncate">{s.cashier?.fullName ?? s.cashierName ?? "-"}</td>
+                      <td className="px-2 sm:px-3 py-2.5 text-xs whitespace-nowrap max-w-[130px] truncate">
+                        <div>
+                          <span className="text-gray-900 font-medium">{s.cashier?.fullName ?? s.cashierName ?? "-"}</span>
+                          {s.salesPerson && s.salesPerson.id !== s.cashier?.id && (
+                            <span className="block text-[10px] text-indigo-600 font-normal">
+                              Sales: {s.salesPerson.fullName}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-2 sm:px-3 py-2.5">
                         {customerName ? (
                           <span className="inline-flex max-w-[130px] items-center gap-1 truncate rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 border border-violet-200" title={customerName}>
@@ -1272,6 +1281,22 @@ export default function SalesPage() {
                                         <h5 className="text-xs font-semibold text-gray-700">Customer</h5>
                                         <p className="text-sm font-medium text-gray-900 mt-1">{r.customer.name}</p>
                                         {(r.customer.phone || r.customer.email) && <p className="text-xs text-gray-500">{[r.customer.phone, r.customer.email].filter(Boolean).join(" · ")}</p>}
+                                      </div>
+                                    )}
+                                    {(r.cashier || r.salesPerson) && (
+                                      <div className="border-t border-gray-100 pt-3 text-xs space-y-1">
+                                        {r.cashier && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Cashier:</span>
+                                            <span className="font-medium text-gray-800">{r.cashier.fullName}</span>
+                                          </div>
+                                        )}
+                                        {r.salesPerson && r.salesPerson.id !== r.cashier?.id && (
+                                          <div className="flex justify-between">
+                                            <span className="text-indigo-600 font-semibold">Sales Person:</span>
+                                            <span className="font-semibold text-indigo-900">{r.salesPerson.fullName}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                     {r.notes && <p className="text-xs text-gray-500 border-t border-gray-100 pt-3"><span className="font-medium text-gray-700">Notes:</span> {r.notes}</p>}

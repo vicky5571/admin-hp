@@ -3,6 +3,7 @@ export declare class ListSalesQueryDto extends PaginationQueryDto {
     dateFrom?: string;
     dateTo?: string;
     cashierId?: number;
+    salesPersonId?: number;
     status?: string;
     invoiceNumber?: string;
 }

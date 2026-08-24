@@ -95,17 +95,17 @@ let ReportsService = class ReportsService {
         }
         const sql = `
       SELECT
-        s.cashier_id,
-        s.cashier_id AS sales_person_id,
+        COALESCE(s.sales_person_id, s.cashier_id) AS sales_person_id,
+        COALESCE(s.sales_person_id, s.cashier_id) AS cashier_id,
         u.full_name AS sales_person_name,
         u.full_name AS cashier_name,
         u.full_name AS full_name,
         COUNT(*)::int AS transaction_count,
         COALESCE(SUM(s.grand_total), 0)::numeric(14,2) AS total_sales
       FROM sales s
-      JOIN users u ON u.id = s.cashier_id
+      JOIN users u ON u.id = COALESCE(s.sales_person_id, s.cashier_id)
       ${whereClause}
-      GROUP BY s.cashier_id, u.full_name
+      GROUP BY COALESCE(s.sales_person_id, s.cashier_id), u.full_name
       ORDER BY total_sales DESC
     `;
         const rows = await this.dataSource.query(sql, params);

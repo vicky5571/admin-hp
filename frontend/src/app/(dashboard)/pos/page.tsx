@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AppUser,
   createSale,
   fetchCategories,
   fetchCurrentShift,
   fetchProducts,
   fetchSaleReceipt,
+  fetchUsers,
   generateIdempotencyKey,
   lookupImei,
   Product,
@@ -34,7 +36,7 @@ import PosDiscountModal from "./components/PosDiscountModal";
 import PosHeldCartsModal from "./components/PosHeldCartsModal";
 
 export default function PosPage() {
-  // 1. Smart Caching Layer (Products, Categories, Active Shift)
+  // 1. Smart Caching Layer (Products, Categories, Active Shift, Staff)
   const {
     data: rawProducts = [],
     loading: productsLoading,
@@ -53,6 +55,16 @@ export default function PosPage() {
     () => fetchCategories(),
     { ttlMs: 300000, persistKey: "pos_categories" },
   );
+
+  const { data: usersList = [] } = useCache<AppUser[]>(
+    "pos_staff_users",
+    () => fetchUsers().then((res: any) => res.data ?? res ?? []),
+    { ttlMs: 300000, persistKey: "pos_staff_users" },
+  );
+
+  const staffUsers: AppUser[] = useMemo(() => {
+    return Array.isArray(usersList) ? usersList : [];
+  }, [usersList]);
 
   const {
     data: currentShift,
@@ -136,6 +148,7 @@ export default function PosPage() {
     singleMethod: string,
     singleAmount: number,
     splitLines: SplitPaymentLine[],
+    salesPersonId?: number,
   ) => {
     if (cartHook.cart.length === 0) return;
     setError("");
@@ -215,6 +228,7 @@ export default function PosPage() {
         discountTotal: quoted ? quoted.discountTotal : cartHook.discountTotal,
         taxTotal: quoted ? quoted.taxTotal : cartHook.taxTotal,
         grandTotal: quoted ? quoted.grandTotal : cartHook.grandTotal,
+        salesPersonId,
         payments: payments.map((p) => ({
           method: p.method,
           amount: p.amount,
@@ -409,6 +423,7 @@ export default function PosPage() {
               globalDiscountPercent={cartHook.globalDiscountPercent}
               submitting={submitting}
               isOnline={offlineHook.isOnline}
+              staffUsers={staffUsers}
               onToggleTax={cartHook.toggleTax}
               onApplyGlobalDiscount={cartHook.applyGlobalDiscount}
               onClearDiscounts={cartHook.clearDiscounts}

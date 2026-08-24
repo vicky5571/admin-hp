@@ -36,6 +36,10 @@ __decorate([
     __metadata("design:type", Number)
 ], Sale.prototype, "cashierId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'sales_person_id', type: 'bigint', nullable: true }),
+    __metadata("design:type", Object)
+], Sale.prototype, "salesPersonId", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'customer_id', type: 'bigint', nullable: true }),
     __metadata("design:type", Object)
 ], Sale.prototype, "customerId", void 0);
@@ -76,6 +80,11 @@ __decorate([
     (0, typeorm_1.JoinColumn)({ name: 'cashier_id' }),
     __metadata("design:type", user_entity_1.User)
 ], Sale.prototype, "cashier", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'sales_person_id' }),
+    __metadata("design:type", Object)
+], Sale.prototype, "salesPerson", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => customer_entity_1.Customer, (customer) => customer.sales),
     (0, typeorm_1.JoinColumn)({ name: 'customer_id' }),

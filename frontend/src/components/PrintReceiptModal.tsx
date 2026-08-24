@@ -120,6 +120,12 @@ export default function PrintReceiptModal({
                 <span className="text-gray-500">Cashier:</span>
                 <span>{receipt.cashier?.fullName ?? "-"}</span>
               </div>
+              {receipt.salesPerson && receipt.salesPerson.fullName !== receipt.cashier?.fullName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Sales:</span>
+                  <span className="font-semibold text-gray-800">{receipt.salesPerson.fullName}</span>
+                </div>
+              )}
               {receipt.customer && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Customer:</span>

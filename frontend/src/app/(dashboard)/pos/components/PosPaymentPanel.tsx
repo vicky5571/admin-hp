@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AppUser } from "@/lib/api";
 import { SplitPaymentLine } from "../types";
 
 interface PosPaymentPanelProps {
@@ -12,6 +13,7 @@ interface PosPaymentPanelProps {
   globalDiscountPercent: number | null;
   submitting: boolean;
   isOnline: boolean;
+  staffUsers?: AppUser[];
   onToggleTax: () => void;
   onApplyGlobalDiscount: (pct: number) => void;
   onClearDiscounts: () => void;
@@ -21,6 +23,7 @@ interface PosPaymentPanelProps {
     singleMethod: string,
     singleAmount: number,
     splitLines: SplitPaymentLine[],
+    salesPersonId?: number,
   ) => void;
 }
 
@@ -35,6 +38,7 @@ export default function PosPaymentPanel({
   globalDiscountPercent,
   submitting,
   isOnline,
+  staffUsers = [],
   onToggleTax,
   onApplyGlobalDiscount,
   onClearDiscounts,
@@ -42,6 +46,7 @@ export default function PosPaymentPanel({
   onCheckout,
 }: PosPaymentPanelProps) {
   // Payment states
+  const [selectedSalesPersonId, setSelectedSalesPersonId] = useState<string>("");
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [payMethod, setPayMethod] = useState("CASH");
   const [payAmount, setPayAmount] = useState("");
@@ -124,6 +129,7 @@ export default function PosPaymentPanel({
       payMethod,
       payMethod === "CASH" ? amountPaidNum : grandTotal,
       splitPayments,
+      selectedSalesPersonId ? Number(selectedSalesPersonId) : undefined,
     );
   };
 
@@ -216,6 +222,31 @@ export default function PosPaymentPanel({
 
       {/* Payment Tender Controls */}
       <div className="p-4 bg-slate-50 border-t border-gray-200 space-y-3">
+        {/* Sales Person / Pramuniaga Selector */}
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Sales Person (Pramuniaga)
+            </label>
+            <span className="text-[10px] text-gray-400">Leaderboard / Commission</span>
+          </div>
+          <select
+            value={selectedSalesPersonId}
+            onChange={(e) => setSelectedSalesPersonId(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+          >
+            <option value="">Default (Logged-in Cashier)</option>
+            {staffUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.fullName} {u.role ? `(${u.role.name})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Payment Mode Selector Tabs */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
           <span className="text-[11px] font-bold text-gray-700">

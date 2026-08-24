@@ -8,6 +8,7 @@ export declare class Sale {
     invoiceNumber: string;
     saleTime: Date;
     cashierId: number;
+    salesPersonId: number | null;
     customerId: number | null;
     subtotal: string;
     discountTotal: string;
@@ -18,6 +19,7 @@ export declare class Sale {
     shiftId: number | null;
     notes: string | null;
     cashier: User;
+    salesPerson: User | null;
     customer: Customer | null;
     shift: any;
     items: SaleItem[];

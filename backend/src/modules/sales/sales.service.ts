@@ -110,6 +110,7 @@ export class SalesService {
         invoiceNumber,
         saleTime: new Date(),
         cashierId: user.id,
+        salesPersonId: dto.salesPersonId ?? user.id,
         customerId: dto.customerId ?? null,
         shiftId,
         idempotencyKey: dto.idempotencyKey ?? null,
@@ -263,6 +264,7 @@ export class SalesService {
           'items.imeis.imeiUnit',
           'payments',
           'cashier',
+          'salesPerson',
           'customer',
         ],
       });
@@ -282,6 +284,7 @@ export class SalesService {
           itemsCount: dto.items.length,
           paymentMethods: dto.payments.map((p) => p.method),
           shiftId,
+          salesPersonId: dto.salesPersonId ?? user.id,
         },
       });
 
@@ -307,6 +310,11 @@ export class SalesService {
         cashierId: query.cashierId,
       });
     }
+    if (query.salesPersonId) {
+      qb.andWhere('sale.salesPersonId = :salesPersonId', {
+        salesPersonId: query.salesPersonId,
+      });
+    }
     if (query.status) {
       qb.andWhere('sale.status = :status', { status: query.status });
     }
@@ -317,6 +325,7 @@ export class SalesService {
     }
 
     qb.leftJoinAndSelect('sale.cashier', 'cashier')
+      .leftJoinAndSelect('sale.salesPerson', 'salesPerson')
       .leftJoinAndSelect('sale.customer', 'customer')
       .leftJoinAndSelect('sale.items', 'items')
       .leftJoinAndSelect('sale.payments', 'payments')
@@ -338,6 +347,7 @@ export class SalesService {
         'items.imeis.imeiUnit',
         'payments',
         'cashier',
+        'salesPerson',
         'customer',
       ],
     });

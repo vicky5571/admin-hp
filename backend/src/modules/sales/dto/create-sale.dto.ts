@@ -93,6 +93,10 @@ export class CreateSaleDto {
   @IsInt()
   customerId?: number;
 
+  @IsOptional()
+  @IsInt()
+  salesPersonId?: number;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

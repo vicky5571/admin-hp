@@ -24,6 +24,7 @@ export declare class CreatePaymentDto {
 }
 export declare class CreateSaleDto {
     customerId?: number;
+    salesPersonId?: number;
     items: CreateSaleItemDto[];
     subtotal: number;
     discountTotal: number;

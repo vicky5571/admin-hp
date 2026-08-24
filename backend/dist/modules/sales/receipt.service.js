@@ -26,6 +26,11 @@ let ReceiptService = class ReceiptService {
             cashier: sale.cashier
                 ? { id: sale.cashier.id, fullName: sale.cashier.fullName }
                 : null,
+            salesPerson: sale.salesPerson
+                ? { id: sale.salesPerson.id, fullName: sale.salesPerson.fullName }
+                : sale.cashier
+                    ? { id: sale.cashier.id, fullName: sale.cashier.fullName }
+                    : null,
             customer: sale.customer
                 ? {
                     id: sale.customer.id,
@@ -112,6 +117,9 @@ let ReceiptService = class ReceiptService {
                 .font('Helvetica')
                 .text(`Date    : ${new Date(sale.saleTime).toLocaleString('id-ID')}`);
             doc.text(`Cashier : ${sale.cashier?.fullName ?? '-'}`);
+            if (sale.salesPerson && String(sale.salesPerson.id) !== String(sale.cashier?.id)) {
+                doc.text(`Sales   : ${sale.salesPerson.fullName}`);
+            }
             if (sale.customer) {
                 doc.text(`Customer: ${sale.customer.name}${sale.customer.phone ? ` (${sale.customer.phone})` : ''}`);
             }

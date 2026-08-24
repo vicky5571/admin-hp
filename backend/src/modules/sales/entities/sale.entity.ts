@@ -27,6 +27,9 @@ export class Sale {
   @Column({ name: 'cashier_id', type: 'bigint' })
   cashierId: number;
 
+  @Column({ name: 'sales_person_id', type: 'bigint', nullable: true })
+  salesPersonId: number | null;
+
   @Column({ name: 'customer_id', type: 'bigint', nullable: true })
   customerId: number | null;
 
@@ -57,6 +60,10 @@ export class Sale {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'cashier_id' })
   cashier: User;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'sales_person_id' })
+  salesPerson: User | null;
 
   @ManyToOne(() => Customer, (customer) => customer.sales)
   @JoinColumn({ name: 'customer_id' })

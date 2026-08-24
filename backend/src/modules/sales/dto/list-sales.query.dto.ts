@@ -17,6 +17,11 @@ export class ListSalesQueryDto extends PaginationQueryDto {
   cashierId?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  salesPersonId?: number;
+
+  @IsOptional()
   @IsString()
   status?: string;
 

@@ -240,6 +240,7 @@ export interface PaymentDto {
 
 export interface CreateSalePayload {
   customerId?: number;
+  salesPersonId?: number;
   items: SaleItemDto[];
   subtotal: number;
   discountTotal: number;
@@ -302,6 +303,7 @@ export interface ReceiptPayload {
   grandTotal: string;
   notes?: string | null;
   cashier?: { id: number; fullName: string } | null;
+  salesPerson?: { id: number; fullName: string } | null;
   customer?: {
     id: number;
     name: string;
