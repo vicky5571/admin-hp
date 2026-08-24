@@ -6,7 +6,9 @@ import {
   downloadReceiptPdf,
   fetchSaleReceipt,
   fetchSalesSummary,
+  fetchUsers,
   ReceiptPayload,
+  AppUser,
 } from "@/lib/api";
 import PrintReceiptModal from "@/components/PrintReceiptModal";
 
@@ -75,6 +77,13 @@ const QUICK_RANGES = [
   { label: "Last 30 days", from: () => daysAgo(29), to: () => today() },
   { label: "This month", from: () => today().slice(0, 7) + "-01", to: () => today() },
   { label: "All time", from: () => "", to: () => "" },
+] as const;
+
+const SALE_STATUSES = [
+  { label: "All", value: "" },
+  { label: "Completed", value: "COMPLETED" },
+  { label: "Partially Refunded", value: "PARTIALLY_REFUNDED" },
+  { label: "Voided", value: "VOIDED" },
 ] as const;
 
 // ── KPI aggregation ───────────────────────────────────────────
@@ -213,6 +222,11 @@ export default function SalesPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
   const [activeQuick, setActiveQuick] = useState("Last 30 days");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [invoiceInput, setInvoiceInput] = useState("");
+  const [invoiceQuery, setInvoiceQuery] = useState("");
+  const [cashierId, setCashierId] = useState<string>("");
+  const [cashiers, setCashiers] = useState<AppUser[]>([]);
   const [kpiLoading, setKpiLoading] = useState(true);
   const [kpiError, setKpiError] = useState<string | null>(null);
   const [kpi, setKpi] = useState<{
@@ -223,13 +237,26 @@ export default function SalesPage() {
 
   // ── table state ─────────────────────────────────────────────
   const [sales, setSales] = useState<any[]>([]);
-  const [meta, setMeta] = useState<{ page: number; pageCount: number }>({
+  const [meta, setMeta] = useState<{ page: number; pageCount: number; total?: number }>({
     page: 1,
     pageCount: 1,
   });
   const [loading, setLoading] = useState(true);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptPayload | null>(null);
   const [fetchingReceiptId, setFetchingReceiptId] = useState<number | null>(null);
+
+  // ── cashiers for dropdown ───────────────────────────────────
+  useEffect(() => {
+    fetchUsers()
+      .then((res) => setCashiers(res.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  // ── debounce invoice search (400ms) ─────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setInvoiceQuery(invoiceInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [invoiceInput]);
 
   // ── KPI fetch (re-uses fetchSalesSummary) ────────────────────
   useEffect(() => {
@@ -286,16 +313,20 @@ export default function SalesPage() {
         q.set("limit", "20");
         if (dateFrom) q.set("dateFrom", dateFrom);
         if (dateTo) q.set("dateTo", dateTo);
+        if (statusFilter) q.set("status", statusFilter);
+        if (invoiceQuery) q.set("invoiceNumber", invoiceQuery);
+        if (cashierId) q.set("cashierId", cashierId);
         const res = await apiFetch<any>(`/sales?${q.toString()}`);
         setSales(res.data ?? []);
-        setMeta((res.meta as any) ?? { page: 1, pageCount: 1 });
+        const m = (res.meta as any) ?? { page: 1, pageCount: 1 };
+        setMeta({ page: m.page ?? page, pageCount: m.pageCount ?? 1, total: m.total });
       } catch {
         // keep previous data visible
       } finally {
         setLoading(false);
       }
     },
-    [dateFrom, dateTo]
+    [dateFrom, dateTo, statusFilter, invoiceQuery, cashierId]
   );
 
   useEffect(() => {
@@ -320,6 +351,14 @@ export default function SalesPage() {
     setDateFrom(from);
     setDateTo(to);
     setActiveQuick(range.label);
+  };
+
+  const hasActiveFilters = Boolean(statusFilter || invoiceQuery || invoiceInput || cashierId);
+  const clearFilters = () => {
+    setStatusFilter("");
+    setInvoiceInput("");
+    setInvoiceQuery("");
+    setCashierId("");
   };
 
   const rangeLabel =
@@ -355,8 +394,9 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* ── Date range filter (mirrors reports) ─────────────── */}
-      <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 sm:p-4">
+      {/* ── Filters: date range + status + invoice + cashier ── */}
+      <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-3 sm:p-4 space-y-3">
+        {/* Row 1: quick pills + date inputs */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {QUICK_RANGES.map((r) => (
@@ -395,6 +435,111 @@ export default function SalesPage() {
               className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
             />
           </div>
+        </div>
+
+        {/* Row 2: status chips + invoice search + cashier + clear */}
+        <div className="flex flex-col gap-3 border-t border-gray-100 pt-3">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            {/* Status chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status</span>
+              <div className="flex flex-wrap gap-1.5">
+                {SALE_STATUSES.map((s) => (
+                  <button
+                    key={s.value || "all"}
+                    onClick={() => setStatusFilter(s.value)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      statusFilter === s.value
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "bg-white text-gray-600 border-gray-300 hover:border-gray-400 hover:text-gray-900"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Invoice search + cashier + clear — grow to fill */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:ml-auto w-full lg:w-auto">
+              {/* Invoice — ILIKE %query% on backend :312 */}
+              <div className="relative flex-1 sm:w-56 lg:w-64">
+                <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z" />
+                </svg>
+                <input
+                  type="text"
+                  value={invoiceInput}
+                  onChange={(e) => setInvoiceInput(e.target.value)}
+                  placeholder="Search invoice…"
+                  className="w-full rounded-lg border border-gray-300 pl-8 pr-8 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+                />
+                {invoiceInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceInput("");
+                      setInvoiceQuery("");
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Cashier dropdown — GET /users */}
+              <select
+                value={cashierId}
+                onChange={(e) => setCashierId(e.target.value)}
+                className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm bg-white focus:border-blue-500 focus:outline-none sm:min-w-[160px]"
+              >
+                <option value="">All cashiers</option>
+                {cashiers.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {u.fullName} ({u.username})
+                  </option>
+                ))}
+              </select>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 whitespace-nowrap"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Active filter summary */}
+          {(hasActiveFilters || statusFilter) && (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span>Filters:</span>
+              {statusFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 text-white px-2.5 py-0.5 text-xs font-medium">
+                  {SALE_STATUSES.find((s) => s.value === statusFilter)?.label ?? statusFilter}
+                  <button onClick={() => setStatusFilter("")} className="ml-0.5 hover:text-gray-200">×</button>
+                </span>
+              )}
+              {invoiceQuery && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 px-2.5 py-0.5 text-xs font-medium">
+                  Invoice: {invoiceQuery}
+                  <button onClick={() => { setInvoiceInput(""); setInvoiceQuery(""); }} className="ml-0.5 hover:text-blue-900">×</button>
+                </span>
+              )}
+              {cashierId && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 text-indigo-700 px-2.5 py-0.5 text-xs font-medium">
+                  {cashiers.find((c) => String(c.id) === cashierId)?.fullName ?? `Cashier #${cashierId}`}
+                  <button onClick={() => setCashierId("")} className="ml-0.5 hover:text-indigo-900">×</button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -495,7 +640,7 @@ export default function SalesPage() {
               {!loading && sales.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
-                    No sales for {rangeLabel}
+                    No sales for {rangeLabel}{hasActiveFilters ? " with current filters" : ""}
                   </td>
                 </tr>
               )}
@@ -561,6 +706,7 @@ export default function SalesPage() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">
             Page {meta.page} of {meta.pageCount}
+            {typeof meta.total === "number" ? ` · ${meta.total} total` : ""}
           </span>
           <div className="flex items-center gap-2">
             <button
