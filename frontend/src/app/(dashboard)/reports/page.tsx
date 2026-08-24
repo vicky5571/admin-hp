@@ -8,6 +8,7 @@ import {
   fetchReturnsSummary,
   fetchPaymentBreakdown,
   fetchSalesByCashier,
+  fetchSalesByProduct,
 } from "@/lib/api";
 
 // Returns today's date as YYYY-MM-DD in local time
@@ -438,6 +439,130 @@ function CashierLeaderboardCard({
   );
 }
 
+// ── Product Insight Card (Top Products by Revenue & Volume) ──
+function ProductInsightCard({
+  data,
+  loading,
+}: {
+  data: any[];
+  loading: boolean;
+}) {
+  const [metric, setMetric] = useState<"revenue" | "volume">("revenue");
+  const items = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  const sorted = useMemo(() => {
+    const list = [...items];
+    if (metric === "volume") {
+      return list.sort((a, b) => Number(b.qty_sold || 0) - Number(a.qty_sold || 0));
+    }
+    return list.sort((a, b) => parseFloat(b.net_sales || 0) - parseFloat(a.net_sales || 0));
+  }, [items, metric]);
+
+  const topItems = useMemo(() => sorted.slice(0, 5), [sorted]);
+
+  const maxVal = useMemo(() => {
+    if (metric === "volume") {
+      return Math.max(...topItems.map((it) => Number(it.qty_sold || 0)), 1);
+    }
+    return Math.max(...topItems.map((it) => parseFloat(it.net_sales || 0)), 1);
+  }, [topItems, metric]);
+
+  const totals = useMemo(() => {
+    const totalUnits = items.reduce((acc, it) => acc + Number(it.qty_sold || 0), 0);
+    const totalNet = items.reduce((acc, it) => acc + parseFloat(it.net_sales || 0), 0);
+    return { totalUnits, totalNet };
+  }, [items]);
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">Product Insights</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {items.length} products sold · {totals.totalUnits} units · {fmtIDR(Math.round(totals.totalNet))}
+          </p>
+        </div>
+        <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setMetric("revenue")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "revenue"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Top Revenue
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetric("volume")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "volume"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Top Volume
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+          <div className="h-4 rounded bg-gray-100" />
+        </div>
+      ) : topItems.length === 0 ? (
+        <p className="text-xs text-gray-400 py-4 text-center">No product sales data for this period</p>
+      ) : (
+        <div className="space-y-3.5">
+          {topItems.map((it, idx) => {
+            const net = parseFloat(it.net_sales || 0);
+            const qty = Number(it.qty_sold || 0);
+            const val = metric === "volume" ? qty : net;
+            const pct = (val / maxVal) * 100;
+            return (
+              <div key={it.product_id ?? idx} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <div className="flex items-center gap-2 truncate max-w-[65%]">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-xs font-bold text-emerald-700 border border-emerald-200 shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="truncate">
+                      <span className="font-medium text-gray-800">{it.product_name || "Unknown"}</span>
+                      {it.brand_name && (
+                        <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 font-medium">
+                          {it.brand_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-right">
+                    <span className="text-xs text-gray-500 font-normal">
+                      {qty} pcs
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {fmtCompactIDR(Math.round(net))}
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
@@ -447,6 +572,7 @@ export default function ReportsPage() {
   const [trendData, setTrendData] = useState<any[]>([]);
   const [paymentData, setPaymentData] = useState<any[]>([]);
   const [cashierData, setCashierData] = useState<any[]>([]);
+  const [productData, setProductData] = useState<any[]>([]);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
   const [trendLoading, setTrendLoading] = useState(false);
   const [profitData, setProfitData] = useState<any>(null);
@@ -464,22 +590,25 @@ export default function ReportsPage() {
           dateFrom: from || undefined,
           dateTo: to || undefined,
         };
-        const [sales, profit, returns, payments, cashiers] = await Promise.all([
+        const [sales, profit, returns, payments, cashiers, products] = await Promise.all([
           fetchSalesSummary({ period, ...params }),
           fetchGrossProfit(params),
           fetchReturnsSummary(params),
           fetchPaymentBreakdown(params),
           fetchSalesByCashier(params),
+          fetchSalesByProduct(params),
         ]);
         const sRows = (sales as any)?.data?.data ?? (sales as any)?.data ?? [];
         const safeRows = Array.isArray(sRows) ? sRows : [];
         const pRows = (payments as any)?.data?.data ?? (payments as any)?.data ?? [];
         const cRows = (cashiers as any)?.data?.data ?? (cashiers as any)?.data ?? [];
+        const prRows = (products as any)?.data?.data ?? (products as any)?.data ?? [];
 
         setSalesData(safeRows);
         setTrendData(safeRows);
         setPaymentData(Array.isArray(pRows) ? pRows : []);
         setCashierData(Array.isArray(cRows) ? cRows : []);
+        setProductData(Array.isArray(prRows) ? prRows : []);
         setProfitData(profit.data);
         setReturnsData(returns.data);
       } catch (err: any) {
@@ -739,6 +868,9 @@ export default function ReportsPage() {
               </div>
             </div>
           )}
+
+          {/* Product Insights */}
+          <ProductInsightCard data={productData} loading={loading} />
 
           {/* Payment Breakdown & Cashier Leaderboard */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
