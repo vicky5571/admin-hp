@@ -26,6 +26,9 @@ export declare class ReportsController {
         };
         data: any[];
     }>;
+    salesHeatmap(query: DateRangeQueryDto): Promise<{
+        data: any;
+    }>;
     stockOnHand(query: StockOnHandQueryDto): Promise<{
         summary: {
             totalSkus: number;

@@ -47,6 +47,12 @@ export class ReportsController {
     return this.service.grossProfit(query);
   }
 
+  @Get('sales-heatmap')
+  @Roles(RoleName.OWNER, RoleName.ADMIN)
+  salesHeatmap(@Query() query: DateRangeQueryDto) {
+    return this.service.salesHeatmap(query);
+  }
+
   @Get('stock-on-hand')
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.INVENTORY)
   stockOnHand(@Query() query: StockOnHandQueryDto) {

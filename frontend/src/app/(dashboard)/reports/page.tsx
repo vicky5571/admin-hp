@@ -10,6 +10,7 @@ import {
   fetchPaymentBreakdown,
   fetchSalesByCashier,
   fetchSalesByProduct,
+  fetchSalesHeatmap,
   fetchAuditLogs,
   AuditLogItem,
 } from "@/lib/api";
@@ -788,6 +789,276 @@ function VoidAndReturnsCard({
   );
 }
 
+// ── Sales Velocity Heatmap Card (Day-of-Week x Hour-of-Day) ──
+const DAYS_OF_WEEK = [
+  { index: 1, label: "Mon", full: "Monday" },
+  { index: 2, label: "Tue", full: "Tuesday" },
+  { index: 3, label: "Wed", full: "Wednesday" },
+  { index: 4, label: "Thu", full: "Thursday" },
+  { index: 5, label: "Fri", full: "Friday" },
+  { index: 6, label: "Sat", full: "Saturday" },
+  { index: 0, label: "Sun", full: "Sunday" },
+];
+
+const HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 7:00 AM to 22:00 PM (7..22)
+
+function formatHourLabel(h: number): string {
+  const ampm = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${ampm}`;
+}
+
+function SalesVelocityHeatmapCard({
+  data,
+  loading,
+}: {
+  data: any[];
+  loading: boolean;
+}) {
+  const [metric, setMetric] = useState<"profit" | "revenue" | "tx">("profit");
+  const [hoverCell, setHoverCell] = useState<{
+    day: (typeof DAYS_OF_WEEK)[number];
+    hour: number;
+    tx: number;
+    rev: number;
+    profit: number;
+  } | null>(null);
+
+  const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  const matrix = useMemo(() => {
+    const map = new Map<string, { tx: number; rev: number; profit: number }>();
+    for (const r of rows) {
+      const dow = Number(r.day_of_week);
+      const hr = Number(r.hour_of_day);
+      map.set(`${dow}-${hr}`, {
+        tx: Number(r.transaction_count || 0),
+        rev: parseFloat(r.total_sales || 0),
+        profit: parseFloat(r.gross_profit || 0),
+      });
+    }
+    return map;
+  }, [rows]);
+
+  const getMetricVal = (item: { tx: number; rev: number; profit: number }) => {
+    if (metric === "profit") return item.profit;
+    if (metric === "revenue") return item.rev;
+    return item.tx;
+  };
+
+  const maxVal = useMemo(() => {
+    let max = 0;
+    for (const item of matrix.values()) {
+      const val = getMetricVal(item);
+      if (val > max) max = val;
+    }
+    return max || 1;
+  }, [matrix, metric]);
+
+  const peak = useMemo(() => {
+    let best = { dow: 1, hour: 12, tx: 0, rev: 0, profit: 0 };
+    for (const [key, val] of matrix.entries()) {
+      const [d, h] = key.split("-").map(Number);
+      const score = getMetricVal(val);
+      const bestScore = getMetricVal(best);
+      if (score > bestScore) {
+        best = { dow: d, hour: h, tx: val.tx, rev: val.rev, profit: val.profit };
+      }
+    }
+    const dayObj = DAYS_OF_WEEK.find((d) => d.index === best.dow) ?? DAYS_OF_WEEK[0];
+    return { ...best, dayObj };
+  }, [matrix, metric]);
+
+  const getCellColor = (val: number) => {
+    if (!val || val <= 0) return "bg-gray-50 text-gray-400 border-gray-100";
+    const ratio = Math.max(0, val) / maxVal;
+    if (metric === "profit") {
+      if (ratio < 0.25) return "bg-emerald-100/80 text-emerald-900 border-emerald-200";
+      if (ratio < 0.5) return "bg-emerald-300 text-emerald-950 border-emerald-400 font-medium";
+      if (ratio < 0.75) return "bg-emerald-500 text-white border-emerald-600 font-semibold";
+      return "bg-emerald-700 text-white border-emerald-800 font-bold";
+    }
+    if (metric === "revenue") {
+      if (ratio < 0.25) return "bg-blue-100/80 text-blue-900 border-blue-200";
+      if (ratio < 0.5) return "bg-blue-300 text-blue-950 border-blue-400 font-medium";
+      if (ratio < 0.75) return "bg-blue-500 text-white border-blue-600 font-semibold";
+      return "bg-blue-700 text-white border-blue-800 font-bold";
+    }
+    if (ratio < 0.25) return "bg-slate-100 text-slate-800 border-slate-200";
+    if (ratio < 0.5) return "bg-slate-300 text-slate-900 border-slate-400 font-medium";
+    if (ratio < 0.75) return "bg-slate-600 text-white border-slate-700 font-semibold";
+    return "bg-slate-900 text-white border-slate-950 font-bold";
+  };
+
+  return (
+    <div className="rounded-xl bg-white shadow-sm border border-gray-200 p-4 sm:p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">
+            Sales Velocity Heatmap
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Store traffic & profit by day-of-week and hour-of-day
+            {peak.tx > 0 && (
+              <span className={`ml-1 font-medium ${metric === "profit" ? "text-emerald-700" : "text-blue-700"}`}>
+                · Peak: {peak.dayObj.full} {formatHourLabel(peak.hour)} (
+                {metric === "profit"
+                  ? `${fmtCompactIDR(Math.round(peak.profit))} profit`
+                  : metric === "revenue"
+                    ? `${fmtCompactIDR(Math.round(peak.rev))} rev`
+                    : `${peak.tx} tx`}
+                )
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="inline-flex rounded-full border border-gray-200 p-0.5 bg-gray-50 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setMetric("profit")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "profit"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Profit
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetric("revenue")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "revenue"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Revenue
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetric("tx")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              metric === "tx"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Transactions
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="h-44 animate-pulse rounded-lg bg-gray-50 border border-gray-100" />
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
+          No hourly transaction data for this period
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-[560px]">
+            {/* Header row: Hours */}
+            <div className="grid grid-cols-[48px_repeat(16,1fr)] gap-1 text-[10px] text-gray-500 font-medium mb-1.5 text-center">
+              <span className="text-left font-normal text-gray-400">Day</span>
+              {HOURS.map((h) => (
+                <span key={h} className="truncate">
+                  {h % 2 === 0 ? formatHourLabel(h) : ""}
+                </span>
+              ))}
+            </div>
+
+            {/* Matrix rows: Days of week */}
+            <div className="space-y-1">
+              {DAYS_OF_WEEK.map((day) => (
+                <div
+                  key={day.index}
+                  className="grid grid-cols-[48px_repeat(16,1fr)] gap-1 items-center"
+                >
+                  <span className="text-xs font-semibold text-gray-600 select-none">
+                    {day.label}
+                  </span>
+                  {HOURS.map((h) => {
+                    const cell = matrix.get(`${day.index}-${h}`) ?? { tx: 0, rev: 0, profit: 0 };
+                    const val = getMetricVal(cell);
+                    const isPeak = peak.dow === day.index && peak.hour === h && val > 0;
+                    const ringColor = metric === "profit" ? "ring-emerald-500" : "ring-blue-500";
+
+                    return (
+                      <div
+                        key={h}
+                        onMouseEnter={() =>
+                          setHoverCell({
+                            day,
+                            hour: h,
+                            tx: cell.tx,
+                            rev: cell.rev,
+                            profit: cell.profit,
+                          })
+                        }
+                        onMouseLeave={() => setHoverCell(null)}
+                        className={`relative h-6 sm:h-7 rounded border text-[10px] flex items-center justify-center cursor-pointer transition-transform hover:scale-105 hover:z-10 ${getCellColor(val)} ${isPeak ? `ring-2 ${ringColor} ring-offset-1` : ""}`}
+                        title={`${day.full} ${h}:00 - ${h + 1}:00: ${fmtIDR(Math.round(cell.profit))} profit, ${fmtIDR(Math.round(cell.rev))} rev, ${cell.tx} tx`}
+                      >
+                        {val > 0 ? (
+                          <span className="truncate scale-90 sm:scale-100">
+                            {metric === "tx"
+                              ? cell.tx
+                              : metric === "profit"
+                                ? fmtCompactIDR(Math.round(cell.profit)).replace("IDR ", "")
+                                : fmtCompactIDR(Math.round(cell.rev)).replace("IDR ", "")}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Hover tooltip / legend bar */}
+            <div className="mt-3 flex flex-wrap items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-2.5">
+              <div className="h-5">
+                {hoverCell ? (
+                  <span className="font-medium text-gray-800">
+                    {hoverCell.day.full} {hoverCell.hour}:00–{hoverCell.hour + 1}:00 ·{" "}
+                    <span className="text-emerald-700 font-semibold">{fmtIDR(Math.round(hoverCell.profit))} profit</span> ·{" "}
+                    <span className="text-blue-700 font-semibold">{fmtIDR(Math.round(hoverCell.rev))} rev</span> ·{" "}
+                    <span className="text-gray-600 font-semibold">{hoverCell.tx} tx</span>
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Hover over any cell to see exact profit, revenue & traffic</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                <span>Low</span>
+                <span className="inline-block w-3 h-3 rounded bg-gray-100 border border-gray-200" />
+                {metric === "profit" ? (
+                  <>
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-300 border border-emerald-400" />
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-500 border border-emerald-600" />
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-700 border border-emerald-800" />
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-block w-3 h-3 rounded bg-blue-100 border border-blue-200" />
+                    <span className="inline-block w-3 h-3 rounded bg-blue-300 border border-blue-400" />
+                    <span className="inline-block w-3 h-3 rounded bg-blue-500 border border-blue-600" />
+                    <span className="inline-block w-3 h-3 rounded bg-blue-700 border border-blue-800" />
+                  </>
+                )}
+                <span>Peak</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(daysAgo(29));
   const [dateTo, setDateTo] = useState(today());
@@ -798,6 +1069,7 @@ export default function ReportsPage() {
   const [paymentData, setPaymentData] = useState<any[]>([]);
   const [cashierData, setCashierData] = useState<any[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
+  const [heatmapData, setHeatmapData] = useState<any[]>([]);
   const [voidStats, setVoidStats] = useState({
     voidCount: 0,
     voidRate: 0,
@@ -822,13 +1094,24 @@ export default function ReportsPage() {
           dateFrom: from || undefined,
           dateTo: to || undefined,
         };
-        const [sales, profit, returns, payments, cashiers, products, voidedSalesRes, auditLogsRes] = await Promise.all([
+        const [
+          sales,
+          profit,
+          returns,
+          payments,
+          cashiers,
+          products,
+          heatmap,
+          voidedSalesRes,
+          auditLogsRes,
+        ] = await Promise.all([
           fetchSalesSummary({ period, ...params }),
           fetchGrossProfit(params),
           fetchReturnsSummary(params),
           fetchPaymentBreakdown(params),
           fetchSalesByCashier(params),
           fetchSalesByProduct(params),
+          fetchSalesHeatmap(params).catch(() => ({ data: [] as any[] })),
           apiFetch<any[]>(
             `/sales?status=VOIDED${params.dateFrom ? `&dateFrom=${params.dateFrom}` : ""}${params.dateTo ? `&dateTo=${params.dateTo}` : ""}&limit=100`
           ).catch(() => ({ data: [], meta: { total: 0 } })),
@@ -845,6 +1128,7 @@ export default function ReportsPage() {
         const pRows = (payments as any)?.data?.data ?? (payments as any)?.data ?? [];
         const cRows = (cashiers as any)?.data?.data ?? (cashiers as any)?.data ?? [];
         const prRows = (products as any)?.data?.data ?? (products as any)?.data ?? [];
+        const hRows = (heatmap as any)?.data?.data ?? (heatmap as any)?.data ?? [];
 
         const voidRows = Array.isArray(voidedSalesRes.data) ? voidedSalesRes.data : [];
         const voidCount = Number((voidedSalesRes as any)?.meta?.total ?? voidRows.length);
@@ -864,6 +1148,7 @@ export default function ReportsPage() {
         setPaymentData(Array.isArray(pRows) ? pRows : []);
         setCashierData(Array.isArray(cRows) ? cRows : []);
         setProductData(Array.isArray(prRows) ? prRows : []);
+        setHeatmapData(Array.isArray(hRows) ? hRows : []);
         setProfitData(profit.data);
         setReturnsData(returns.data);
         setVoidStats({
@@ -1139,6 +1424,9 @@ export default function ReportsPage() {
             <PaymentBreakdownCard data={paymentData} loading={loading} />
             <CashierLeaderboardCard data={cashierData} loading={loading} />
           </div>
+
+          {/* Sales Velocity Heatmap */}
+          <SalesVelocityHeatmapCard data={heatmapData} loading={loading} />
 
           {/* Daily Sales */}
           <div className="rounded-xl bg-white p-4 sm:p-6 shadow-sm border border-gray-200">

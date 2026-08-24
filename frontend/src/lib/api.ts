@@ -403,6 +403,16 @@ export function fetchPaymentBreakdown(params?: {
   return apiFetch<{ data: any[] }>(`/reports/payment-breakdown?${query.toString()}`);
 }
 
+export function fetchSalesHeatmap(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.set("dateTo", params.dateTo);
+  return apiFetch<{ data: any[] }>(`/reports/sales-heatmap?${query.toString()}`);
+}
+
 export function fetchStockMovements(params?: {
   productId?: string;
   imei?: string;

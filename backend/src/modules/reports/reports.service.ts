@@ -220,6 +220,45 @@ export class ReportsService {
     };
   }
 
+  // ── Sales Heatmap (Hour of Day x Day of Week) ─────────────────────
+  async salesHeatmap(query: DateRangeQueryDto) {
+    const params: string[] = [];
+    let whereClause = `WHERE s.status IN ('COMPLETED', 'PARTIALLY_REFUNDED')`;
+
+    if (query.dateFrom) {
+      params.push(query.dateFrom);
+      whereClause += ` AND s.sale_time >= $${params.length}::date`;
+    }
+    if (query.dateTo) {
+      params.push(query.dateTo);
+      whereClause += ` AND s.sale_time < ($${params.length}::date + INTERVAL '1 day')`;
+    }
+
+    const sql = `
+      SELECT
+        EXTRACT(DOW FROM s.sale_time)::int AS day_of_week,
+        EXTRACT(HOUR FROM s.sale_time)::int AS hour_of_day,
+        COUNT(*)::int AS transaction_count,
+        COALESCE(SUM(s.grand_total), 0)::numeric(14,2) AS total_sales,
+        COALESCE(SUM(item_profit.profit), 0)::numeric(14,2) AS gross_profit
+      FROM sales s
+      LEFT JOIN (
+        SELECT 
+          si.sale_id,
+          SUM((si.line_total - si.discount_amount) - (si.qty * p.cost_price)) AS profit
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        GROUP BY si.sale_id
+      ) item_profit ON item_profit.sale_id = s.id
+      ${whereClause}
+      GROUP BY day_of_week, hour_of_day
+      ORDER BY day_of_week ASC, hour_of_day ASC
+    `;
+
+    const rows = await this.dataSource.query(sql, params);
+    return { data: rows };
+  }
+
   // ── 6. Stock on Hand ──────────────────────────────────────────────
   async stockOnHand(query: StockOnHandQueryDto) {
     const params: string[] = [];

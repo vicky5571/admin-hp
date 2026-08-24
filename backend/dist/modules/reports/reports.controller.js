@@ -39,6 +39,9 @@ let ReportsController = class ReportsController {
     grossProfit(query) {
         return this.service.grossProfit(query);
     }
+    salesHeatmap(query) {
+        return this.service.salesHeatmap(query);
+    }
     stockOnHand(query) {
         return this.service.stockOnHand(query);
     }
@@ -125,6 +128,14 @@ __decorate([
     __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "grossProfit", null);
+__decorate([
+    (0, common_1.Get)('sales-heatmap'),
+    (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [reports_dto_1.DateRangeQueryDto]),
+    __metadata("design:returntype", void 0)
+], ReportsController.prototype, "salesHeatmap", null);
 __decorate([
     (0, common_1.Get)('stock-on-hand'),
     (0, roles_decorator_1.Roles)(role_enum_1.RoleName.OWNER, role_enum_1.RoleName.ADMIN, role_enum_1.RoleName.INVENTORY),
