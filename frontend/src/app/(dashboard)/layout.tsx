@@ -1,162 +1,368 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 
-interface NavGroup {
-  title?: string;
-  items: {
-    href: string;
-    label: string;
-    icon: (props: { className?: string }) => React.ReactNode;
-  }[];
+interface NavItem {
+  href: string;
+  label: string;
+  badge?: string;
+  badgeType?: "success" | "neutral" | "accent";
+  keywords: string[];
+  icon: (props: { className?: string }) => React.ReactNode;
 }
 
-const navGroups: NavGroup[] = [
+interface NavGroup {
+  id: string;
+  title: string;
+  items: NavItem[];
+}
+
+const navigationGroups: NavGroup[] = [
   {
-    title: "MAIN",
+    id: "main",
+    title: "Core Operations",
     items: [
       {
         href: "/",
         label: "Dashboard",
+        keywords: ["overview", "analytics", "home", "stats", "metrics"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            />
           </svg>
         ),
       },
       {
         href: "/pos",
-        label: "POS Checkout",
+        label: "POS Terminal",
+        badge: "Live",
+        badgeType: "success",
+        keywords: [
+          "checkout",
+          "cashier",
+          "register",
+          "terminal",
+          "sell",
+          "billing",
+        ],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+            />
           </svg>
         ),
       },
     ],
   },
   {
-    title: "INVENTORY & PROCUREMENT",
+    id: "inventory",
+    title: "Inventory & Purchasing",
     items: [
       {
         href: "/products",
-        label: "Products",
+        label: "Products Catalog",
+        keywords: ["catalog", "items", "sku", "pricing", "barcodes"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+            />
           </svg>
         ),
       },
       {
         href: "/inventory",
-        label: "Inventory Stock",
+        label: "Stock Levels",
+        keywords: [
+          "warehouse",
+          "adjustments",
+          "quantity",
+          "stocktake",
+          "on hand",
+        ],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+            />
           </svg>
         ),
       },
       {
         href: "/purchase-orders",
         label: "Purchase Orders",
+        keywords: ["procurement", "suppliers", "po", "orders", "vendors"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
         ),
       },
       {
         href: "/goods-receipts",
         label: "Goods Receipts",
+        keywords: ["receiving", "inbound", "grn", "warehouse delivery"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20"
+            />
           </svg>
         ),
       },
       {
         href: "/imei",
-        label: "IMEI Tracking",
+        label: "IMEI & Serials",
+        badge: "Serial",
+        badgeType: "neutral",
+        keywords: ["phones", "serials", "tracking", "imei", "devices"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+            />
           </svg>
         ),
       },
     ],
   },
   {
-    title: "SALES & FINANCE",
+    id: "finance",
+    title: "Sales & Finance",
     items: [
       {
         href: "/sales",
         label: "Sales History",
+        keywords: ["transactions", "invoices", "receipts", "revenue", "orders"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
           </svg>
         ),
       },
       {
         href: "/shifts",
         label: "Cashier Shifts",
+        keywords: ["drawers", "registers", "reconciliation", "closing", "cash"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         ),
       },
       {
         href: "/returns",
         label: "Returns & Refunds",
+        keywords: ["exchanges", "refunds", "rma", "credit notes"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 15v-1a4 4 0 00-4-4H4m0 0l3-3m-3 3l3 3m5 4v1a4 4 0 004 4h8m0 0l-3-3m3 3l-3 3" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M16 15v-1a4 4 0 00-4-4H4m0 0l3-3m-3 3l3 3m5 4v1a4 4 0 004 4h8m0 0l-3-3m3 3l-3 3"
+            />
           </svg>
         ),
       },
     ],
   },
   {
-    title: "ADMINISTRATION",
+    id: "admin",
+    title: "Administration",
     items: [
       {
-        href: "/users",
-        label: "Users & Roles",
+        href: "/reports",
+        label: "Analytics & Reports",
+        keywords: ["profit", "trends", "financials", "export", "insights"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+            />
           </svg>
         ),
       },
       {
-        href: "/reports",
-        label: "Analytics & Reports",
+        href: "/users",
+        label: "Users & Roles",
+        keywords: ["team", "employees", "permissions", "access control"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
           </svg>
         ),
       },
       {
         href: "/audit-logs",
         label: "Audit Logs",
+        keywords: ["history", "activity", "security", "changes", "events"],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         ),
       },
       {
         href: "/settings",
         label: "Store Settings",
+        keywords: [
+          "configuration",
+          "store info",
+          "tax",
+          "printers",
+          "preferences",
+        ],
         icon: ({ className }) => (
-          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <svg
+            className={className}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
           </svg>
         ),
       },
@@ -172,8 +378,29 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("smartstore_sidebar_collapsed");
+      if (saved !== null) {
+        setIsCollapsed(saved === "true");
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleCollapse = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("smartstore_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -181,17 +408,61 @@ export default function DashboardLayout({
     }
   }, [loading, user, router]);
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const searchInput = document.getElementById("sidebar-search-input");
+        searchInput?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return navigationGroups;
+    const q = searchQuery.toLowerCase().trim();
+    return navigationGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(q) ||
+            item.keywords.some((k) => k.includes(q)),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [searchQuery]);
+
+  const currentPageInfo = useMemo(() => {
+    for (const group of navigationGroups) {
+      for (const item of group.items) {
+        if (
+          item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+        ) {
+          return { group: group.title, item: item.label };
+        }
+      }
+    }
+    return { group: "Operations", item: "Dashboard" };
+  }, [pathname]);
+
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="flex items-center gap-3 text-slate-400">
-          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm font-medium tracking-wide">Loading workspace...</span>
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="relative flex h-10 w-10 items-center justify-center">
+            <div className="absolute inset-0 rounded-xl bg-blue-500/20 blur-xs animate-pulse"></div>
+            <div className="h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <span className="text-xs font-medium tracking-wide text-slate-600">
+            Initializing SmartStore ERP...
+          </span>
         </div>
       </div>
     );
@@ -204,153 +475,337 @@ export default function DashboardLayout({
         .slice(0, 2)
         .join("")
         .toUpperCase()
-    : "U";
+    : "AD";
+
+  const roleTheme =
+    {
+      ADMIN: "bg-blue-50 text-blue-700 border-blue-200/90",
+      MANAGER: "bg-amber-50 text-amber-700 border-amber-200/90",
+      CASHIER: "bg-emerald-50 text-emerald-700 border-emerald-200/90",
+    }[user.role.toUpperCase()] || "bg-blue-50 text-blue-700 border-blue-200/90";
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased">
-      {/* Mobile Drawer Backdrop */}
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex">
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm transition-opacity lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300 lg:hidden"
+          aria-hidden="true"
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#090d16] text-slate-300 border-r border-slate-800/80 transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } ${isCollapsed ? "lg:w-20" : "lg:w-64"} w-64 shadow-2xl lg:shadow-none mt-16 lg:mt-0`}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-white text-slate-700 border-r border-slate-200/80 transition-all duration-300 ease-in-out lg:static ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } ${isCollapsed ? "lg:w-[76px]" : "lg:w-[268px]"} w-[268px] shadow-xl lg:shadow-none shrink-0 select-none`}
       >
-        {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800/60">
+        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100 bg-white">
           <Link
             href="/"
-            className="flex items-center gap-3 group overflow-hidden"
+            className="flex items-center gap-3 group overflow-hidden focus-visible:ring-2 focus-visible:ring-blue-600 rounded-lg outline-none"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-500/25 transition-transform group-hover:scale-105">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 via-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 transition-transform duration-200 group-hover:scale-105">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
               </svg>
+              <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500"></div>
             </div>
+
             {!isCollapsed && (
-              <div className="flex flex-col transition-opacity duration-200">
-                <span className="text-sm font-bold tracking-tight text-white">
-                  SmartStore
-                </span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                  Retail & Inventory
+              <div className="flex flex-col min-w-0 transition-opacity duration-200">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+                    SmartStore
+                  </span>
+                  <span className="rounded bg-blue-50 px-1 py-0.2 text-[9px] font-bold tracking-wider text-blue-700 border border-blue-200">
+                    PRO
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium text-slate-400 truncate">
+                  Retail & Inventory ERP
                 </span>
               </div>
             )}
           </Link>
 
-          {/* Desktop Collapse Toggle */}
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            onClick={handleToggleCollapse}
+            aria-label={
+              isCollapsed
+                ? "Expand sidebar navigation"
+                : "Collapse sidebar navigation"
+            }
+            className="hidden lg:flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 outline-none"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
             <svg
-              className={`w-4 h-4 transition-transform duration-200 ${
-                isCollapsed ? "rotate-180" : ""
-              }`}
+              className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+              />
             </svg>
           </button>
 
-          {/* Mobile Close Button */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
+            aria-label="Close navigation menu"
+            className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
-        {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
-          {navGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              {!isCollapsed && group.title && (
-                <div className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                  {group.title}
-                </div>
-              )}
-              {group.items.map((item) => {
-                const active =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname.startsWith(item.href);
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={isCollapsed ? item.label : undefined}
-                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150 ${
-                      active
-                        ? "bg-blue-600/15 text-blue-400 font-semibold"
-                        : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
-                    } ${isCollapsed ? "justify-center px-0" : ""}`}
+        {!isCollapsed ? (
+          <div className="px-3 pt-3.5 pb-1">
+            <div className="flex items-center justify-between rounded-xl bg-blue-50/60 px-3 py-2 border border-blue-100 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 border border-blue-200/70 shadow-2xs">
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
-                    {/* Active Accent Bar */}
-                    {active && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-blue-500 shadow-sm shadow-blue-500" />
-                    )}
-
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                        active
-                          ? "text-blue-400"
-                          : "text-slate-400 group-hover:text-slate-200"
-                      }`}
-                    >
-                      <item.icon className="w-[18px] h-[18px]" />
-                    </span>
-
-                    {!isCollapsed && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-
-                    {/* Collapsed Tooltip */}
-                    {isCollapsed && (
-                      <div className="fixed left-20 z-50 hidden rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl border border-slate-700 group-hover:block whitespace-nowrap">
-                        {item.label}
-                      </div>
-                    )}
-                  </Link>
-                );
-              })}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.75}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-slate-900 truncate">
+                    Central Branch #01
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[9px] text-blue-700 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                    <span>POS Terminal Online</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex h-5 items-center px-1.5 rounded text-[9px] font-bold bg-white text-blue-700 border border-blue-200 shadow-2xs">
+                HQ
+              </div>
             </div>
-          ))}
+          </div>
+        ) : (
+          <div className="px-2 pt-3 pb-1 flex justify-center">
+            <div
+              className="h-8 w-8 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-200 text-blue-600"
+              title="Central Branch #01 (Online)"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </div>
+          </div>
+        )}
+
+        {!isCollapsed ? (
+          <div className="px-3 py-2">
+            <div className="relative">
+              <input
+                id="sidebar-search-input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Quick jump..."
+                className="w-full h-8.5 rounded-lg bg-slate-50 hover:bg-slate-100/80 focus:bg-white pl-8 pr-12 text-xs text-slate-900 placeholder-slate-400 border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 outline-none transition-all"
+              />
+              <svg
+                className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              {searchQuery ? (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-2 h-4 w-4 rounded flex items-center justify-center text-slate-400 hover:text-blue-600"
+                >
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              ) : (
+                <span className="absolute right-2 top-2 px-1 rounded text-[9px] font-mono text-slate-400 bg-white border border-slate-200 pointer-events-none">
+                  ⌘K
+                </span>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        <nav
+          className="flex-1 overflow-y-auto px-2.5 py-2 space-y-5 scrollbar-thin scrollbar-thumb-slate-200"
+          aria-label="Sidebar Navigation"
+        >
+          {filteredGroups.length === 0 ? (
+            <div className="px-3 py-8 text-center text-xs text-slate-400">
+              <p>No navigation match for</p>
+              <p className="font-semibold text-slate-700 mt-1">
+                &quot;{searchQuery}&quot;
+              </p>
+              <button
+                onClick={() => setSearchQuery("")}
+                className="mt-3 text-[11px] text-blue-600 hover:underline font-medium"
+              >
+                Clear filter
+              </button>
+            </div>
+          ) : (
+            filteredGroups.map((group) => (
+              <div key={group.id} className="space-y-1">
+                {!isCollapsed && (
+                  <div className="px-2.5 pb-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                    {group.title}
+                  </div>
+                )}
+                {isCollapsed && (
+                  <div
+                    className="h-px bg-slate-100 my-2 mx-1"
+                    aria-hidden="true"
+                  />
+                )}
+
+                {group.items.map((item) => {
+                  const active =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(item.href);
+
+                  return (
+                    <div key={item.href} className="relative group">
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium transition-all duration-150 relative focus-visible:ring-2 focus-visible:ring-blue-600 outline-none ${
+                          active
+                            ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-500/25"
+                            : "text-slate-600 hover:bg-blue-50/75 hover:text-blue-700"
+                        } ${isCollapsed ? "justify-center px-0 h-10 w-full" : ""}`}
+                      >
+                        <span
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                            active
+                              ? "text-white"
+                              : "text-slate-400 group-hover:text-blue-600"
+                          }`}
+                        >
+                          <item.icon className="w-[18px] h-[18px]" />
+                        </span>
+
+                        {!isCollapsed && (
+                          <div className="flex flex-1 items-center justify-between min-w-0">
+                            <span className="truncate">{item.label}</span>
+                            {item.badge && (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wide border uppercase ${
+                                  active
+                                    ? "bg-white/20 text-white border-white/25"
+                                    : item.badgeType === "success"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-blue-50 text-blue-700 border-blue-200/80"
+                                }`}
+                              >
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+
+                      {isCollapsed && (
+                        <div className="fixed left-[84px] z-50 hidden rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-xl border border-slate-800 group-hover:flex items-center gap-2 whitespace-nowrap pointer-events-none">
+                          <span>{item.label}</span>
+                          {item.badge && (
+                            <span className="rounded bg-blue-500/30 px-1 py-0.2 text-[9px] text-blue-300 font-semibold uppercase">
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          )}
         </nav>
 
-        {/* User Profile Footer */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
+        <div className="p-3 border-t border-slate-100 bg-blue-50/30">
           <div
-            className={`flex items-center gap-3 rounded-xl p-2 transition-colors ${
+            className={`flex items-center gap-2.5 rounded-xl p-1.5 transition-colors ${
               isCollapsed ? "justify-center" : "justify-between"
             }`}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-800 to-slate-700 text-xs font-bold text-slate-200 border border-slate-600/50 shadow-inner">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-xs">
                 {userInitials}
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500"></span>
               </div>
+
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-white truncate">
-                    {user.fullName || "User"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-slate-900 truncate">
+                      {user.fullName || user.username}
+                    </p>
+                  </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400 truncate">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border ${roleTheme}`}
+                    >
                       {user.role}
                     </span>
                   </div>
@@ -359,46 +814,127 @@ export default function DashboardLayout({
             </div>
 
             {!isCollapsed && (
-              <button
-                onClick={logout}
-                title="Sign Out"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/settings"
+                  title="Settings"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 outline-none"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.75}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.75}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </Link>
+                <button
+                  onClick={logout}
+                  title="Sign Out"
+                  aria-label="Sign out of system"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors focus-visible:ring-2 focus-visible:ring-rose-500 outline-none"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.75}
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden mt-16">
-        {/* Fixed Header Bar - All Viewports */}
-        <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between px-4 bg-white border-b border-slate-200/80 shadow-xs">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
-            title="Open Menu"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#F8FAFC]">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600 lg:hidden transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 outline-none"
+              aria-label="Open mobile navigation menu"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
+            </button>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-slate-400 hidden sm:inline">
+                {currentPageInfo.group}
+              </span>
+              <span className="text-slate-300 hidden sm:inline">/</span>
+              <span className="font-semibold text-slate-900">
+                {currentPageInfo.item}
+              </span>
             </div>
-            <span className="text-sm font-bold text-slate-900">SmartStore</span>
           </div>
-          <div className="w-9" />
+
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {pathname !== "/pos" && (
+              <Link
+                href="/pos"
+                className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-500/25 transition-all hover:shadow-md"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                <span>POS Register</span>
+              </Link>
+            )}
+
+            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-200/80">
+              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span className="hidden md:inline">Store Active</span>
+            </div>
+          </div>
         </header>
 
-        {/* Page Container */}
-        <main className="flex-1 overflow-y-auto pt-16 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
