@@ -159,7 +159,7 @@ export default function PosCompletedSale({
 
           <div className="flex justify-between text-slate-600 font-sans">
             <span>Amount Tendered:</span>
-            <span className="font-bold text-blue-700 font-mono">
+            <span className="font-bold text-sky-600 font-mono">
               Rp {paidTotalNum.toLocaleString("id-ID")}
             </span>
           </div>
@@ -175,7 +175,7 @@ export default function PosCompletedSale({
         </div>
 
         {/* WhatsApp Receipt & Digital Warranty Box */}
-        <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-4 text-left space-y-3">
+        <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-4 text-left space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-sm font-bold shadow-xs">
@@ -193,7 +193,7 @@ export default function PosCompletedSale({
             <Link
               href={`/warranty?q=${encodeURIComponent(lookupQuery)}`}
               target="_blank"
-              className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+              className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-1"
             >
               <span>Lihat Garansi</span>
               <span>↗</span>
@@ -210,7 +210,7 @@ export default function PosCompletedSale({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="812-3456-7890 (Nomor WhatsApp)"
-                className="w-full h-9 rounded-xl bg-white border border-emerald-200 pl-11 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full h-9 rounded-xl bg-white border border-sky-200/80 pl-11 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
               />
             </div>
             <button
@@ -239,7 +239,7 @@ export default function PosCompletedSale({
             <button
               type="button"
               onClick={handleCopyWarrantyLink}
-              className="text-emerald-700 hover:underline font-medium flex items-center gap-1"
+              className="text-sky-600 hover:underline font-medium flex items-center gap-1"
             >
               {copied ? "✓ Tersalin!" : "📋 Salin Link"}
             </button>
@@ -271,7 +271,7 @@ export default function PosCompletedSale({
           <button
             type="button"
             onClick={onNewSale}
-            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white hover:bg-blue-700 shadow-sm shadow-blue-500/25 transition-colors"
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 px-4 py-3 text-xs font-bold text-white shadow-md shadow-sky-400/25 transition-all hover:scale-[1.02]"
           >
             <span>+</span>
             <span>Transaksi Baru (F2)</span>
