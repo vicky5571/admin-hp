@@ -31,6 +31,7 @@ const sales_controller_1 = require("./sales.controller");
 const sales_service_1 = require("./sales.service");
 const shifts_controller_1 = require("./shifts.controller");
 const shifts_service_1 = require("./shifts.service");
+const warranty_controller_1 = require("./warranty.controller");
 let SalesModule = class SalesModule {
 };
 exports.SalesModule = SalesModule;
@@ -54,7 +55,12 @@ exports.SalesModule = SalesModule = __decorate([
                 cash_movement_entity_1.CashMovement,
             ]),
         ],
-        controllers: [shifts_controller_1.ShiftsController, returns_controller_1.ReturnsController, sales_controller_1.SalesController],
+        controllers: [
+            shifts_controller_1.ShiftsController,
+            returns_controller_1.ReturnsController,
+            sales_controller_1.SalesController,
+            warranty_controller_1.WarrantyController,
+        ],
         providers: [
             sales_service_1.SalesService,
             pricing_service_1.PricingService,

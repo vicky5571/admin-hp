@@ -1,16 +1,16 @@
-import { DataSource, Repository } from 'typeorm';
-import { SaleStatus } from '../../common/enums/sale-status.enum';
-import { Product } from '../catalog/entities/product.entity';
-import { ImeiUnit } from '../imei/entities/imei-unit.entity';
-import { AuthUser } from '../../common/types/auth-user.type';
-import { CreateSaleDto } from './dto/create-sale.dto';
-import { ListSalesQueryDto } from './dto/list-sales.query.dto';
-import { Customer } from './entities/customer.entity';
-import { Payment } from './entities/payment.entity';
-import { SaleItem } from './entities/sale-item.entity';
-import { Sale } from './entities/sale.entity';
-import { PricingService } from './pricing.service';
-import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DataSource, Repository } from "typeorm";
+import { SaleStatus } from "../../common/enums/sale-status.enum";
+import { Product } from "../catalog/entities/product.entity";
+import { ImeiUnit } from "../imei/entities/imei-unit.entity";
+import { AuthUser } from "../../common/types/auth-user.type";
+import { CreateSaleDto } from "./dto/create-sale.dto";
+import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
+import { Customer } from "./entities/customer.entity";
+import { Payment } from "./entities/payment.entity";
+import { SaleItem } from "./entities/sale-item.entity";
+import { Sale } from "./entities/sale.entity";
+import { PricingService } from "./pricing.service";
+import { AuditLogsService } from "../audit-logs/audit-logs.service";
 export declare class SalesService {
     private readonly dataSource;
     private readonly salesRepo;
@@ -56,5 +56,41 @@ export declare class SalesService {
     }>;
     findOne(id: number): Promise<Sale>;
     voidSale(id: number, user: AuthUser): Promise<Sale>;
+    lookupWarranty(rawQuery: string): Promise<{
+        verified: boolean;
+        query: string;
+        warranty: {
+            status: string;
+            warrantyType: string;
+            warrantyDays: number;
+            purchaseDate: string;
+            expiryDate: string;
+            remainingDays: number;
+            elapsedDays: number;
+            coveragePercent: number;
+        };
+        device: {
+            productName: string;
+            brand: string;
+            sku: string;
+            imei: string | null;
+            conditionGrade: string;
+            batteryHealth: number | null;
+        };
+        invoice: {
+            id: number;
+            invoiceNumber: string;
+            saleTime: Date;
+            storeBranch: string;
+            cashierName: string;
+            customerName: string;
+            customerPhone: string | null;
+        };
+        policy: {
+            terms: string[];
+            supportPhone: string;
+            supportWhatsApp: string;
+        };
+    }>;
     private generateInvoiceNumber;
 }

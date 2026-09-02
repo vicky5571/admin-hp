@@ -1,5 +1,4 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 const API_PREFIX = "/api/v1";
 
@@ -165,7 +164,8 @@ export function fetchProducts(params?: {
   if (params?.categoryId) query.set("categoryId", String(params.categoryId));
   if (params?.brandId) query.set("brandId", String(params.brandId));
   if (params?.productType) query.set("productType", params.productType);
-  if (params?.isActive !== undefined) query.set("isActive", String(params.isActive));
+  if (params?.isActive !== undefined)
+    query.set("isActive", String(params.isActive));
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
   return apiFetch<Product[]>(`/products?${query.toString()}`);
@@ -382,7 +382,9 @@ export function fetchSalesByProduct(params?: {
   const query = new URLSearchParams();
   if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params?.dateTo) query.set("dateTo", params.dateTo);
-  return apiFetch<{ data: any[] }>(`/reports/sales-by-product?${query.toString()}`);
+  return apiFetch<{ data: any[] }>(
+    `/reports/sales-by-product?${query.toString()}`,
+  );
 }
 
 export function fetchSalesByCashier(params?: {
@@ -392,7 +394,9 @@ export function fetchSalesByCashier(params?: {
   const query = new URLSearchParams();
   if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params?.dateTo) query.set("dateTo", params.dateTo);
-  return apiFetch<{ data: any[] }>(`/reports/sales-by-cashier?${query.toString()}`);
+  return apiFetch<{ data: any[] }>(
+    `/reports/sales-by-cashier?${query.toString()}`,
+  );
 }
 
 export function fetchPaymentBreakdown(params?: {
@@ -402,7 +406,9 @@ export function fetchPaymentBreakdown(params?: {
   const query = new URLSearchParams();
   if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params?.dateTo) query.set("dateTo", params.dateTo);
-  return apiFetch<{ data: any[] }>(`/reports/payment-breakdown?${query.toString()}`);
+  return apiFetch<{ data: any[] }>(
+    `/reports/payment-breakdown?${query.toString()}`,
+  );
 }
 
 export function fetchSalesHeatmap(params?: {
@@ -412,7 +418,9 @@ export function fetchSalesHeatmap(params?: {
   const query = new URLSearchParams();
   if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params?.dateTo) query.set("dateTo", params.dateTo);
-  return apiFetch<{ data: any[] }>(`/reports/sales-heatmap?${query.toString()}`);
+  return apiFetch<{ data: any[] }>(
+    `/reports/sales-heatmap?${query.toString()}`,
+  );
 }
 
 export function fetchStockMovements(params?: {
@@ -693,7 +701,9 @@ export function expressBuyback(payload: ExpressBuybackPayload) {
 }
 
 export function traceImeiProcurement(imei: string) {
-  return apiFetch<ImeiTraceResult>(`/purchase-orders/imei-trace/${encodeURIComponent(imei.trim())}`);
+  return apiFetch<ImeiTraceResult>(
+    `/purchase-orders/imei-trace/${encodeURIComponent(imei.trim())}`,
+  );
 }
 
 // ── Goods Receipts ──────────────────────────────────────────────────
@@ -735,7 +745,12 @@ export interface GoodsReceipt {
   purchaseOrder?: {
     id: number;
     poNumber: string;
-    supplier?: { id: number; name: string; address?: string | null; phone?: string | null };
+    supplier?: {
+      id: number;
+      name: string;
+      address?: string | null;
+      phone?: string | null;
+    };
   };
   receiver?: { id: number; fullName: string };
   items: GrItem[];
@@ -833,9 +848,7 @@ export function lookupImei(imei: string) {
 }
 
 export function fetchAvailableImeis(productId: number) {
-  return apiFetch<ImeiUnit[]>(
-    `/imei/available?productId=${productId}`,
-  );
+  return apiFetch<ImeiUnit[]>(`/imei/available?productId=${productId}`);
 }
 
 export function updateImeiStatus(
@@ -854,8 +867,6 @@ export function updateImeiStatus(
     body: JSON.stringify(payload),
   });
 }
-
-
 
 // ── Users & Roles ──────────────────────────────────────────────────
 export interface AppUser {
@@ -939,7 +950,6 @@ function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
-
 
 export async function downloadReceiptPdf(saleId: number) {
   const res = await fetch(
@@ -1109,14 +1119,23 @@ export interface ShiftReport {
 }
 
 export function generateIdempotencyKey(): string {
-  return "txn-" + Date.now().toString(36) + "-" + Math.random().toString(36).substring(2, 9);
+  return (
+    "txn-" +
+    Date.now().toString(36) +
+    "-" +
+    Math.random().toString(36).substring(2, 9)
+  );
 }
 
 export function fetchCurrentShift() {
   return apiFetch<CashierShift | null>("/sales/shifts/current");
 }
 
-export function openShift(payload: { registerName?: string; openingBalance: number; notes?: string }) {
+export function openShift(payload: {
+  registerName?: string;
+  openingBalance: number;
+  notes?: string;
+}) {
   return apiFetch<CashierShift>("/sales/shifts/open", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -1134,7 +1153,10 @@ export function recordCashMovement(payload: {
   });
 }
 
-export function closeShift(payload: { actualEndingCash: number; notes?: string }) {
+export function closeShift(payload: {
+  actualEndingCash: number;
+  notes?: string;
+}) {
   return apiFetch<CashierShift>("/sales/shifts/close", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -1145,7 +1167,12 @@ export function fetchShiftReport(shiftId: number) {
   return apiFetch<ShiftReport>(`/sales/shifts/${shiftId}/report`);
 }
 
-export function fetchShifts(params?: { userId?: number; status?: string; page?: number; limit?: number }) {
+export function fetchShifts(params?: {
+  userId?: number;
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params?.userId) query.set("userId", String(params.userId));
   if (params?.status) query.set("status", params.status);
@@ -1220,7 +1247,8 @@ export function fetchStockAdjustments(params?: {
 }) {
   const query = new URLSearchParams();
   if (params?.productId) query.set("productId", String(params.productId));
-  if (params?.adjustmentType) query.set("adjustmentType", params.adjustmentType);
+  if (params?.adjustmentType)
+    query.set("adjustmentType", params.adjustmentType);
   if (params?.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params?.dateTo) query.set("dateTo", params.dateTo);
   if (params?.page) query.set("page", String(params.page));
@@ -1230,4 +1258,45 @@ export function fetchStockAdjustments(params?: {
   );
 }
 
+export interface WarrantyLookupResult {
+  verified: boolean;
+  query: string;
+  warranty: {
+    status: "ACTIVE" | "EXPIRED";
+    warrantyType: string;
+    warrantyDays: number;
+    purchaseDate: string;
+    expiryDate: string;
+    remainingDays: number;
+    elapsedDays: number;
+    coveragePercent: number;
+  };
+  device: {
+    productName: string;
+    brand: string;
+    sku: string;
+    imei: string | null;
+    conditionGrade: string | null;
+    batteryHealth: number | null;
+  };
+  invoice: {
+    id: number;
+    invoiceNumber: string;
+    saleTime: string;
+    storeBranch: string;
+    cashierName: string;
+    customerName: string;
+    customerPhone: string | null;
+  };
+  policy: {
+    terms: string[];
+    supportPhone: string;
+    supportWhatsApp: string;
+  };
+}
 
+export function lookupWarranty(query: string) {
+  return apiFetch<WarrantyLookupResult>(
+    `/warranty/lookup?query=${encodeURIComponent(query.trim())}`,
+  );
+}

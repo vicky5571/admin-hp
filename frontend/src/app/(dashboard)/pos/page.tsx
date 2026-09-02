@@ -37,13 +37,14 @@ import PosHeldCartsModal from "./components/PosHeldCartsModal";
 
 export default function PosPage() {
   // 1. Smart Caching Layer (Products, Categories, Active Shift, Staff)
-  const {
-    data: rawProducts = [],
-    loading: productsLoading,
-  } = useCache("pos_products", () => fetchProducts({ limit: 80, isActive: true }), {
-    ttlMs: 60000,
-    persistKey: "pos_products",
-  });
+  const { data: rawProducts = [], loading: productsLoading } = useCache(
+    "pos_products",
+    () => fetchProducts({ limit: 80, isActive: true }),
+    {
+      ttlMs: 60000,
+      persistKey: "pos_products",
+    },
+  );
 
   const products: Product[] = useMemo(() => {
     const list = (rawProducts as any)?.data ?? rawProducts ?? [];
@@ -85,15 +86,20 @@ export default function PosPage() {
   const [successMsg, setSuccessMsg] = useState("");
 
   const [saleResult, setSaleResult] = useState<any>(null);
-  const [receiptPayload, setReceiptPayload] = useState<ReceiptPayload | null>(null);
+  const [receiptPayload, setReceiptPayload] = useState<ReceiptPayload | null>(
+    null,
+  );
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [imeiModalItem, setImeiModalItem] = useState<CartItem | null>(null);
   const [priceModalItem, setPriceModalItem] = useState<CartItem | null>(null);
-  const [discountModalItem, setDiscountModalItem] = useState<CartItem | null>(null);
-  const [isCustomGlobalDiscountOpen, setIsCustomGlobalDiscountOpen] = useState(false);
+  const [discountModalItem, setDiscountModalItem] = useState<CartItem | null>(
+    null,
+  );
+  const [isCustomGlobalDiscountOpen, setIsCustomGlobalDiscountOpen] =
+    useState(false);
 
   // Barcode Scan Handler
   const handleBarcodeScanned = async (barcode: string) => {
@@ -155,7 +161,9 @@ export default function PosPage() {
 
     // Validate shift
     if (!currentShift) {
-      setError("No register shift is currently open. Please open a shift first.");
+      setError(
+        "No register shift is currently open. Please open a shift first.",
+      );
       setIsShiftModalOpen(true);
       return;
     }
@@ -282,6 +290,7 @@ export default function PosPage() {
       <>
         <PosCompletedSale
           saleResult={saleResult}
+          receiptPayload={receiptPayload}
           onPrintReceipt={() => setShowReceiptModal(true)}
           onNewSale={() => {
             setSaleResult(null);
@@ -316,7 +325,8 @@ export default function PosPage() {
             Point of Sale (POS)
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            Rapid retail billing, barcode intake, instant discounts, and cash tender handling.
+            Rapid retail billing, barcode intake, instant discounts, and cash
+            tender handling.
           </p>
         </div>
 
@@ -361,7 +371,10 @@ export default function PosPage() {
       {successMsg && (
         <div className="rounded-xl bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800 border border-emerald-200 flex items-center justify-between">
           <span>✓ {successMsg}</span>
-          <button onClick={() => setSuccessMsg("")} className="font-bold text-emerald-600">
+          <button
+            onClick={() => setSuccessMsg("")}
+            className="font-bold text-emerald-600"
+          >
             &times;
           </button>
         </div>
@@ -370,7 +383,10 @@ export default function PosPage() {
       {error && (
         <div className="rounded-xl bg-rose-50 px-4 py-2.5 text-xs text-rose-700 border border-rose-200 flex items-center justify-between">
           <span>⚠️ {error}</span>
-          <button onClick={() => setError("")} className="font-bold text-rose-600">
+          <button
+            onClick={() => setError("")}
+            className="font-bold text-rose-600"
+          >
             &times;
           </button>
         </div>

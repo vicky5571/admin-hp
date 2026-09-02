@@ -1,0 +1,13 @@
+/Users/mac/Web Development/admin-hp/.serena/memories/memory_maintenance.md
+/Users/mac/Web Development/admin-hp/.serena/memories/smartstore/project-context.md
+/Users/mac/Web Development/admin-hp/.serena/project.yml
+/Users/mac/Web Development/admin-hp/frontend/AGENTS.md
+/Users/mac/Web Development/admin-hp/frontend/CLAUDE.md
+/Users/mac/Web Development/admin-hp/frontend/README.md
+/Users/mac/Web Development/admin-hp/session-ses_fee7.md
+/Users/mac/Web Development/admin-hp/session-ses_ff90.md
+/Users/mac/Web Development/admin-hp/frontend/public/file.svg
+/Users/mac/Web Development/admin-hp/frontend/public/globe.svg
+/Users/mac/Web Development/admin-hp/frontend/public/next.svg
+/Users/mac/Web Development/admin-hp/frontend/public/vercel.svg
+/Users/mac/Web Development/admin-hp/frontend/public/window.svg

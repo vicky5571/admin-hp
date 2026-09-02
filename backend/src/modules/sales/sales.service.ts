@@ -3,30 +3,30 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import { ImeiStatus } from '../../common/enums/imei-status.enum';
-import { MovementType } from '../../common/enums/movement-type.enum';
-import { ProductType } from '../../common/enums/product-type.enum';
-import { SaleStatus } from '../../common/enums/sale-status.enum';
-import { sumAmounts } from '../../common/utils/money.util';
-import { paginateMeta } from '../../common/utils/pagination.util';
-import { Product } from '../catalog/entities/product.entity';
-import { ImeiUnit } from '../imei/entities/imei-unit.entity';
-import { StockBalance } from '../inventory/entities/stock-balance.entity';
-import { StockMovement } from '../inventory/entities/stock-movement.entity';
-import { AuthUser } from '../../common/types/auth-user.type';
-import { CreateSaleDto } from './dto/create-sale.dto';
-import { ListSalesQueryDto } from './dto/list-sales.query.dto';
-import { CashierShift, ShiftStatus } from './entities/cashier-shift.entity';
-import { Customer } from './entities/customer.entity';
-import { Payment } from './entities/payment.entity';
-import { SaleItemImei } from './entities/sale-item-imei.entity';
-import { SaleItem } from './entities/sale-item.entity';
-import { Sale } from './entities/sale.entity';
-import { PricingService } from './pricing.service';
-import { AuditLogsService } from '../audit-logs/audit-logs.service';
+} from "@nestjs/common";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
+import { DataSource, Repository } from "typeorm";
+import { ImeiStatus } from "../../common/enums/imei-status.enum";
+import { MovementType } from "../../common/enums/movement-type.enum";
+import { ProductType } from "../../common/enums/product-type.enum";
+import { SaleStatus } from "../../common/enums/sale-status.enum";
+import { sumAmounts } from "../../common/utils/money.util";
+import { paginateMeta } from "../../common/utils/pagination.util";
+import { Product } from "../catalog/entities/product.entity";
+import { ImeiUnit } from "../imei/entities/imei-unit.entity";
+import { StockBalance } from "../inventory/entities/stock-balance.entity";
+import { StockMovement } from "../inventory/entities/stock-movement.entity";
+import { AuthUser } from "../../common/types/auth-user.type";
+import { CreateSaleDto } from "./dto/create-sale.dto";
+import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
+import { CashierShift, ShiftStatus } from "./entities/cashier-shift.entity";
+import { Customer } from "./entities/customer.entity";
+import { Payment } from "./entities/payment.entity";
+import { SaleItemImei } from "./entities/sale-item-imei.entity";
+import { SaleItem } from "./entities/sale-item.entity";
+import { Sale } from "./entities/sale.entity";
+import { PricingService } from "./pricing.service";
+import { AuditLogsService } from "../audit-logs/audit-logs.service";
 
 @Injectable()
 export class SalesService {
@@ -51,12 +51,12 @@ export class SalesService {
       const existing = await this.salesRepo.findOne({
         where: { idempotencyKey: dto.idempotencyKey },
         relations: [
-          'items',
-          'items.imeis',
-          'items.imeis.imeiUnit',
-          'payments',
-          'cashier',
-          'customer',
+          "items",
+          "items.imeis",
+          "items.imeis.imeiUnit",
+          "payments",
+          "cashier",
+          "customer",
         ],
       });
       if (existing) {
@@ -65,7 +65,7 @@ export class SalesService {
         );
         const change = Math.max(
           0,
-          paidTotal - parseFloat(existing.grandTotal || '0'),
+          paidTotal - parseFloat(existing.grandTotal || "0"),
         );
         return {
           ...existing,
@@ -79,7 +79,7 @@ export class SalesService {
 
     const paidTotal = sumAmounts(dto.payments.map((p) => p.amount));
     if (paidTotal < dto.grandTotal) {
-      throw new BadRequestException('PAYMENT_INSUFFICIENT');
+      throw new BadRequestException("PAYMENT_INSUFFICIENT");
     }
 
     // Validate customer if provided
@@ -88,7 +88,7 @@ export class SalesService {
         where: { id: dto.customerId },
       });
       if (!customer) {
-        throw new BadRequestException('CUSTOMER_NOT_FOUND');
+        throw new BadRequestException("CUSTOMER_NOT_FOUND");
       }
     }
 
@@ -129,19 +129,19 @@ export class SalesService {
           where: { id: line.productId },
         });
         if (!product) {
-          throw new NotFoundException('Product not found');
+          throw new NotFoundException("Product not found");
         }
 
         if (product.productType === ProductType.SERIALIZED) {
           if (!line.imeis || line.imeis.length !== line.qty) {
-            throw new BadRequestException('SERIALIZED_IMEI_COUNT_MISMATCH');
+            throw new BadRequestException("SERIALIZED_IMEI_COUNT_MISMATCH");
           }
         }
 
         // Pessimistic write lock to serialize concurrent stock deductions
         const stock = await manager.findOne(StockBalance, {
           where: { productId: line.productId },
-          lock: { mode: 'pessimistic_write' },
+          lock: { mode: "pessimistic_write" },
         });
 
         if (!stock || stock.onHandQty < line.qty) {
@@ -173,7 +173,7 @@ export class SalesService {
             movementType: MovementType.OUT,
             qty: line.qty,
             unitCost: product.costPrice,
-            refType: 'SALE',
+            refType: "SALE",
             refId: savedSale.id,
             createdBy: user.id,
             notes: null,
@@ -186,7 +186,7 @@ export class SalesService {
             // Pessimistic write lock on IMEI unit
             const imei = await manager.findOne(ImeiUnit, {
               where: { imei: imeiValue, productId: line.productId },
-              lock: { mode: 'pessimistic_write' },
+              lock: { mode: "pessimistic_write" },
             });
             if (!imei) {
               throw new NotFoundException(`IMEI "${imeiValue}" NOT_FOUND`);
@@ -198,7 +198,7 @@ export class SalesService {
             }
 
             imei.status = ImeiStatus.SOLD;
-            imei.lastRefType = 'SALE';
+            imei.lastRefType = "SALE";
             imei.lastRefId = savedSale.id;
             await manager.save(ImeiUnit, imei);
 
@@ -228,13 +228,13 @@ export class SalesService {
       // Update shift cash totals in transaction if shift is active
       if (shiftId) {
         const cashAmount = dto.payments
-          .filter((p) => p.method === 'CASH')
+          .filter((p) => p.method === "CASH")
           .reduce((sum, p) => sum + p.amount, 0);
 
         if (cashAmount > 0) {
           const shift = await manager.findOne(CashierShift, {
             where: { id: shiftId },
-            lock: { mode: 'pessimistic_write' },
+            lock: { mode: "pessimistic_write" },
           });
           if (shift) {
             const currentCash = parseFloat(shift.totalCashSales) || 0;
@@ -259,13 +259,13 @@ export class SalesService {
       const result = await manager.findOne(Sale, {
         where: { id: savedSale.id },
         relations: [
-          'items',
-          'items.imeis',
-          'items.imeis.imeiUnit',
-          'payments',
-          'cashier',
-          'salesPerson',
-          'customer',
+          "items",
+          "items.imeis",
+          "items.imeis.imeiUnit",
+          "payments",
+          "cashier",
+          "salesPerson",
+          "customer",
         ],
       });
 
@@ -274,8 +274,8 @@ export class SalesService {
 
       await this.auditLogsService.log({
         userId: user.id,
-        action: 'SALE_CREATED',
-        entityType: 'SALE',
+        action: "SALE_CREATED",
+        entityType: "SALE",
         entityId: result?.id ? Number(result.id) : null,
         metadataJson: {
           invoiceNumber: result?.invoiceNumber,
@@ -297,39 +297,39 @@ export class SalesService {
   }
 
   async findAll(query: ListSalesQueryDto) {
-    const qb = this.salesRepo.createQueryBuilder('sale');
+    const qb = this.salesRepo.createQueryBuilder("sale");
 
     if (query.dateFrom) {
-      qb.andWhere('sale.saleTime >= :dateFrom', { dateFrom: query.dateFrom });
+      qb.andWhere("sale.saleTime >= :dateFrom", { dateFrom: query.dateFrom });
     }
     if (query.dateTo) {
-      qb.andWhere('sale.saleTime <= :dateTo', { dateTo: query.dateTo });
+      qb.andWhere("sale.saleTime <= :dateTo", { dateTo: query.dateTo });
     }
     if (query.cashierId) {
-      qb.andWhere('sale.cashierId = :cashierId', {
+      qb.andWhere("sale.cashierId = :cashierId", {
         cashierId: query.cashierId,
       });
     }
     if (query.salesPersonId) {
-      qb.andWhere('sale.salesPersonId = :salesPersonId', {
+      qb.andWhere("sale.salesPersonId = :salesPersonId", {
         salesPersonId: query.salesPersonId,
       });
     }
     if (query.status) {
-      qb.andWhere('sale.status = :status', { status: query.status });
+      qb.andWhere("sale.status = :status", { status: query.status });
     }
     if (query.invoiceNumber) {
-      qb.andWhere('sale.invoiceNumber ILIKE :inv', {
+      qb.andWhere("sale.invoiceNumber ILIKE :inv", {
         inv: `%${query.invoiceNumber}%`,
       });
     }
 
-    qb.leftJoinAndSelect('sale.cashier', 'cashier')
-      .leftJoinAndSelect('sale.salesPerson', 'salesPerson')
-      .leftJoinAndSelect('sale.customer', 'customer')
-      .leftJoinAndSelect('sale.items', 'items')
-      .leftJoinAndSelect('sale.payments', 'payments')
-      .orderBy('sale.saleTime', 'DESC')
+    qb.leftJoinAndSelect("sale.cashier", "cashier")
+      .leftJoinAndSelect("sale.salesPerson", "salesPerson")
+      .leftJoinAndSelect("sale.customer", "customer")
+      .leftJoinAndSelect("sale.items", "items")
+      .leftJoinAndSelect("sale.payments", "payments")
+      .orderBy("sale.saleTime", "DESC")
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
 
@@ -341,18 +341,18 @@ export class SalesService {
     const row = await this.salesRepo.findOne({
       where: { id },
       relations: [
-        'items',
-        'items.product',
-        'items.imeis',
-        'items.imeis.imeiUnit',
-        'payments',
-        'cashier',
-        'salesPerson',
-        'customer',
+        "items",
+        "items.product",
+        "items.imeis",
+        "items.imeis.imeiUnit",
+        "payments",
+        "cashier",
+        "salesPerson",
+        "customer",
       ],
     });
     if (!row) {
-      throw new NotFoundException('Sale not found');
+      throw new NotFoundException("Sale not found");
     }
     return row;
   }
@@ -361,10 +361,10 @@ export class SalesService {
     const sale = await this.findOne(id);
 
     if (sale.status === SaleStatus.VOIDED) {
-      throw new BadRequestException('Sale already voided');
+      throw new BadRequestException("Sale already voided");
     }
     if (sale.status === SaleStatus.REFUNDED) {
-      throw new BadRequestException('Cannot void a fully refunded sale');
+      throw new BadRequestException("Cannot void a fully refunded sale");
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -387,7 +387,7 @@ export class SalesService {
             movementType: MovementType.ADJUST_IN,
             qty: item.qty,
             unitCost: null,
-            refType: 'VOID',
+            refType: "VOID",
             refId: sale.id,
             createdBy: user.id,
             notes: `Void of sale ${sale.invoiceNumber}`,
@@ -403,7 +403,7 @@ export class SalesService {
             });
             if (imei && imei.status === ImeiStatus.SOLD) {
               imei.status = ImeiStatus.IN_STOCK;
-              imei.lastRefType = 'VOID';
+              imei.lastRefType = "VOID";
               imei.lastRefId = sale.id;
               await manager.save(ImeiUnit, imei);
             }
@@ -416,8 +416,8 @@ export class SalesService {
 
       await this.auditLogsService.log({
         userId: user.id,
-        action: 'SALE_VOIDED',
-        entityType: 'SALE',
+        action: "SALE_VOIDED",
+        entityType: "SALE",
         entityId: Number(sale.id),
         metadataJson: {
           invoiceNumber: sale.invoiceNumber,
@@ -429,23 +429,173 @@ export class SalesService {
     });
   }
 
-  private async generateInvoiceNumber(manager: import('typeorm').EntityManager): Promise<string> {
+  async lookupWarranty(rawQuery: string) {
+    const query = rawQuery.trim();
+    if (!query) {
+      throw new BadRequestException(
+        "Query parameter is required (IMEI or Invoice Number)",
+      );
+    }
+
+    // 1. Try to find by IMEI first
+    const imeiUnit = await this.imeiRepo.findOne({
+      where: { imei: query },
+      relations: ["product", "product.brand", "product.category"],
+    });
+
+    let foundSale: Sale | null = null;
+    let targetImei: ImeiUnit | null = imeiUnit;
+    let targetItem: SaleItem | null = null;
+
+    if (imeiUnit) {
+      const saleItemImei = await this.dataSource
+        .getRepository(SaleItemImei)
+        .findOne({
+          where: { imeiUnitId: imeiUnit.id },
+          relations: [
+            "saleItem",
+            "saleItem.sale",
+            "saleItem.sale.customer",
+            "saleItem.sale.cashier",
+            "saleItem.product",
+            "saleItem.product.brand",
+          ],
+          order: { id: "DESC" },
+        });
+
+      if (saleItemImei && saleItemImei.saleItem) {
+        foundSale = saleItemImei.saleItem.sale;
+        targetItem = saleItemImei.saleItem;
+      }
+    }
+
+    // 2. If not found by IMEI, try to find by invoice number
+    if (!foundSale) {
+      foundSale = await this.salesRepo.findOne({
+        where: { invoiceNumber: query },
+        relations: [
+          "items",
+          "items.product",
+          "items.product.brand",
+          "items.imeis",
+          "items.imeis.imeiUnit",
+          "customer",
+          "cashier",
+        ],
+      });
+
+      if (foundSale && foundSale.items?.length > 0) {
+        const serializedItem = foundSale.items.find(
+          (it) => it.imeis?.length > 0,
+        );
+        targetItem = serializedItem || foundSale.items[0];
+        if (targetItem?.imeis?.length > 0) {
+          targetImei = targetItem.imeis[0].imeiUnit;
+        }
+      }
+    }
+
+    if (!foundSale) {
+      throw new NotFoundException(
+        `No purchase or warranty record found for "${query}"`,
+      );
+    }
+
+    const isSecondHand = Boolean(
+      targetImei?.conditionGrade && targetImei.conditionGrade !== "NEW",
+    );
+    const warrantyDays = isSecondHand ? 30 : 365;
+    const purchaseDate = new Date(foundSale.saleTime || foundSale.createdAt);
+    const expiryDate = new Date(
+      purchaseDate.getTime() + warrantyDays * 24 * 60 * 60 * 1000,
+    );
+
+    const now = new Date();
+    const isExpired = now > expiryDate;
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const remainingDays = isExpired
+      ? 0
+      : Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const elapsedDays = Math.max(
+      0,
+      Math.floor(
+        (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24),
+      ),
+    );
+
+    return {
+      verified: true,
+      query,
+      warranty: {
+        status: isExpired ? "EXPIRED" : "ACTIVE",
+        warrantyType: isSecondHand
+          ? "30-Day Store Warranty (Second Hand)"
+          : "1-Year Official Brand Warranty (Brand New)",
+        warrantyDays,
+        purchaseDate: purchaseDate.toISOString(),
+        expiryDate: expiryDate.toISOString(),
+        remainingDays,
+        elapsedDays,
+        coveragePercent: Math.min(
+          100,
+          Math.max(0, Math.round((elapsedDays / warrantyDays) * 100)),
+        ),
+      },
+      device: {
+        productName: targetItem?.product?.name || "Mobile Device",
+        brand: targetItem?.product?.brand?.name || "SmartStore Authorized",
+        sku: targetItem?.product?.sku || "N/A",
+        imei: targetImei?.imei || null,
+        conditionGrade:
+          targetImei?.conditionGrade ||
+          (isSecondHand ? "Second Hand" : "Brand New"),
+        batteryHealth: targetImei?.batteryHealth || null,
+      },
+      invoice: {
+        id: foundSale.id,
+        invoiceNumber: foundSale.invoiceNumber,
+        saleTime: foundSale.saleTime || foundSale.createdAt,
+        storeBranch: "Central Branch #01",
+        cashierName:
+          foundSale.cashier?.fullName ||
+          foundSale.cashier?.username ||
+          "Staff Cashier",
+        customerName: foundSale.customer?.name || "Valued Customer",
+        customerPhone: foundSale.customer?.phone || null,
+      },
+      policy: {
+        terms: [
+          "Garansi Toko Resmi SmartStore (Mesin & Fungsional).",
+          "Segel garansi toko pada baut/casing wajib dalam kondisi utuh dan tidak rusak.",
+          "Kerusakan akibat kelalaian (jatuh, layar pecah, terkena cairan/air, korsleting) tidak ditanggung garansi.",
+          "Modifikasi sistem operasi (Root, Jailbreak, Custom ROM) membatalkan klaim garansi.",
+          "Wajib menyertakan nota pembelian atau sertifikat garansi digital ini saat klaim.",
+        ],
+        supportPhone: "+6281234567890",
+        supportWhatsApp: "6281234567890",
+      },
+    };
+  }
+
+  private async generateInvoiceNumber(
+    manager: import("typeorm").EntityManager,
+  ): Promise<string> {
     const date = new Date();
     const ymd =
       date.getFullYear().toString() +
-      (date.getMonth() + 1).toString().padStart(2, '0') +
-      date.getDate().toString().padStart(2, '0');
+      (date.getMonth() + 1).toString().padStart(2, "0") +
+      date.getDate().toString().padStart(2, "0");
 
-    const prefix = 'INV';
+    const prefix = "INV";
     const todayPrefix = `${prefix}-${ymd}-`;
 
     const count = await manager
       .getRepository(Sale)
-      .createQueryBuilder('sale')
-      .where('sale.invoiceNumber LIKE :p', { p: `${todayPrefix}%` })
+      .createQueryBuilder("sale")
+      .where("sale.invoiceNumber LIKE :p", { p: `${todayPrefix}%` })
       .getCount();
 
-    const seq = (count + 1).toString().padStart(4, '0');
+    const seq = (count + 1).toString().padStart(4, "0");
     const candidate = `${todayPrefix}${seq}`;
 
     const exists = await manager
