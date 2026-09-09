@@ -16,6 +16,7 @@ frontend/build/
 
 # session/tool artifacts
 session-*.md
+graphify-out/
 
 # misc
 .DS_Store
