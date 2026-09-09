@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { lookupWarranty, WarrantyLookupResult } from "@/lib/api";
+import { getWhatsAppShareUrl } from "@/lib/whatsapp";
 
 function WarrantyPortalContent() {
   const searchParams = useSearchParams();
@@ -96,7 +97,7 @@ function WarrantyPortalContent() {
       `Kendala pada perangkat: `,
     ].join("\n");
 
-    const url = `https://wa.me/${supportNum}?text=${encodeURIComponent(msg)}`;
+    const url = getWhatsAppShareUrl(supportNum, msg);
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
