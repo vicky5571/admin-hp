@@ -552,7 +552,6 @@ export class SalesService {
         batteryHealth: targetImei?.batteryHealth || null,
       },
       invoice: {
-        id: foundSale.id,
         invoiceNumber: foundSale.invoiceNumber,
         saleTime: foundSale.saleTime || foundSale.createdAt,
         storeBranch: "Central Branch #01",
@@ -560,8 +559,8 @@ export class SalesService {
           foundSale.cashier?.fullName ||
           foundSale.cashier?.username ||
           "Staff Cashier",
-        customerName: foundSale.customer?.name || "Valued Customer",
-        customerPhone: foundSale.customer?.phone || null,
+        customerName: this.maskCustomerName(foundSale.customer?.name),
+        customerPhone: this.maskCustomerPhone(foundSale.customer?.phone),
       },
       policy: {
         terms: [
@@ -575,6 +574,28 @@ export class SalesService {
         supportWhatsApp: "6281234567890",
       },
     };
+  }
+
+  private maskCustomerName(name?: string | null): string {
+    if (!name || !name.trim() || name.trim().toLowerCase() === "walk-in customer") {
+      return "Valued Customer";
+    }
+    const words = name.trim().split(/\s+/);
+    return words
+      .map((w) => {
+        if (w.length <= 2) return `${w[0]}*`;
+        return `${w[0]}${"*".repeat(Math.min(4, Math.max(2, w.length - 2)))}${w[w.length - 1]}`;
+      })
+      .join(" ");
+  }
+
+  private maskCustomerPhone(phone?: string | null): string | null {
+    if (!phone || !phone.trim()) return null;
+    const trimmed = phone.trim();
+    if (trimmed.length <= 6) {
+      return "****";
+    }
+    return `${trimmed.slice(0, 4)}****${trimmed.slice(-3)}`;
   }
 
   private async generateInvoiceNumber(

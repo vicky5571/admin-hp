@@ -66,6 +66,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return 'VALIDATION_ERROR';
       case HttpStatus.BAD_REQUEST:
         return 'VALIDATION_ERROR';
+      case HttpStatus.TOO_MANY_REQUESTS:
+        return 'TOO_MANY_REQUESTS';
       default:
         return 'INTERNAL_ERROR';
     }

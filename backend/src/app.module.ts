@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -24,6 +25,15 @@ import { UsersModule } from './modules/users/users.module';
       isGlobal: true,
       load: [appConfig, databaseConfig, jwtConfig],
     }),
+    {
+      ...ThrottlerModule.forRoot([
+        {
+          ttl: 60000,
+          limit: 10,
+        },
+      ]),
+      global: true,
+    },
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

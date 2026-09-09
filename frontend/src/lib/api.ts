@@ -1280,7 +1280,7 @@ export interface WarrantyLookupResult {
     batteryHealth: number | null;
   };
   invoice: {
-    id: number;
+    id?: number;
     invoiceNumber: string;
     saleTime: string;
     storeBranch: string;
