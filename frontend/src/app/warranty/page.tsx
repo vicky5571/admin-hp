@@ -64,7 +64,13 @@ function WarrantyPortalContent() {
       `• IMEI: *${result.device.imei || "N/A"}*`,
       `• Invoice: *${result.invoice.invoiceNumber}*`,
       `• Tanggal Pembelian: ${new Date(result.invoice.saleTime).toLocaleDateString("id-ID")}`,
-      `• Masa Garansi: ${result.warranty.status === "ACTIVE" ? "AKTIF" : "KEDALUWARSA"} (${result.warranty.remainingDays} hari tersisa)`,
+      `• Masa Garansi: ${
+        result.warranty.status === "ACTIVE"
+          ? "AKTIF"
+          : result.warranty.status === "VOIDED"
+            ? "DIBATALKAN / VOID"
+            : "KEDALUWARSA"
+      } (${result.warranty.remainingDays} hari tersisa)`,
       ``,
       `Kendala pada perangkat: `,
     ].join("\n");
@@ -223,7 +229,9 @@ function WarrantyPortalContent() {
                 className={`p-6 sm:p-8 text-white ${
                   result.warranty.status === "ACTIVE"
                     ? "bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700"
-                    : "bg-gradient-to-r from-slate-800 via-rose-900 to-slate-900"
+                    : result.warranty.status === "VOIDED"
+                      ? "bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900"
+                      : "bg-gradient-to-r from-slate-800 via-rose-900 to-slate-900"
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -233,13 +241,17 @@ function WarrantyPortalContent() {
                         className={`h-2 w-2 rounded-full ${
                           result.warranty.status === "ACTIVE"
                             ? "bg-white animate-pulse"
-                            : "bg-rose-400"
+                            : result.warranty.status === "VOIDED"
+                              ? "bg-amber-400"
+                              : "bg-rose-400"
                         }`}
                       ></span>
                       <span>
                         {result.warranty.status === "ACTIVE"
                           ? "GARANSI RESMI AKTIF"
-                          : "MASA GARANSI BERAKHIR"}
+                          : result.warranty.status === "VOIDED"
+                            ? "GARANSI DIBATALKAN / VOID"
+                            : "MASA GARANSI BERAKHIR"}
                       </span>
                     </div>
 
@@ -259,7 +271,9 @@ function WarrantyPortalContent() {
                     <span className="text-3xl font-black tracking-tight">
                       {result.warranty.status === "ACTIVE"
                         ? `${result.warranty.remainingDays} Hari`
-                        : "Kedaluwarsa"}
+                        : result.warranty.status === "VOIDED"
+                          ? "Batal (Void)"
+                          : "Kedaluwarsa"}
                     </span>
                     <span className="text-[11px] text-white/70 block mt-0.5">
                       Berakhir:{" "}

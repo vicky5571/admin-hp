@@ -1262,7 +1262,7 @@ export interface WarrantyLookupResult {
   verified: boolean;
   query: string;
   warranty: {
-    status: "ACTIVE" | "EXPIRED";
+    status: "ACTIVE" | "EXPIRED" | "VOIDED";
     warrantyType: string;
     warrantyDays: number;
     purchaseDate: string;
