@@ -444,28 +444,29 @@ export class SalesService {
     });
 
     let foundSale: Sale | null = null;
-    let targetImei: ImeiUnit | null = imeiUnit;
-    let targetItem: SaleItem | null = null;
 
     if (imeiUnit) {
       const saleItemImei = await this.dataSource
         .getRepository(SaleItemImei)
         .findOne({
           where: { imeiUnitId: imeiUnit.id },
-          relations: [
-            "saleItem",
-            "saleItem.sale",
-            "saleItem.sale.customer",
-            "saleItem.sale.cashier",
-            "saleItem.product",
-            "saleItem.product.brand",
-          ],
+          relations: ["saleItem"],
           order: { id: "DESC" },
         });
 
-      if (saleItemImei && saleItemImei.saleItem) {
-        foundSale = saleItemImei.saleItem.sale;
-        targetItem = saleItemImei.saleItem;
+      if (saleItemImei?.saleItem) {
+        foundSale = await this.salesRepo.findOne({
+          where: { id: saleItemImei.saleItem.saleId },
+          relations: [
+            "items",
+            "items.product",
+            "items.product.brand",
+            "items.imeis",
+            "items.imeis.imeiUnit",
+            "customer",
+            "cashier",
+          ],
+        });
       }
     }
 
@@ -483,16 +484,6 @@ export class SalesService {
           "cashier",
         ],
       });
-
-      if (foundSale && foundSale.items?.length > 0) {
-        const serializedItem = foundSale.items.find(
-          (it) => it.imeis?.length > 0,
-        );
-        targetItem = serializedItem || foundSale.items[0];
-        if (targetItem?.imeis?.length > 0) {
-          targetImei = targetItem.imeis[0].imeiUnit;
-        }
-      }
     }
 
     if (!foundSale) {
@@ -501,21 +492,8 @@ export class SalesService {
       );
     }
 
-    const isSecondHand = Boolean(
-      targetImei?.conditionGrade && targetImei.conditionGrade !== "NEW",
-    );
-    const warrantyDays = isSecondHand ? 30 : 365;
     const purchaseDate = new Date(foundSale.saleTime || foundSale.createdAt);
-    const expiryDate = new Date(
-      purchaseDate.getTime() + warrantyDays * 24 * 60 * 60 * 1000,
-    );
-
     const now = new Date();
-    const isExpired = now > expiryDate;
-    const diffTime = expiryDate.getTime() - now.getTime();
-    const remainingDays = isExpired
-      ? 0
-      : Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const elapsedDays = Math.max(
       0,
       Math.floor(
@@ -525,59 +503,189 @@ export class SalesService {
 
     const isSaleVoided = foundSale.status === SaleStatus.VOIDED;
     const isSaleRefunded = foundSale.status === SaleStatus.REFUNDED;
-    const isImeiReturned = Boolean(
-      targetImei && targetImei.status !== ImeiStatus.SOLD,
-    );
-    const isVoidedOrRefunded = isSaleVoided || isSaleRefunded || isImeiReturned;
 
-    let warrantyStatus: "ACTIVE" | "EXPIRED" | "VOIDED" = isExpired
-      ? "EXPIRED"
-      : "ACTIVE";
-    let warrantyType = isSecondHand
-      ? "30-Day Store Warranty (Second Hand)"
-      : "1-Year Official Brand Warranty (Brand New)";
+    const devices: Array<{
+      productName: string;
+      brand: string;
+      sku: string;
+      imei: string | null;
+      conditionGrade: string | null;
+      batteryHealth: number | null;
+      warrantyDays: number;
+      expiryDate: string;
+      remainingDays: number;
+      coveragePercent: number;
+      status: "ACTIVE" | "EXPIRED" | "VOIDED";
+      warrantyType: string;
+    }> = [];
 
-    if (isVoidedOrRefunded) {
-      warrantyStatus = "VOIDED";
-      if (isSaleVoided) {
-        warrantyType = "Transaksi Dibatalkan (Sale Voided)";
-      } else if (isSaleRefunded) {
-        warrantyType = "Transaksi Telah Direfund Penuh (Full Refund)";
-      } else {
-        warrantyType = "Unit Perangkat Telah Diretur / Refund (Voided)";
+    // Collect all serialized devices from sale items
+    for (const it of foundSale.items || []) {
+      if (it.imeis && it.imeis.length > 0) {
+        for (const itImei of it.imeis) {
+          const unit = itImei.imeiUnit;
+          const isSecondHandUnit = Boolean(
+            unit?.conditionGrade && unit.conditionGrade !== "NEW",
+          );
+          const unitWarrantyDays = isSecondHandUnit ? 30 : 365;
+          const unitExpiryDate = new Date(
+            purchaseDate.getTime() + unitWarrantyDays * 24 * 60 * 60 * 1000,
+          );
+          const isUnitExpired = now > unitExpiryDate;
+          const unitRemaining = isUnitExpired
+            ? 0
+            : Math.ceil(
+                (unitExpiryDate.getTime() - now.getTime()) /
+                  (1000 * 60 * 60 * 24),
+              );
+          const isUnitReturned = Boolean(
+            unit && unit.status !== ImeiStatus.SOLD,
+          );
+          const isUnitVoided = isSaleVoided || isSaleRefunded || isUnitReturned;
+
+          let unitStatus: "ACTIVE" | "EXPIRED" | "VOIDED" = isUnitExpired
+            ? "EXPIRED"
+            : "ACTIVE";
+          let unitWarrantyType = isSecondHandUnit
+            ? "30-Day Store Warranty (Second Hand)"
+            : "1-Year Official Brand Warranty (Brand New)";
+
+          if (isUnitVoided) {
+            unitStatus = "VOIDED";
+            if (isSaleVoided) {
+              unitWarrantyType = "Transaksi Dibatalkan (Sale Voided)";
+            } else if (isSaleRefunded) {
+              unitWarrantyType = "Transaksi Telah Direfund Penuh (Full Refund)";
+            } else {
+              unitWarrantyType = "Unit Perangkat Telah Diretur / Refund (Voided)";
+            }
+          }
+
+          devices.push({
+            productName: it.product?.name || "Mobile Device",
+            brand: it.product?.brand?.name || "SmartStore Authorized",
+            sku: it.product?.sku || "N/A",
+            imei: unit?.imei || null,
+            conditionGrade:
+              unit?.conditionGrade ||
+              (isSecondHandUnit ? "Second Hand" : "Brand New"),
+            batteryHealth: unit?.batteryHealth || null,
+            warrantyDays: isUnitVoided ? 0 : unitWarrantyDays,
+            expiryDate: isUnitVoided
+              ? purchaseDate.toISOString()
+              : unitExpiryDate.toISOString(),
+            remainingDays: isUnitVoided ? 0 : unitRemaining,
+            coveragePercent: isUnitVoided
+              ? 0
+              : Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round((elapsedDays / unitWarrantyDays) * 100),
+                  ),
+                ),
+            status: unitStatus,
+            warrantyType: unitWarrantyType,
+          });
+        }
       }
     }
 
+    // Fallback if transaction had only non-serialized items (e.g. retail accessories)
+    if (devices.length === 0 && foundSale.items?.length > 0) {
+      for (const it of foundSale.items) {
+        const itemWarrantyDays = 30;
+        const itemExpiryDate = new Date(
+          purchaseDate.getTime() + itemWarrantyDays * 24 * 60 * 60 * 1000,
+        );
+        const isItemExpired = now > itemExpiryDate;
+        const itemRemaining = isItemExpired
+          ? 0
+          : Math.ceil(
+              (itemExpiryDate.getTime() - now.getTime()) /
+                (1000 * 60 * 60 * 24),
+            );
+        const isItemVoided = isSaleVoided || isSaleRefunded;
+
+        devices.push({
+          productName: it.product?.name || "Retail Item",
+          brand: it.product?.brand?.name || "SmartStore Authorized",
+          sku: it.product?.sku || "N/A",
+          imei: null,
+          conditionGrade: "New Accessory",
+          batteryHealth: null,
+          warrantyDays: isItemVoided ? 0 : itemWarrantyDays,
+          expiryDate: isItemVoided
+            ? purchaseDate.toISOString()
+            : itemExpiryDate.toISOString(),
+          remainingDays: isItemVoided ? 0 : itemRemaining,
+          coveragePercent: isItemVoided
+            ? 0
+            : Math.min(
+                100,
+                Math.max(
+                  0,
+                  Math.round((elapsedDays / itemWarrantyDays) * 100),
+                ),
+              ),
+          status: isItemVoided
+            ? "VOIDED"
+            : isItemExpired
+              ? "EXPIRED"
+              : "ACTIVE",
+          warrantyType: isItemVoided
+            ? "Transaksi Dibatalkan / Direfund"
+            : "30-Day Store Warranty (Accessory)",
+        });
+      }
+    }
+
+    // Determine primary/focused device
+    let primaryIndex = 0;
+    if (imeiUnit) {
+      const matchIdx = devices.findIndex((d) => d.imei === imeiUnit.imei);
+      if (matchIdx !== -1) {
+        primaryIndex = matchIdx;
+      }
+    }
+
+    const primaryDevice = devices[primaryIndex] || {
+      productName: "Mobile Device",
+      brand: "SmartStore Authorized",
+      sku: "N/A",
+      imei: null,
+      conditionGrade: "Brand New",
+      batteryHealth: null,
+      warrantyDays: 0,
+      expiryDate: purchaseDate.toISOString(),
+      remainingDays: 0,
+      coveragePercent: 0,
+      status: isSaleVoided || isSaleRefunded ? "VOIDED" : "ACTIVE",
+      warrantyType: "Standard Warranty",
+    };
+
     return {
-      verified: !isVoidedOrRefunded,
+      verified: primaryDevice.status !== "VOIDED",
       query,
       warranty: {
-        status: warrantyStatus,
-        warrantyType,
-        warrantyDays: isVoidedOrRefunded ? 0 : warrantyDays,
+        status: primaryDevice.status,
+        warrantyType: primaryDevice.warrantyType,
+        warrantyDays: primaryDevice.warrantyDays,
         purchaseDate: purchaseDate.toISOString(),
-        expiryDate: isVoidedOrRefunded
-          ? purchaseDate.toISOString()
-          : expiryDate.toISOString(),
-        remainingDays: isVoidedOrRefunded ? 0 : remainingDays,
+        expiryDate: primaryDevice.expiryDate,
+        remainingDays: primaryDevice.remainingDays,
         elapsedDays,
-        coveragePercent: isVoidedOrRefunded
-          ? 0
-          : Math.min(
-              100,
-              Math.max(0, Math.round((elapsedDays / warrantyDays) * 100)),
-            ),
+        coveragePercent: primaryDevice.coveragePercent,
       },
       device: {
-        productName: targetItem?.product?.name || "Mobile Device",
-        brand: targetItem?.product?.brand?.name || "SmartStore Authorized",
-        sku: targetItem?.product?.sku || "N/A",
-        imei: targetImei?.imei || null,
-        conditionGrade:
-          targetImei?.conditionGrade ||
-          (isSecondHand ? "Second Hand" : "Brand New"),
-        batteryHealth: targetImei?.batteryHealth || null,
+        productName: primaryDevice.productName,
+        brand: primaryDevice.brand,
+        sku: primaryDevice.sku,
+        imei: primaryDevice.imei,
+        conditionGrade: primaryDevice.conditionGrade,
+        batteryHealth: primaryDevice.batteryHealth,
       },
+      devices,
       invoice: {
         invoiceNumber: foundSale.invoiceNumber,
         saleTime: foundSale.saleTime || foundSale.createdAt,
@@ -590,19 +698,20 @@ export class SalesService {
         customerPhone: this.maskCustomerPhone(foundSale.customer?.phone),
       },
       policy: {
-        terms: isVoidedOrRefunded
-          ? [
-              "Transaksi pembelian perangkat ini berstatus VOID atau telah dikembalikan (Refund/Retur).",
-              "Segala bentuk garansi otomatis dibatalkan / gugur dan tidak dapat diklaim.",
-              "Silakan hubungi customer service SmartStore bila membutuhkan klarifikasi lebih lanjut.",
-            ]
-          : [
-              "Garansi Toko Resmi SmartStore (Mesin & Fungsional).",
-              "Segel garansi toko pada baut/casing wajib dalam kondisi utuh dan tidak rusak.",
-              "Kerusakan akibat kelalaian (jatuh, layar pecah, terkena cairan/air, korsleting) tidak ditanggung garansi.",
-              "Modifikasi sistem operasi (Root, Jailbreak, Custom ROM) membatalkan klaim garansi.",
-              "Wajib menyertakan nota pembelian atau sertifikat garansi digital ini saat klaim.",
-            ],
+        terms:
+          primaryDevice.status === "VOIDED"
+            ? [
+                "Transaksi pembelian perangkat ini berstatus VOID atau telah dikembalikan (Refund/Retur).",
+                "Segala bentuk garansi otomatis dibatalkan / gugur dan tidak dapat diklaim.",
+                "Silakan hubungi customer service SmartStore bila membutuhkan klarifikasi lebih lanjut.",
+              ]
+            : [
+                "Garansi Toko Resmi SmartStore (Mesin & Fungsional).",
+                "Segel garansi toko pada baut/casing wajib dalam kondisi utuh dan tidak rusak.",
+                "Kerusakan akibat kelalaian (jatuh, layar pecah, terkena cairan/air, korsleting) tidak ditanggung garansi.",
+                "Modifikasi sistem operasi (Root, Jailbreak, Custom ROM) membatalkan klaim garansi.",
+                "Wajib menyertakan nota pembelian atau sertifikat garansi digital ini saat klaim.",
+              ],
         supportPhone: "+6281234567890",
         supportWhatsApp: "6281234567890",
       },

@@ -1258,6 +1258,21 @@ export function fetchStockAdjustments(params?: {
   );
 }
 
+export interface WarrantyDeviceItem {
+  productName: string;
+  brand: string;
+  sku: string;
+  imei: string | null;
+  conditionGrade: string | null;
+  batteryHealth: number | null;
+  warrantyDays: number;
+  expiryDate: string;
+  remainingDays: number;
+  coveragePercent: number;
+  status: "ACTIVE" | "EXPIRED" | "VOIDED";
+  warrantyType: string;
+}
+
 export interface WarrantyLookupResult {
   verified: boolean;
   query: string;
@@ -1279,6 +1294,7 @@ export interface WarrantyLookupResult {
     conditionGrade: string | null;
     batteryHealth: number | null;
   };
+  devices?: WarrantyDeviceItem[];
   invoice: {
     id?: number;
     invoiceNumber: string;

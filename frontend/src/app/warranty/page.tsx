@@ -13,7 +13,27 @@ function WarrantyPortalContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WarrantyLookupResult | null>(null);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0);
   const [copiedImei, setCopiedImei] = useState(false);
+
+  const activeDevice =
+    result?.devices && result.devices.length > selectedDeviceIndex
+      ? result.devices[selectedDeviceIndex]
+      : result?.device;
+
+  const activeWarranty =
+    result?.devices && result.devices.length > selectedDeviceIndex
+      ? {
+          status: result.devices[selectedDeviceIndex].status,
+          warrantyType: result.devices[selectedDeviceIndex].warrantyType,
+          warrantyDays: result.devices[selectedDeviceIndex].warrantyDays,
+          purchaseDate: result.warranty.purchaseDate,
+          expiryDate: result.devices[selectedDeviceIndex].expiryDate,
+          remainingDays: result.devices[selectedDeviceIndex].remainingDays,
+          elapsedDays: result.warranty.elapsedDays,
+          coveragePercent: result.devices[selectedDeviceIndex].coveragePercent,
+        }
+      : result?.warranty;
 
   const handleSearch = useCallback(async (searchKey: string) => {
     const clean = searchKey.trim();
@@ -25,6 +45,7 @@ function WarrantyPortalContent() {
     try {
       const res = await lookupWarranty(clean);
       setResult(res.data);
+      setSelectedDeviceIndex(0);
     } catch (err: any) {
       setResult(null);
       setError(
@@ -56,21 +77,21 @@ function WarrantyPortalContent() {
   };
 
   const handleClaimWhatsApp = () => {
-    if (!result) return;
+    if (!result || !activeDevice || !activeWarranty) return;
     const supportNum = result.policy.supportWhatsApp || "6281234567890";
     const msg = [
       `Halo Customer Care SmartStore, saya ingin konsultasi klaim garansi:`,
-      `• Unit: *${result.device.productName}*`,
-      `• IMEI: *${result.device.imei || "N/A"}*`,
+      `• Unit: *${activeDevice.productName}*`,
+      `• IMEI: *${activeDevice.imei || "N/A"}*`,
       `• Invoice: *${result.invoice.invoiceNumber}*`,
       `• Tanggal Pembelian: ${new Date(result.invoice.saleTime).toLocaleDateString("id-ID")}`,
       `• Masa Garansi: ${
-        result.warranty.status === "ACTIVE"
+        activeWarranty.status === "ACTIVE"
           ? "AKTIF"
-          : result.warranty.status === "VOIDED"
+          : activeWarranty.status === "VOIDED"
             ? "DIBATALKAN / VOID"
             : "KEDALUWARSA"
-      } (${result.warranty.remainingDays} hari tersisa)`,
+      } (${activeWarranty.remainingDays} hari tersisa)`,
       ``,
       `Kendala pada perangkat: `,
     ].join("\n");
@@ -222,14 +243,76 @@ function WarrantyPortalContent() {
 
         {result && !loading && (
           <div className="space-y-6">
+            {/* Multi-Device Selector (if more than 1 device on invoice) */}
+            {result.devices && result.devices.length > 1 && (
+              <div className="rounded-3xl bg-white border border-sky-100 p-5 shadow-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-100 text-sky-700 text-xs font-bold">
+                      {result.devices.length}
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Perangkat dalam Transaksi Ini
+                    </h3>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    Pilih unit untuk melihat rincian garansi:
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {result.devices.map((dev, idx) => {
+                    const isSelected = selectedDeviceIndex === idx;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedDeviceIndex(idx)}
+                        className={`flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-sky-50/90 border-sky-400 ring-2 ring-sky-400/20 shadow-xs"
+                            : "bg-slate-50/70 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <span className="text-xs font-bold text-slate-900 block truncate">
+                            {idx + 1}. {dev.productName}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-500 block">
+                            IMEI: {dev.imei || "Non-Serialized"}
+                          </span>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span
+                            className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider block ${
+                              dev.status === "ACTIVE"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : dev.status === "VOIDED"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {dev.status === "ACTIVE"
+                              ? `${dev.remainingDays} Hari`
+                              : dev.status === "VOIDED"
+                                ? "Batal"
+                                : "Habis"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Warranty Certificate Card */}
             <div className="rounded-3xl bg-white border border-sky-100 shadow-xl overflow-hidden">
               {/* Card Banner */}
               <div
                 className={`p-6 sm:p-8 text-white ${
-                  result.warranty.status === "ACTIVE"
+                  activeWarranty?.status === "ACTIVE"
                     ? "bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700"
-                    : result.warranty.status === "VOIDED"
+                    : activeWarranty?.status === "VOIDED"
                       ? "bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900"
                       : "bg-gradient-to-r from-slate-800 via-rose-900 to-slate-900"
                 }`}
@@ -239,27 +322,27 @@ function WarrantyPortalContent() {
                     <div className="inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-xs px-3 py-1 text-xs font-semibold uppercase tracking-wider mb-2">
                       <span
                         className={`h-2 w-2 rounded-full ${
-                          result.warranty.status === "ACTIVE"
+                          activeWarranty?.status === "ACTIVE"
                             ? "bg-white animate-pulse"
-                            : result.warranty.status === "VOIDED"
+                            : activeWarranty?.status === "VOIDED"
                               ? "bg-amber-400"
                               : "bg-rose-400"
                         }`}
                       ></span>
                       <span>
-                        {result.warranty.status === "ACTIVE"
+                        {activeWarranty?.status === "ACTIVE"
                           ? "GARANSI RESMI AKTIF"
-                          : result.warranty.status === "VOIDED"
+                          : activeWarranty?.status === "VOIDED"
                             ? "GARANSI DIBATALKAN / VOID"
                             : "MASA GARANSI BERAKHIR"}
                       </span>
                     </div>
 
                     <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                      {result.device.productName}
+                      {activeDevice?.productName}
                     </h2>
                     <p className="text-sm text-white/80 font-medium mt-1">
-                      {result.warranty.warrantyType}
+                      {activeWarranty?.warrantyType}
                     </p>
                   </div>
 
@@ -269,18 +352,20 @@ function WarrantyPortalContent() {
                       Sisa Masa Garansi
                     </span>
                     <span className="text-3xl font-black tracking-tight">
-                      {result.warranty.status === "ACTIVE"
-                        ? `${result.warranty.remainingDays} Hari`
-                        : result.warranty.status === "VOIDED"
+                      {activeWarranty?.status === "ACTIVE"
+                        ? `${activeWarranty.remainingDays} Hari`
+                        : activeWarranty?.status === "VOIDED"
                           ? "Batal (Void)"
                           : "Kedaluwarsa"}
                     </span>
                     <span className="text-[11px] text-white/70 block mt-0.5">
                       Berakhir:{" "}
-                      {new Date(result.warranty.expiryDate).toLocaleDateString(
-                        "id-ID",
-                        { dateStyle: "long" },
-                      )}
+                      {activeWarranty?.expiryDate
+                        ? new Date(activeWarranty.expiryDate).toLocaleDateString(
+                            "id-ID",
+                            { dateStyle: "long" },
+                          )
+                        : "-"}
                     </span>
                   </div>
                 </div>
@@ -295,24 +380,28 @@ function WarrantyPortalContent() {
                       ).toLocaleDateString("id-ID")}
                     </span>
                     <span>
-                      {result.warranty.coveragePercent}% Masa Berjalan (
-                      {result.warranty.elapsedDays} hari)
+                      {activeWarranty?.coveragePercent}% Masa Berjalan (
+                      {activeWarranty?.elapsedDays} hari)
                     </span>
                     <span>
                       Berakhir:{" "}
-                      {new Date(result.warranty.expiryDate).toLocaleDateString(
-                        "id-ID",
-                      )}
+                      {activeWarranty?.expiryDate
+                        ? new Date(activeWarranty.expiryDate).toLocaleDateString(
+                            "id-ID",
+                          )
+                        : "-"}
                     </span>
                   </div>
                   <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        result.warranty.status === "ACTIVE"
+                        activeWarranty?.status === "ACTIVE"
                           ? "bg-white"
                           : "bg-rose-400"
                       }`}
-                      style={{ width: `${result.warranty.coveragePercent}%` }}
+                      style={{
+                        width: `${activeWarranty?.coveragePercent ?? 0}%`,
+                      }}
                     ></div>
                   </div>
                 </div>
@@ -332,15 +421,15 @@ function WarrantyPortalContent() {
                       </span>
                       <div className="flex items-center justify-between mt-1">
                         <span className="font-mono text-xs font-bold text-slate-900 truncate">
-                          {result.device.imei || "Non-Serialized"}
+                          {activeDevice?.imei || "Non-Serialized"}
                         </span>
-                        {result.device.imei && (
+                        {activeDevice?.imei && (
                           <button
                             type="button"
                             onClick={() =>
-                              copyToClipboard(result.device.imei || "")
+                              copyToClipboard(activeDevice.imei || "")
                             }
-                            className="text-[10px] text-sky-600 font-semibold hover:underline shrink-0 ml-1"
+                            className="text-[10px] text-sky-600 font-semibold hover:underline shrink-0 ml-1 cursor-pointer"
                           >
                             {copiedImei ? "✓" : "Salin"}
                           </button>
@@ -353,7 +442,7 @@ function WarrantyPortalContent() {
                         Kondisi Device
                       </span>
                       <span className="text-xs font-bold text-slate-900 mt-1 block">
-                        {result.device.conditionGrade}
+                        {activeDevice?.conditionGrade}
                       </span>
                     </div>
 
@@ -362,7 +451,7 @@ function WarrantyPortalContent() {
                         Brand & SKU
                       </span>
                       <span className="text-xs font-bold text-slate-900 mt-1 block truncate">
-                        {result.device.brand} ({result.device.sku})
+                        {activeDevice?.brand} ({activeDevice?.sku})
                       </span>
                     </div>
 
@@ -371,8 +460,8 @@ function WarrantyPortalContent() {
                         Baterai Health
                       </span>
                       <span className="text-xs font-bold text-slate-900 mt-1 block">
-                        {result.device.batteryHealth
-                          ? `${result.device.batteryHealth}%`
+                        {activeDevice?.batteryHealth
+                          ? `${activeDevice.batteryHealth}%`
                           : "Normal (100%)"}
                       </span>
                     </div>
