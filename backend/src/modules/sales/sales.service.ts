@@ -499,11 +499,10 @@ export class SalesService {
 
     const purchaseDate = new Date(foundSale.saleTime || foundSale.createdAt);
     const now = new Date();
+    const msPerDay = 1000 * 60 * 60 * 24;
     const elapsedDays = Math.max(
       0,
-      Math.floor(
-        (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24),
-      ),
+      Math.floor((now.getTime() - purchaseDate.getTime()) / msPerDay),
     );
 
     const isSaleVoided = foundSale.status === SaleStatus.VOIDED;
@@ -531,15 +530,13 @@ export class SalesService {
           const unit = itImei.imeiUnit;
           const policy = this.resolveItemWarranty(it.product, unit);
           const unitWarrantyDays = policy.warrantyDays;
-          const unitExpiryDate = new Date(
-            purchaseDate.getTime() + unitWarrantyDays * 24 * 60 * 60 * 1000,
-          );
+          const unitExpiryDate = new Date(purchaseDate);
+          unitExpiryDate.setDate(unitExpiryDate.getDate() + unitWarrantyDays);
           const isUnitExpired = now > unitExpiryDate;
           const unitRemaining = isUnitExpired
             ? 0
             : Math.ceil(
-                (unitExpiryDate.getTime() - now.getTime()) /
-                  (1000 * 60 * 60 * 24),
+                (unitExpiryDate.getTime() - now.getTime()) / msPerDay,
               );
           const isUnitReturned = Boolean(
             unit && unit.status !== ImeiStatus.SOLD,
@@ -593,15 +590,13 @@ export class SalesService {
         // Non-serialized items (accessories, screen protectors, cables, cases, services)
         const policy = this.resolveItemWarranty(it.product, null);
         const itemWarrantyDays = policy.warrantyDays;
-        const itemExpiryDate = new Date(
-          purchaseDate.getTime() + itemWarrantyDays * 24 * 60 * 60 * 1000,
-        );
+        const itemExpiryDate = new Date(purchaseDate);
+        itemExpiryDate.setDate(itemExpiryDate.getDate() + itemWarrantyDays);
         const isItemExpired = now > itemExpiryDate;
         const itemRemaining = isItemExpired
           ? 0
           : Math.ceil(
-              (itemExpiryDate.getTime() - now.getTime()) /
-                (1000 * 60 * 60 * 24),
+              (itemExpiryDate.getTime() - now.getTime()) / msPerDay,
             );
         const isItemVoided = isSaleVoided || isSaleRefunded;
 
