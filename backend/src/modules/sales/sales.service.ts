@@ -27,6 +27,7 @@ import { SaleItem } from "./entities/sale-item.entity";
 import { Sale } from "./entities/sale.entity";
 import { PricingService } from "./pricing.service";
 import { AuditLogsService } from "../audit-logs/audit-logs.service";
+import { AppSetting } from "../settings/entities/app-setting.entity";
 
 @Injectable()
 export class SalesService {
@@ -41,6 +42,8 @@ export class SalesService {
     private readonly imeiRepo: Repository<ImeiUnit>,
     @InjectRepository(Customer)
     private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(AppSetting)
+    private readonly settingsRepo: Repository<AppSetting>,
     private readonly pricingService: PricingService,
     private readonly auditLogsService: AuditLogsService,
   ) {}
@@ -664,6 +667,16 @@ export class SalesService {
       warrantyType: "Standard Warranty",
     };
 
+    const settings = await this.settingsRepo.find();
+    const settingsMap = Object.fromEntries(
+      settings.map((s) => [s.key, s.value]),
+    );
+    const storeName = settingsMap.STORE_NAME || "SmartStore";
+    const storeBranch = settingsMap.STORE_ADDRESS || "Central Branch #01";
+    const storePhone = settingsMap.STORE_PHONE || "+62 812-3456-7890";
+    const rawOwnerWa = settingsMap.STORE_OWNER_WHATSAPP || storePhone;
+    const supportWhatsApp = rawOwnerWa.replace(/[^0-9]/g, "");
+
     return {
       verified: primaryDevice.status !== "VOIDED",
       query,
@@ -689,7 +702,7 @@ export class SalesService {
       invoice: {
         invoiceNumber: foundSale.invoiceNumber,
         saleTime: foundSale.saleTime || foundSale.createdAt,
-        storeBranch: "Central Branch #01",
+        storeBranch: storeBranch,
         cashierName:
           foundSale.cashier?.fullName ||
           foundSale.cashier?.username ||
@@ -703,17 +716,17 @@ export class SalesService {
             ? [
                 "Transaksi pembelian perangkat ini berstatus VOID atau telah dikembalikan (Refund/Retur).",
                 "Segala bentuk garansi otomatis dibatalkan / gugur dan tidak dapat diklaim.",
-                "Silakan hubungi customer service SmartStore bila membutuhkan klarifikasi lebih lanjut.",
+                `Silakan hubungi customer service ${storeName} bila membutuhkan klarifikasi lebih lanjut.`,
               ]
             : [
-                "Garansi Toko Resmi SmartStore (Mesin & Fungsional).",
+                `Garansi Toko Resmi ${storeName} (Mesin & Fungsional).`,
                 "Segel garansi toko pada baut/casing wajib dalam kondisi utuh dan tidak rusak.",
                 "Kerusakan akibat kelalaian (jatuh, layar pecah, terkena cairan/air, korsleting) tidak ditanggung garansi.",
                 "Modifikasi sistem operasi (Root, Jailbreak, Custom ROM) membatalkan klaim garansi.",
                 "Wajib menyertakan nota pembelian atau sertifikat garansi digital ini saat klaim.",
               ],
-        supportPhone: "+6281234567890",
-        supportWhatsApp: "6281234567890",
+        supportPhone: storePhone,
+        supportWhatsApp: supportWhatsApp,
       },
     };
   }

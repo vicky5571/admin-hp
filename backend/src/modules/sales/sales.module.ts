@@ -23,6 +23,7 @@ import { SalesService } from "./sales.service";
 import { ShiftsController } from "./shifts.controller";
 import { ShiftsService } from "./shifts.service";
 import { WarrantyController } from "./warranty.controller";
+import { AppSetting } from "../settings/entities/app-setting.entity";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { WarrantyController } from "./warranty.controller";
       StockMovement,
       CashierShift,
       CashMovement,
+      AppSetting,
     ]),
   ],
   controllers: [

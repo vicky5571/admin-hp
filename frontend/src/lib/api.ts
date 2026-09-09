@@ -312,6 +312,12 @@ export interface ReceiptPayload {
   } | null;
   items?: ReceiptItem[];
   payments?: ReceiptPayment[];
+  store?: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    ownerWhatsApp?: string;
+  };
   warrantyPolicy?: {
     secondHandDays: number;
     newWarranty: string;

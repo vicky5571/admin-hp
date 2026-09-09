@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ReceiptPayload, downloadReceiptPdf } from "@/lib/api";
+import { ReceiptPayload, downloadReceiptPdf, fetchSettings } from "@/lib/api";
 import {
   buildWhatsAppReceiptMessage,
   getWhatsAppShareUrl,
-  STORE_OWNER_WHATSAPP,
+  resolveStoreOwnerWhatsApp,
 } from "@/lib/whatsapp";
 
 interface PrintReceiptModalProps {
@@ -31,7 +31,16 @@ export default function PrintReceiptModal({
 }: PrintReceiptModalProps) {
   const [showWhatsApp, setShowWhatsApp] = useState(false);
   const [phone, setPhone] = useState(formatInitialPhone(receipt?.customer?.phone));
+  const [storeSettings, setStoreSettings] = useState<Record<string, string>>({});
   const phoneInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchSettings()
+      .then((res) => {
+        if (res.data) setStoreSettings(res.data);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setPhone(formatInitialPhone(receipt?.customer?.phone));
@@ -46,6 +55,22 @@ export default function PrintReceiptModal({
   }, [showWhatsApp]);
 
   if (!isOpen || !receipt) return null;
+
+  const effectiveStoreName =
+    receipt.store?.name ||
+    storeSettings.STORE_NAME ||
+    "SmartStore";
+  const effectiveStoreAddress =
+    receipt.store?.address ||
+    storeSettings.STORE_ADDRESS ||
+    "Smartphone & Gadget Retail";
+  const effectiveStorePhone =
+    receipt.store?.phone ||
+    storeSettings.STORE_PHONE ||
+    "+62 812-3456-7890";
+  const effectiveOwnerWhatsApp = resolveStoreOwnerWhatsApp(
+    receipt.store?.ownerWhatsApp || storeSettings.STORE_OWNER_WHATSAPP,
+  );
 
   const handlePrint = () => {
     window.print();
@@ -100,9 +125,9 @@ export default function PrintReceiptModal({
       paymentMethod: receipt.payments?.[0]?.method || "CASH",
       paidTotal: totalPaid,
       change: changeDue,
-      storeName: "SmartStore Central",
-      storeAddress: "Jl. Sudirman No. 45, Jakarta",
-      storePhone: "+62 812-3456-7890",
+      storeName: effectiveStoreName,
+      storeAddress: effectiveStoreAddress,
+      storePhone: effectiveStorePhone,
     });
   };
 
@@ -113,18 +138,15 @@ export default function PrintReceiptModal({
   };
 
   const handleSendToOwner = () => {
-    if (
-      !STORE_OWNER_WHATSAPP ||
-      STORE_OWNER_WHATSAPP === "PUT_YOUR_PHONE_NUMBER_HERE"
-    ) {
+    if (!effectiveOwnerWhatsApp) {
       alert(
-        "Nomor WhatsApp Owner belum diisi.\nSilakan buka file: frontend/src/lib/whatsapp.ts dan isi variabel STORE_OWNER_WHATSAPP dengan nomor WhatsApp Anda.",
+        "Nomor WhatsApp Owner belum diisi.\nSilakan atur di menu Settings > Store & Business Profile ('Owner WhatsApp Number') atau isi environment variable NEXT_PUBLIC_STORE_OWNER_WHATSAPP.",
       );
       return;
     }
     const message = generateReceiptText();
     const shareUrl = getWhatsAppShareUrl(
-      STORE_OWNER_WHATSAPP,
+      effectiveOwnerWhatsApp,
       `[SALINAN NOTA OWNER]\n${message}`,
     );
     window.open(shareUrl, "_blank", "noopener,noreferrer");
@@ -343,11 +365,16 @@ export default function PrintReceiptModal({
             {/* Header Branding */}
             <div className="text-center pb-3 border-b border-dashed border-gray-300">
               <h2 className="text-base font-extrabold tracking-tight text-gray-900">
-                SmartStore
+                {effectiveStoreName}
               </h2>
               <p className="text-[11px] text-gray-500 font-medium">
-                Smartphone & Gadget Retail
+                {effectiveStoreAddress}
               </p>
+              {effectiveStorePhone && (
+                <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                  Telp/WA: {effectiveStorePhone}
+                </p>
+              )}
               <p className="text-[10px] text-gray-400 mt-0.5">
                 Official Purchase Receipt & Warranty Card
               </p>

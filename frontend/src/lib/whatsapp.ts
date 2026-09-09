@@ -1,10 +1,29 @@
 // ============================================================================
 // STORE OWNER WHATSAPP CONFIGURATION
-// Replace the placeholder below with your personal WhatsApp number.
-// Example: "081234567890" or "6281234567890"
-// Note: You can edit this directly; the assistant will never read your number.
+// Configured dynamically via System Settings (STORE_OWNER_WHATSAPP)
+// or via environment variable NEXT_PUBLIC_STORE_OWNER_WHATSAPP.
 // ============================================================================
-export const STORE_OWNER_WHATSAPP = "PUT_YOUR_PHONE_NUMBER_HERE";
+export const STORE_OWNER_WHATSAPP =
+  process.env.NEXT_PUBLIC_STORE_OWNER_WHATSAPP || "";
+
+export function resolveStoreOwnerWhatsApp(
+  settingsOwnerPhone?: string | null,
+): string {
+  if (
+    settingsOwnerPhone &&
+    settingsOwnerPhone.trim() &&
+    settingsOwnerPhone !== "PUT_YOUR_PHONE_NUMBER_HERE"
+  ) {
+    return settingsOwnerPhone.trim();
+  }
+  if (
+    STORE_OWNER_WHATSAPP &&
+    STORE_OWNER_WHATSAPP !== "PUT_YOUR_PHONE_NUMBER_HERE"
+  ) {
+    return STORE_OWNER_WHATSAPP;
+  }
+  return "";
+}
 
 export interface WhatsAppReceiptItem {
   name: string;

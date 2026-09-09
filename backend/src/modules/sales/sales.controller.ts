@@ -59,7 +59,7 @@ export class SalesController {
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER)
   async receipt(@Param('id', ParseIntPipe) id: number) {
     const sale = await this.salesService.findOne(id);
-    return this.receiptService.buildReceiptPayload(sale);
+    return await this.receiptService.buildReceiptPayload(sale);
   }
 
   @Get(':id/receipt/pdf')

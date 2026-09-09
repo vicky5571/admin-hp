@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { downloadReceiptPdf, ReceiptPayload } from "@/lib/api";
+import { downloadReceiptPdf, ReceiptPayload, fetchSettings } from "@/lib/api";
 import {
   buildWhatsAppReceiptMessage,
   getWhatsAppShareUrl,
-  STORE_OWNER_WHATSAPP,
+  resolveStoreOwnerWhatsApp,
 } from "@/lib/whatsapp";
 
 interface PosCompletedSaleProps {
@@ -33,6 +33,31 @@ export default function PosCompletedSale({
     receiptPayload?.customer?.phone || saleResult.customer?.phone || "";
   const [phone, setPhone] = useState(initialPhone);
   const [copied, setCopied] = useState(false);
+  const [storeSettings, setStoreSettings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetchSettings()
+      .then((res) => {
+        if (res.data) setStoreSettings(res.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const effectiveStoreName =
+    receiptPayload?.store?.name ||
+    storeSettings.STORE_NAME ||
+    "SmartStore Central";
+  const effectiveStoreAddress =
+    receiptPayload?.store?.address ||
+    storeSettings.STORE_ADDRESS ||
+    "Jl. Sudirman No. 45, Jakarta";
+  const effectiveStorePhone =
+    receiptPayload?.store?.phone ||
+    storeSettings.STORE_PHONE ||
+    "+62 812-3456-7890";
+  const effectiveOwnerWhatsApp = resolveStoreOwnerWhatsApp(
+    receiptPayload?.store?.ownerWhatsApp || storeSettings.STORE_OWNER_WHATSAPP,
+  );
 
   // Extract first IMEI or Invoice for warranty link
   let lookupQuery = saleResult.invoiceNumber;
@@ -86,9 +111,9 @@ export default function PosCompletedSale({
         "CASH",
       paidTotal: paidTotalNum,
       change: changeNum,
-      storeName: "SmartStore Central",
-      storeAddress: "Jl. Sudirman No. 45, Jakarta",
-      storePhone: "+62 812-3456-7890",
+      storeName: effectiveStoreName,
+      storeAddress: effectiveStoreAddress,
+      storePhone: effectiveStorePhone,
     });
   };
 
@@ -99,18 +124,15 @@ export default function PosCompletedSale({
   };
 
   const handleSendToOwner = () => {
-    if (
-      !STORE_OWNER_WHATSAPP ||
-      STORE_OWNER_WHATSAPP === "PUT_YOUR_PHONE_NUMBER_HERE"
-    ) {
+    if (!effectiveOwnerWhatsApp) {
       alert(
-        "Nomor WhatsApp Owner belum diisi.\nSilakan buka file: frontend/src/lib/whatsapp.ts dan isi variabel STORE_OWNER_WHATSAPP dengan nomor WhatsApp Anda.",
+        "Nomor WhatsApp Owner belum diisi.\nSilakan atur di menu Settings > Store & Business Profile ('Owner WhatsApp Number') atau isi environment variable NEXT_PUBLIC_STORE_OWNER_WHATSAPP.",
       );
       return;
     }
     const message = generateReceiptText();
     const shareUrl = getWhatsAppShareUrl(
-      STORE_OWNER_WHATSAPP,
+      effectiveOwnerWhatsApp,
       `[SALINAN NOTA OWNER]\n${message}`,
     );
     window.open(shareUrl, "_blank", "noopener,noreferrer");

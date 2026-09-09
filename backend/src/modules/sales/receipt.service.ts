@@ -1,10 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import PDFDocument from 'pdfkit';
 import { Sale } from './entities/sale.entity';
+import { AppSetting } from '../settings/entities/app-setting.entity';
 
 @Injectable()
 export class ReceiptService {
-  buildReceiptPayload(sale: Sale) {
+  constructor(
+    @InjectRepository(AppSetting)
+    private readonly settingsRepo: Repository<AppSetting>,
+  ) {}
+
+  async buildReceiptPayload(sale: Sale) {
+    const settings = await this.settingsRepo.find();
+    const settingsMap = Object.fromEntries(
+      settings.map((s) => [s.key, s.value]),
+    );
+
     return {
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
@@ -54,6 +67,12 @@ export class ReceiptService {
         amount: p.amount,
         referenceNumber: p.referenceNo ?? null,
       })),
+      store: {
+        name: settingsMap.STORE_NAME || 'SmartStore',
+        address: settingsMap.STORE_ADDRESS || 'Jl. Sudirman No. 45, Jakarta',
+        phone: settingsMap.STORE_PHONE || '+62 812-3456-7890',
+        ownerWhatsApp: settingsMap.STORE_OWNER_WHATSAPP || '',
+      },
       warrantyPolicy: {
         secondHandDays: 7,
         newWarranty: '1-Year Official Brand Warranty',
@@ -68,7 +87,16 @@ export class ReceiptService {
     };
   }
 
-  generatePdf(sale: Sale): Promise<Buffer> {
+  async generatePdf(sale: Sale): Promise<Buffer> {
+    const settings = await this.settingsRepo.find();
+    const settingsMap = Object.fromEntries(
+      settings.map((s) => [s.key, s.value]),
+    );
+    const storeName = settingsMap.STORE_NAME || 'SmartStore';
+    const storeAddress = settingsMap.STORE_ADDRESS || 'Smartphone & Gadget Store';
+    const storePhone = settingsMap.STORE_PHONE || '';
+    const footerMsg = settingsMap.RECEIPT_FOOTER || 'Terima Kasih Atas Kunjungan Anda!';
+
     return new Promise((resolve, reject) => {
       // Dynamic height estimation based on item count and warranty text
       const itemCount = sale.items?.length || 1;
@@ -104,11 +132,17 @@ export class ReceiptService {
       doc
         .fontSize(12)
         .font('Helvetica-Bold')
-        .text('SmartStore', { align: 'center' });
+        .text(storeName, { align: 'center' });
       doc
         .fontSize(7)
         .font('Helvetica')
-        .text('Smartphone & Gadget Store', { align: 'center' });
+        .text(storeAddress, { align: 'center' });
+      if (storePhone) {
+        doc
+          .fontSize(6.5)
+          .font('Helvetica')
+          .text(`Telp/WA: ${storePhone}`, { align: 'center' });
+      }
       doc.moveDown(0.4);
 
       // Invoice Details
@@ -208,7 +242,7 @@ export class ReceiptService {
       doc
         .fontSize(6.5)
         .font('Helvetica-Bold')
-        .text('Terima Kasih Atas Kunjungan Anda!', { align: 'center' });
+        .text(footerMsg, { align: 'center' });
 
       doc.end();
     });

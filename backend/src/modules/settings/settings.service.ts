@@ -57,6 +57,9 @@ const SETTING_VALIDATORS: Record<
   STORE_PHONE: (v) => {
     if (v.length > 40) return 'STORE_PHONE must be at most 40 characters';
   },
+  STORE_OWNER_WHATSAPP: (v) => {
+    if (v.length > 40) return 'STORE_OWNER_WHATSAPP must be at most 40 characters';
+  },
 };
 
 @Injectable()
@@ -99,12 +102,17 @@ export class SettingsService {
     }
 
     for (const item of dto.settings) {
-      const existing = await this.repo.findOneBy({ key: item.key });
+      let existing = await this.repo.findOneBy({ key: item.key });
       if (!existing) {
-        throw new NotFoundException(`Setting not found: ${item.key}`);
+        existing = this.repo.create({
+          key: item.key,
+          value: item.value,
+          updatedBy: userId,
+        });
+      } else {
+        existing.value = item.value;
+        existing.updatedBy = userId;
       }
-      existing.value = item.value;
-      existing.updatedBy = userId;
       await this.repo.save(existing);
     }
 

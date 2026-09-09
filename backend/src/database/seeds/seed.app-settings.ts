@@ -15,6 +15,7 @@ export async function seedAppSettings(dataSource: DataSource): Promise<void> {
     { key: 'STORE_NAME', value: 'SmartStore' },
     { key: 'STORE_ADDRESS', value: '' },
     { key: 'STORE_PHONE', value: '' },
+    { key: 'STORE_OWNER_WHATSAPP', value: '' },
   ];
 
   for (const row of rows) {

@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [storeName, setStoreName] = useState("");
   const [storeAddress, setStoreAddress] = useState("");
   const [storePhone, setStorePhone] = useState("");
+  const [storeOwnerWhatsApp, setStoreOwnerWhatsApp] = useState("");
   const [currencyCode, setCurrencyCode] = useState("IDR");
 
   // POS & Receipt Formatting
@@ -38,6 +39,7 @@ export default function SettingsPage() {
       setStoreName(s.STORE_NAME || "SmartStore Mobile & Retail");
       setStoreAddress(s.STORE_ADDRESS || "Jl. Sudirman No. 88, Jakarta Selatan");
       setStorePhone(s.STORE_PHONE || "+62 812-3456-7890");
+      setStoreOwnerWhatsApp(s.STORE_OWNER_WHATSAPP || "");
       setCurrencyCode(s.CURRENCY_CODE || "IDR");
 
       setReceiptPrefix(s.RECEIPT_PREFIX || "INV");
@@ -70,6 +72,7 @@ export default function SettingsPage() {
       { key: "STORE_NAME", value: storeName.trim() },
       { key: "STORE_ADDRESS", value: storeAddress.trim() },
       { key: "STORE_PHONE", value: storePhone.trim() },
+      { key: "STORE_OWNER_WHATSAPP", value: storeOwnerWhatsApp.trim() },
       { key: "CURRENCY_CODE", value: currencyCode.trim() },
       { key: "RECEIPT_PREFIX", value: receiptPrefix.trim() },
       { key: "RECEIPT_FOOTER", value: receiptFooter.trim() },
@@ -207,6 +210,22 @@ export default function SettingsPage() {
                 onChange={(e) => setStoreAddress(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                Owner WhatsApp Number (Salinan Nota POS)
+              </label>
+              <input
+                type="text"
+                value={storeOwnerWhatsApp}
+                onChange={(e) => setStoreOwnerWhatsApp(e.target.value)}
+                placeholder="contoh: 081234567890"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Nomor WhatsApp Owner untuk menerima salinan nota penjualan dari kasir POS.
+              </p>
             </div>
 
             <div>
