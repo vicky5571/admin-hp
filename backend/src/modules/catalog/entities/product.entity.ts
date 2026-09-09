@@ -47,6 +47,12 @@ export class Product {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  /**
+   * Optional warranty duration in days.
+   * Can be configured per-product or resolved dynamically via category/productType.
+   */
+  warrantyDays?: number | null;
+
   @ManyToOne(() => Category)
   @JoinColumn({ name: 'category_id' })
   category: Category | null;

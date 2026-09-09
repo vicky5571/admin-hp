@@ -464,6 +464,7 @@ export class SalesService {
             "items",
             "items.product",
             "items.product.brand",
+            "items.product.category",
             "items.imeis",
             "items.imeis.imeiUnit",
             "customer",
@@ -481,6 +482,7 @@ export class SalesService {
           "items",
           "items.product",
           "items.product.brand",
+          "items.product.category",
           "items.imeis",
           "items.imeis.imeiUnit",
           "customer",
@@ -522,15 +524,13 @@ export class SalesService {
       warrantyType: string;
     }> = [];
 
-    // Collect all serialized devices from sale items
+    // Collect all serialized devices and non-serialized items from sale items
     for (const it of foundSale.items || []) {
       if (it.imeis && it.imeis.length > 0) {
         for (const itImei of it.imeis) {
           const unit = itImei.imeiUnit;
-          const isSecondHandUnit = Boolean(
-            unit?.conditionGrade && unit.conditionGrade !== "NEW",
-          );
-          const unitWarrantyDays = isSecondHandUnit ? 30 : 365;
+          const policy = this.resolveItemWarranty(it.product, unit);
+          const unitWarrantyDays = policy.warrantyDays;
           const unitExpiryDate = new Date(
             purchaseDate.getTime() + unitWarrantyDays * 24 * 60 * 60 * 1000,
           );
@@ -549,9 +549,7 @@ export class SalesService {
           let unitStatus: "ACTIVE" | "EXPIRED" | "VOIDED" = isUnitExpired
             ? "EXPIRED"
             : "ACTIVE";
-          let unitWarrantyType = isSecondHandUnit
-            ? "30-Day Store Warranty (Second Hand)"
-            : "1-Year Official Brand Warranty (Brand New)";
+          let unitWarrantyType = policy.warrantyType;
 
           if (isUnitVoided) {
             unitStatus = "VOIDED";
@@ -569,9 +567,7 @@ export class SalesService {
             brand: it.product?.brand?.name || "SmartStore Authorized",
             sku: it.product?.sku || "N/A",
             imei: unit?.imei || null,
-            conditionGrade:
-              unit?.conditionGrade ||
-              (isSecondHandUnit ? "Second Hand" : "Brand New"),
+            conditionGrade: policy.conditionGrade,
             batteryHealth: unit?.batteryHealth || null,
             warrantyDays: isUnitVoided ? 0 : unitWarrantyDays,
             expiryDate: isUnitVoided
@@ -580,24 +576,23 @@ export class SalesService {
             remainingDays: isUnitVoided ? 0 : unitRemaining,
             coveragePercent: isUnitVoided
               ? 0
-              : Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    Math.round((elapsedDays / unitWarrantyDays) * 100),
-                  ),
-                ),
+              : unitWarrantyDays > 0
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Math.round((elapsedDays / unitWarrantyDays) * 100),
+                    ),
+                  )
+                : 0,
             status: unitStatus,
             warrantyType: unitWarrantyType,
           });
         }
-      }
-    }
-
-    // Fallback if transaction had only non-serialized items (e.g. retail accessories)
-    if (devices.length === 0 && foundSale.items?.length > 0) {
-      for (const it of foundSale.items) {
-        const itemWarrantyDays = 30;
+      } else {
+        // Non-serialized items (accessories, screen protectors, cables, cases, services)
+        const policy = this.resolveItemWarranty(it.product, null);
+        const itemWarrantyDays = policy.warrantyDays;
         const itemExpiryDate = new Date(
           purchaseDate.getTime() + itemWarrantyDays * 24 * 60 * 60 * 1000,
         );
@@ -610,12 +605,21 @@ export class SalesService {
             );
         const isItemVoided = isSaleVoided || isSaleRefunded;
 
+        let itemStatus: "ACTIVE" | "EXPIRED" | "VOIDED" = isItemVoided
+          ? "VOIDED"
+          : isItemExpired
+            ? "EXPIRED"
+            : "ACTIVE";
+        let itemWarrantyType = isItemVoided
+          ? "Transaksi Dibatalkan / Direfund"
+          : policy.warrantyType;
+
         devices.push({
           productName: it.product?.name || "Retail Item",
           brand: it.product?.brand?.name || "SmartStore Authorized",
           sku: it.product?.sku || "N/A",
           imei: null,
-          conditionGrade: "New Accessory",
+          conditionGrade: policy.conditionGrade,
           batteryHealth: null,
           warrantyDays: isItemVoided ? 0 : itemWarrantyDays,
           expiryDate: isItemVoided
@@ -624,21 +628,17 @@ export class SalesService {
           remainingDays: isItemVoided ? 0 : itemRemaining,
           coveragePercent: isItemVoided
             ? 0
-            : Math.min(
-                100,
-                Math.max(
-                  0,
-                  Math.round((elapsedDays / itemWarrantyDays) * 100),
-                ),
-              ),
-          status: isItemVoided
-            ? "VOIDED"
-            : isItemExpired
-              ? "EXPIRED"
-              : "ACTIVE",
-          warrantyType: isItemVoided
-            ? "Transaksi Dibatalkan / Direfund"
-            : "30-Day Store Warranty (Accessory)",
+            : itemWarrantyDays > 0
+              ? Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round((elapsedDays / itemWarrantyDays) * 100),
+                  ),
+                )
+              : 0,
+          status: itemStatus,
+          warrantyType: itemWarrantyType,
         });
       }
     }
@@ -751,6 +751,131 @@ export class SalesService {
       return "****";
     }
     return `${trimmed.slice(0, 4)}****${trimmed.slice(-3)}`;
+  }
+
+  /**
+   * Determine warranty duration and policy description based on product category,
+   * product type, and unit condition.
+   *
+   * Rules:
+   * - Explicit product.warrantyDays takes precedence if defined.
+   * - Services (e.g. screen protector application, battery replacement): 7 days service guarantee.
+   * - Consumables & Protective Accessories (screen protectors, tempered glass, cases, skins): 7 days store warranty.
+   * - General Retail Accessories (cables, chargers, adapters, powerbanks, audio): 30 days store warranty.
+   * - Smartphones & Serialized Devices:
+   *   - Second Hand: 30 days store warranty.
+   *   - Brand New: 365 days official brand warranty.
+   * - Fallback: 30 days standard store warranty.
+   */
+  private resolveItemWarranty(
+    product?: Product | null,
+    unit?: ImeiUnit | null,
+  ): {
+    warrantyDays: number;
+    warrantyType: string;
+    conditionGrade: string;
+  } {
+    // 1. Explicit warrantyDays defined on product
+    if (
+      product &&
+      (product as any).warrantyDays != null &&
+      !isNaN(Number((product as any).warrantyDays)) &&
+      Number((product as any).warrantyDays) >= 0
+    ) {
+      const days = Number((product as any).warrantyDays);
+      return {
+        warrantyDays: days,
+        warrantyType: `${days}-Day Product Warranty`,
+        conditionGrade:
+          unit?.conditionGrade ||
+          (product.productType === ProductType.SERVICE
+            ? "Service / Repair"
+            : "Brand New"),
+      };
+    }
+
+    const categoryName = (product?.category?.name || "").trim().toLowerCase();
+    const productName = (product?.name || "").trim().toLowerCase();
+    const productType = product?.productType;
+    const isSecondHandUnit = Boolean(
+      unit?.conditionGrade && unit.conditionGrade !== "NEW",
+    );
+
+    // 2. Services (Repair, installation, screen replacement, testing)
+    if (
+      categoryName === "services" ||
+      categoryName === "jasa" ||
+      categoryName === "servis" ||
+      productType === ProductType.SERVICE ||
+      productName.includes("service") ||
+      productName.includes("jasa") ||
+      productName.includes("repair")
+    ) {
+      return {
+        warrantyDays: 7,
+        warrantyType: "7-Day Service Guarantee (Jasa Servis)",
+        conditionGrade: "Service / Repair",
+      };
+    }
+
+    // 3. Consumable Accessories & Cases (Tempered glass, screen protector, hydrogel, cases, skins)
+    const isConsumableOrCover =
+      /tempered|hydrogel|screen protector|pelindung|casing|case|skin|pouch/i.test(
+        productName,
+      );
+    if (isConsumableOrCover) {
+      return {
+        warrantyDays: 7,
+        warrantyType: "7-Day Store Warranty (Accessory / Protection)",
+        conditionGrade: "New Accessory",
+      };
+    }
+
+    // 4. Electronic & General Accessories (Chargers, cables, powerbanks, audio, adapters)
+    const isAccessory =
+      categoryName === "accessories" ||
+      categoryName === "aksesoris" ||
+      productType === ProductType.NON_SERIALIZED ||
+      /cable|kabel|charger|adaptor|adapter|powerbank|power bank|earphone|headphone|headset|tws|speaker/i.test(
+        productName,
+      );
+    if (isAccessory) {
+      return {
+        warrantyDays: 30,
+        warrantyType: "30-Day Store Warranty (Accessory)",
+        conditionGrade: "New Accessory",
+      };
+    }
+
+    // 5. Smartphones & Serialized Devices (Smartphones, Tablets, Smartwatches)
+    if (
+      categoryName === "smartphones" ||
+      categoryName === "handphone" ||
+      categoryName === "hp" ||
+      categoryName === "phones" ||
+      productType === ProductType.SERIALIZED ||
+      unit
+    ) {
+      if (isSecondHandUnit) {
+        return {
+          warrantyDays: 30,
+          warrantyType: "30-Day Store Warranty (Second Hand)",
+          conditionGrade: unit?.conditionGrade || "Second Hand",
+        };
+      }
+      return {
+        warrantyDays: 365,
+        warrantyType: "1-Year Official Brand Warranty (Brand New)",
+        conditionGrade: unit?.conditionGrade || "Brand New",
+      };
+    }
+
+    // 6. Default Fallback
+    return {
+      warrantyDays: 30,
+      warrantyType: "30-Day Standard Store Warranty",
+      conditionGrade: "Standard",
+    };
   }
 
   private async generateInvoiceNumber(

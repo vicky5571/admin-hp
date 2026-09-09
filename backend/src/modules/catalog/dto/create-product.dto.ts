@@ -43,4 +43,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  warrantyDays?: number;
 }
