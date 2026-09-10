@@ -30,7 +30,21 @@ export class UsersService {
   }
 
   findOne(id: number) {
-    return this.usersRepo.findOne({ where: { id }, relations: ['role'] });
+    return this.usersRepo.findOne({
+      select: [
+        'id',
+        'fullName',
+        'username',
+        'email',
+        'isActive',
+        'roleId',
+        'lastLoginAt',
+        'createdAt',
+        'updatedAt',
+      ],
+      where: { id },
+      relations: ['role'],
+    });
   }
 
   async create(
