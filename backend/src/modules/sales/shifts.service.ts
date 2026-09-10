@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { RoleName } from '../../common/enums/role.enum';
 import { AuthUser } from '../../common/types/auth-user.type';
 import { paginateMeta } from '../../common/utils/pagination.util';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -247,13 +249,23 @@ export class ShiftsService {
     });
   }
 
-  async generateShiftReport(shiftId: number) {
+  async generateShiftReport(shiftId: number, user?: AuthUser) {
     const shift = await this.shiftRepo.findOne({
       where: { id: shiftId },
       relations: ['user', 'movements', 'sales', 'sales.payments'],
     });
     if (!shift) {
       throw new NotFoundException('Shift not found');
+    }
+
+    if (
+      user &&
+      user.role === RoleName.CASHIER &&
+      Number(shift.userId) !== Number(user.id)
+    ) {
+      throw new ForbiddenException(
+        'Cashiers can only access their own shift reports',
+      );
     }
 
     const calculated = await this.calculateShiftTotals(shiftId);

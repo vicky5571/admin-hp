@@ -56,8 +56,11 @@ export class ShiftsController {
 
   @Get(':id/report')
   @Roles(RoleName.OWNER, RoleName.ADMIN, RoleName.CASHIER)
-  getShiftReport(@Param('id', ParseIntPipe) id: number) {
-    return this.shiftsService.generateShiftReport(id);
+  getShiftReport(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.shiftsService.generateShiftReport(id, user);
   }
 
   @Get()
