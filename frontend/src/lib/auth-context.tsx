@@ -33,13 +33,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    // Purge any legacy token from localStorage
+    localStorage.removeItem("token");
+
+    const checkSession = async () => {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {
+          localStorage.removeItem("user");
+        }
+      }
+
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"}/api/v1/me`,
+          {
+            credentials: "include",
+          },
+        );
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          const me = json?.data ?? json;
+          if (me && me.id) {
+            setUser(me);
+            setToken("cookie-session");
+            localStorage.setItem("user", JSON.stringify(me));
+          }
+        } else if (res.status === 401) {
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem("user");
+        }
+      } catch {
+        // Network offline or server unreachable - keep optimistic user from localStorage
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
   }, []);
 
   const handleLogin = async (username: string, password: string) => {
@@ -47,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"}/api/v1/auth/login`,
       {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       },
@@ -58,20 +93,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(json?.error?.message ?? "Login failed");
     }
 
-    const { token, user } = json.data;
-    localStorage.setItem("token", token);
+    const { user } = json.data;
+    localStorage.removeItem("token");
     localStorage.setItem("user", JSON.stringify(user));
-    setToken(token);
+    setToken("cookie-session");
     setUser(user);
     router.push("/");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken(null);
-    setUser(null);
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"}/api/v1/auth/logout`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+    } catch {
+      // ignore network errors
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setToken(null);
+      setUser(null);
+      router.push("/login");
+    }
   };
 
   return (

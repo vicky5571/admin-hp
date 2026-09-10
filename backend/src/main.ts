@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
@@ -7,6 +8,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(helmet());
+  app.use(cookieParser());
 
   const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)

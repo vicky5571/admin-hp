@@ -18,24 +18,17 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
-
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<ApiEnvelope<T>> {
-  const token = getToken();
-
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
     });
@@ -952,15 +945,10 @@ export function resetUserPassword(id: number, newPassword: string) {
 }
 
 // ── File downloads (PDF / CSV) ─────────────────────────────────────
-function authHeaders(): Record<string, string> {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export async function downloadReceiptPdf(saleId: number) {
   const res = await fetch(
     `${API_BASE_URL}${API_PREFIX}/sales/${saleId}/receipt/pdf`,
-    { headers: { ...authHeaders() } },
+    { credentials: "include" },
   );
   if (!res.ok) throw new ApiError(res.status, "Failed to download PDF");
   const blob = await res.blob();
@@ -976,7 +964,7 @@ export async function downloadReceiptPdf(saleId: number) {
 
 export async function downloadReportCsv(path: string, filename: string) {
   const res = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
-    headers: { ...authHeaders() },
+    credentials: "include",
   });
   if (!res.ok) throw new ApiError(res.status, "Failed to download CSV");
   const blob = await res.blob();
