@@ -154,7 +154,11 @@ export class UsersService {
     currentPassword: string,
     newPassword: string,
   ) {
-    const user = await this.usersRepo.findOne({ where: { id } });
+    const user = await this.usersRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.id = :id', { id })
+      .getOne();
     if (!user) {
       throw new NotFoundException('User not found');
     }

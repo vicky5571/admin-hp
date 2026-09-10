@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -68,7 +69,7 @@ export class UsersController {
     @CurrentUser() user: AuthUser,
   ) {
     if (user.id !== id && user.role !== RoleName.OWNER && user.role !== RoleName.ADMIN) {
-      throw new Error('You can only change your own password');
+      throw new ForbiddenException('You can only change your own password');
     }
     return this.usersService.changePassword(id, dto.currentPassword, dto.newPassword);
   }

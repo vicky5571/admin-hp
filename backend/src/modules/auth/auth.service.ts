@@ -19,9 +19,15 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto, ipAddress?: string) {
-    const user = await this.usersRepo.findOne({
-      where: { username: dto.username, isActive: true },
-    });
+    const user = await this.usersRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .leftJoinAndSelect('user.role', 'role')
+      .where('user.username = :username AND user.isActive = :isActive', {
+        username: dto.username,
+        isActive: true,
+      })
+      .getOne();
     if (!user) {
       await this.auditLogsService.log({
         action: 'LOGIN_FAILED',
