@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -9,6 +10,7 @@ import { DataSource, Repository } from "typeorm";
 import { ImeiStatus } from "../../common/enums/imei-status.enum";
 import { MovementType } from "../../common/enums/movement-type.enum";
 import { ProductType } from "../../common/enums/product-type.enum";
+import { RoleName } from "../../common/enums/role.enum";
 import { SaleStatus } from "../../common/enums/sale-status.enum";
 import { sumAmounts } from "../../common/utils/money.util";
 import { paginateMeta } from "../../common/utils/pagination.util";
@@ -135,9 +137,36 @@ export class SalesService {
           throw new NotFoundException("Product not found");
         }
 
+        const officialPrice = parseFloat(product.srp || "0");
+
         if (product.productType === ProductType.SERIALIZED) {
           if (!line.imeis || line.imeis.length !== line.qty) {
             throw new BadRequestException("SERIALIZED_IMEI_COUNT_MISMATCH");
+          }
+        } else {
+          // Validate non-serialized item unit price & discount against catalog SRP
+          if (officialPrice > 0) {
+            if (line.unitPrice <= 0) {
+              throw new BadRequestException(
+                `Invalid unit price for product "${product.name}"`,
+              );
+            }
+            const expectedBase = officialPrice * line.qty;
+            const actualBilledBase = line.lineTotal - line.taxAmount;
+            if (actualBilledBase <= 0) {
+              throw new BadRequestException(
+                `Billed amount cannot be zero or negative for product "${product.name}"`,
+              );
+            }
+            if (actualBilledBase < expectedBase) {
+              const discountRatio =
+                (expectedBase - actualBilledBase) / expectedBase;
+              if (discountRatio > 0.15 && user.role === RoleName.CASHIER) {
+                throw new ForbiddenException(
+                  `Price reduction or discount on "${product.name}" exceeds cashier authorization limit (15%) and requires supervisor approval`,
+                );
+              }
+            }
           }
         }
 
@@ -198,6 +227,34 @@ export class SalesService {
               throw new ConflictException(
                 `IMEI "${imeiValue}" is not available (status: ${imei.status})`,
               );
+            }
+
+            // Validate serialized IMEI selling price
+            const unitTargetPrice = imei.sellingPrice
+              ? parseFloat(imei.sellingPrice)
+              : officialPrice;
+            if (unitTargetPrice > 0) {
+              if (line.unitPrice <= 0) {
+                throw new BadRequestException(
+                  `Invalid unit price for IMEI "${imeiValue}"`,
+                );
+              }
+              const actualUnitBase =
+                (line.lineTotal - line.taxAmount) / line.qty;
+              if (actualUnitBase <= 0) {
+                throw new BadRequestException(
+                  `Billed amount cannot be zero or negative for IMEI "${imeiValue}"`,
+                );
+              }
+              if (actualUnitBase < unitTargetPrice) {
+                const discountRatio =
+                  (unitTargetPrice - actualUnitBase) / unitTargetPrice;
+                if (discountRatio > 0.15 && user.role === RoleName.CASHIER) {
+                  throw new ForbiddenException(
+                    `Price reduction or discount on IMEI "${imeiValue}" exceeds cashier authorization limit (15%) and requires supervisor approval`,
+                  );
+                }
+              }
             }
 
             imei.status = ImeiStatus.SOLD;
