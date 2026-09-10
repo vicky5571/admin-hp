@@ -56,7 +56,10 @@ export class ReturnsService {
     if (!sale) {
       throw new NotFoundException('Sale not found');
     }
-    if (sale.status !== SaleStatus.COMPLETED) {
+    if (
+      sale.status !== SaleStatus.COMPLETED &&
+      sale.status !== SaleStatus.PARTIALLY_REFUNDED
+    ) {
       throw new BadRequestException(
         `Sale status ${sale.status} is not eligible for returns`,
       );
@@ -81,13 +84,29 @@ export class ReturnsService {
         continue;
       }
 
-      // Check qty doesn't exceed purchased
-      if (dtoItem.qty > saleItem.qty) {
+      // Check cumulative returned quantity for this sale item
+      const previousReturns = await this.returnsRepo
+        .createQueryBuilder('r')
+        .innerJoin('r.items', 'ri')
+        .where('ri.saleItemId = :saleItemId AND r.status != :voidStatus', {
+          saleItemId: dtoItem.saleItemId,
+          voidStatus: ReturnStatus.VOIDED,
+        })
+        .select('COALESCE(SUM(ri.qty), 0)', 'totalReturned')
+        .getRawOne();
+
+      const alreadyReturnedQty = parseInt(previousReturns?.totalReturned || '0', 10);
+      const remainingQty = saleItem.qty - alreadyReturnedQty;
+
+      if (dtoItem.qty > remainingQty) {
         results.push({
           saleItemId: dtoItem.saleItemId,
           eligible: false,
           maxRefundable: 0,
-          reason: `Return qty ${dtoItem.qty} exceeds purchased qty ${saleItem.qty}`,
+          reason:
+            remainingQty <= 0
+              ? 'Sale item has already been fully returned'
+              : `Return qty ${dtoItem.qty} exceeds remaining eligible qty ${remainingQty}`,
         });
         continue;
       }
@@ -145,14 +164,18 @@ export class ReturnsService {
         }
       }
 
-      const maxRefundable =
-        parseFloat(saleItem.unitPrice) * dtoItem.qty -
-        parseFloat(saleItem.discountAmount);
+      const unitPrice = parseFloat(saleItem.unitPrice || '0');
+      const unitDiscount =
+        parseFloat(saleItem.discountAmount || '0') / (saleItem.qty || 1);
+      const maxRefundable = Math.max(
+        0,
+        Math.round((unitPrice - unitDiscount) * dtoItem.qty * 100) / 100,
+      );
 
       results.push({
         saleItemId: dtoItem.saleItemId,
         eligible: true,
-        maxRefundable: Math.max(maxRefundable, 0),
+        maxRefundable,
       });
     }
 
@@ -172,7 +195,10 @@ export class ReturnsService {
     if (!sale) {
       throw new NotFoundException('Sale not found');
     }
-    if (sale.status !== SaleStatus.COMPLETED) {
+    if (
+      sale.status !== SaleStatus.COMPLETED &&
+      sale.status !== SaleStatus.PARTIALLY_REFUNDED
+    ) {
       throw new BadRequestException(
         `Sale status ${sale.status} is not eligible for returns`,
       );
@@ -182,16 +208,56 @@ export class ReturnsService {
     }
 
     // Pre-validate all items
+    const seenSaleItemIds = new Set<number>();
     for (const dtoItem of dto.items) {
+      if (seenSaleItemIds.has(dtoItem.saleItemId)) {
+        throw new BadRequestException(
+          `Duplicate sale item ${dtoItem.saleItemId} in return request`,
+        );
+      }
+      seenSaleItemIds.add(dtoItem.saleItemId);
+
       const saleItem = sale.items.find((i) => i.id === dtoItem.saleItemId);
       if (!saleItem) {
         throw new BadRequestException(
           `Sale item ${dtoItem.saleItemId} does not belong to sale ${sale.invoiceNumber}`,
         );
       }
-      if (dtoItem.qty > saleItem.qty) {
+
+      // 1. Calculate cumulative returned quantity for this sale item
+      const previousReturns = await this.returnsRepo
+        .createQueryBuilder('r')
+        .innerJoin('r.items', 'ri')
+        .where('ri.saleItemId = :saleItemId AND r.status != :voidStatus', {
+          saleItemId: dtoItem.saleItemId,
+          voidStatus: ReturnStatus.VOIDED,
+        })
+        .select('COALESCE(SUM(ri.qty), 0)', 'totalReturned')
+        .getRawOne();
+
+      const alreadyReturnedQty = parseInt(
+        previousReturns?.totalReturned || '0',
+        10,
+      );
+      const remainingQty = saleItem.qty - alreadyReturnedQty;
+
+      if (dtoItem.qty + alreadyReturnedQty > saleItem.qty) {
         throw new BadRequestException(
-          `Return qty ${dtoItem.qty} exceeds purchased qty ${saleItem.qty} for sale item ${dtoItem.saleItemId}`,
+          `Return quantity ${dtoItem.qty} exceeds remaining eligible quantity (${remainingQty}) for sale item ${dtoItem.saleItemId}`,
+        );
+      }
+
+      // 2. Cap line refund total against actual paid line total
+      const unitPrice = parseFloat(saleItem.unitPrice || '0');
+      const unitDiscount =
+        parseFloat(saleItem.discountAmount || '0') / (saleItem.qty || 1);
+      const maxLineRefund =
+        Math.round(
+          Math.max(0, (unitPrice - unitDiscount) * dtoItem.qty) * 100,
+        ) / 100;
+      if (dtoItem.lineRefundTotal > maxLineRefund + 0.01) {
+        throw new BadRequestException(
+          `Refund amount exceeds maximum allowable (${maxLineRefund}) for sale item ${dtoItem.saleItemId}`,
         );
       }
 
@@ -233,6 +299,49 @@ export class ReturnsService {
     );
 
     return this.dataSource.transaction(async (manager) => {
+      // Re-verify sale inside transaction with pessimistic lock to prevent race condition
+      const lockedSale = await manager.findOne(Sale, {
+        where: { id: dto.saleId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedSale) {
+        throw new NotFoundException('Sale not found');
+      }
+      if (
+        lockedSale.status !== SaleStatus.COMPLETED &&
+        lockedSale.status !== SaleStatus.PARTIALLY_REFUNDED
+      ) {
+        throw new BadRequestException(
+          `Sale status ${lockedSale.status} is not eligible for returns`,
+        );
+      }
+
+      // Re-verify remaining eligible quantity for each item inside transaction
+      for (const dtoItem of dto.items) {
+        const saleItem = sale.items.find((i) => i.id === dtoItem.saleItemId)!;
+        const previousReturns = await manager
+          .createQueryBuilder(ReturnItem, 'ri')
+          .innerJoin('ri.ret', 'r')
+          .where('ri.saleItemId = :saleItemId AND r.status != :voidStatus', {
+            saleItemId: dtoItem.saleItemId,
+            voidStatus: ReturnStatus.VOIDED,
+          })
+          .select('COALESCE(SUM(ri.qty), 0)', 'totalReturned')
+          .getRawOne();
+
+        const alreadyReturnedQty = parseInt(
+          previousReturns?.totalReturned || '0',
+          10,
+        );
+        const remainingQty = saleItem.qty - alreadyReturnedQty;
+
+        if (dtoItem.qty + alreadyReturnedQty > saleItem.qty) {
+          throw new BadRequestException(
+            `Return quantity ${dtoItem.qty} exceeds remaining eligible quantity (${remainingQty}) for sale item ${dtoItem.saleItemId}`,
+          );
+        }
+      }
+
       const returnNumber = await this.generateReturnNumber(manager);
 
       // Create return header
@@ -352,16 +461,29 @@ export class ReturnsService {
         // If DEFECTIVE: stock not added back to sellable on_hand, just tracked via movement
       }
 
-      // Update sale status to PARTIALLY_REFUNDED or REFUNDED
-      const totalReturnedQty = dto.items.reduce((acc, i) => acc + i.qty, 0);
+      // Update sale status to PARTIALLY_REFUNDED or REFUNDED based on cumulative all-time returned quantity
+      const allReturns = await manager
+        .createQueryBuilder(ReturnItem, 'ri')
+        .innerJoin('ri.ret', 'r')
+        .where('r.saleId = :saleId AND r.status != :voidStatus', {
+          saleId: lockedSale.id,
+          voidStatus: ReturnStatus.VOIDED,
+        })
+        .select('COALESCE(SUM(ri.qty), 0)', 'totalReturned')
+        .getRawOne();
+
+      const cumulativeReturnedQty = parseInt(
+        allReturns?.totalReturned || '0',
+        10,
+      );
       const totalPurchasedQty = sale.items.reduce((acc, i) => acc + i.qty, 0);
 
-      if (totalReturnedQty >= totalPurchasedQty) {
-        sale.status = SaleStatus.REFUNDED;
+      if (cumulativeReturnedQty >= totalPurchasedQty) {
+        lockedSale.status = SaleStatus.REFUNDED;
       } else {
-        sale.status = SaleStatus.PARTIALLY_REFUNDED;
+        lockedSale.status = SaleStatus.PARTIALLY_REFUNDED;
       }
-      await manager.save(Sale, sale);
+      await manager.save(Sale, lockedSale);
 
       const savedReturnResult = await this.findOne(savedReturn.id);
 
